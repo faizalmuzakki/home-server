@@ -1,0 +1,63 @@
+version: "3.8"
+
+services:
+  api:
+    build: ./api
+    container_name: expense-tracker-api
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - DB_PATH=/app/data/expenses.db
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - api_data:/app/data
+    ports:
+      - "3000:3000"
+    networks:
+      - expense-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  whatsapp-bot:
+    build: ./whatsapp-bot
+    container_name: expense-tracker-whatsapp
+    restart: unless-stopped
+    environment:
+      - API_URL=http://api:3000
+      - ALLOWED_NUMBERS=${ALLOWED_NUMBERS:-}
+    volumes:
+      - whatsapp_auth:/app/auth_info
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - expense-network
+    # For first-time QR code scanning, run with:
+    # docker compose up whatsapp-bot (without -d)
+    stdin_open: true
+    tty: true
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: expense-tracker-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - api
+    networks:
+      - expense-network
+
+volumes:
+  api_data:
+    driver: local
+  whatsapp_auth:
+    driver: local
+
+networks:
+  expense-network:
+    driver: bridge

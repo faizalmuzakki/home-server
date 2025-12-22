@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  syncthing:
+    image: syncthing/syncthing:latest
+    container_name: syncthing
+    restart: unless-stopped
+    hostname: home-server
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      - syncthing_config:/var/syncthing/config
+      - ${SYNC_PATH:-/data/sync}:/var/syncthing/data
+    ports:
+      - "8384:8384"   # Web UI
+      - "22000:22000/tcp" # Sync protocol
+      - "22000:22000/udp" # Sync protocol
+      - "21027:21027/udp" # Discovery
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.syncthing.rule=Host(`sync.${DOMAIN}`)"
+      - "traefik.http.routers.syncthing.entrypoints=websecure"
+      - "traefik.http.routers.syncthing.tls.certresolver=cloudflare"
+      - "traefik.http.services.syncthing.loadbalancer.server.port=8384"
+
+volumes:
+  syncthing_config:
+    driver: local
+
+networks:
+  traefik-public:
+    external: true

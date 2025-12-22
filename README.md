@@ -1,0 +1,214 @@
+# Home Server
+
+Personal home server running on Docker.
+
+## Hardware
+
+| Component | Spec |
+|-----------|------|
+| **CPU** | Intel Core i5 Gen 7 |
+| **RAM** | 16GB |
+| **Storage (OS)** | 128GB NVMe SSD |
+| **Storage (Data)** | 240GB SATA SSD |
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          Mini PC (Bare Metal Linux)                          │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                   Docker                                      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │                         Traefik (Reverse Proxy)                         │ │
+│  │                    SSL termination, routing, load balancing             │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                      │                                       │
+│    ┌─────────────┬─────────────┬─────┴─────┬─────────────┬─────────────┐    │
+│    ▼             ▼             ▼           ▼             ▼             ▼    │
+│ ┌───────┐  ┌──────────┐  ┌─────────┐  ┌────────┐  ┌──────────┐  ┌────────┐ │
+│ │MongoDB│  │ Expense  │  │ Media   │  │  Home  │  │Vaultwarden│  │Syncthing│ │
+│ │       │  │ Tracker  │  │ Stack   │  │Assistant│  │          │  │        │ │
+│ └───────┘  └──────────┘  └─────────┘  └────────┘  └──────────┘  └────────┘ │
+│                                                                              │
+│ ┌───────────────┐  ┌───────────────┐                                        │
+│ │  AdGuard Home │  │  Uptime Kuma  │                                        │
+│ │  (DNS + Ads)  │  │  (Monitoring) │                                        │
+│ └───────────────┘  └───────────────┘                                        │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Services
+
+### Infrastructure
+
+| Service | Port | Description | Directory |
+|---------|------|-------------|-----------|
+| [Traefik](./traefik/) | 80, 443 | Reverse proxy with auto SSL | `traefik/` |
+| [AdGuard Home](./adguard/) | 53, 3001 | Network-wide ad blocking & DNS | `adguard/` |
+| [Uptime Kuma](./uptime-kuma/) | 3002 | Service monitoring & status page | `uptime-kuma/` |
+
+### Applications
+
+| Service | Port | Description | Directory |
+|---------|------|-------------|-----------|
+| [MongoDB](./mongodb/) | 27017 | Database server | `mongodb/` |
+| [Expense Tracker](./expense-tracker/) | 3000 | WhatsApp expense bot + API | `expense-tracker/` |
+| [Vaultwarden](./vaultwarden/) | - | Bitwarden password manager | `vaultwarden/` |
+| [Syncthing](./syncthing/) | 8384 | File synchronization | `syncthing/` |
+| [Home Assistant](./homeassistant/) | 8123 | Home automation | `homeassistant/` |
+
+### Media Stack
+
+| Service | Port | Description | Directory |
+|---------|------|-------------|-----------|
+| [Jellyfin](./media/) | 8096 | Media streaming server | `media/` |
+| [Sonarr](./media/) | 8989 | TV show management | `media/` |
+| [Radarr](./media/) | 7878 | Movie management | `media/` |
+| [Prowlarr](./media/) | 9696 | Indexer manager | `media/` |
+| [qBittorrent](./media/) | 8081 | Torrent client | `media/` |
+| [Bazarr](./media/) | 6767 | Subtitle management | `media/` |
+
+## Storage Layout
+
+```
+128GB NVMe (OS Drive)
+├── /                    # OS + Docker
+└── /var/lib/docker      # Docker volumes
+
+240GB SATA SSD (Data Drive) - Mount to /data
+├── /data/media/
+│   ├── movies/
+│   ├── tv/
+│   └── music/
+├── /data/downloads/
+│   ├── complete/
+│   └── incomplete/
+├── /data/sync/          # Syncthing
+└── /data/backups/
+```
+
+## Quick Start
+
+### 1. Initial Setup
+
+```bash
+# Create data directories
+sudo mkdir -p /data/{media/{movies,tv,music},downloads/{complete,incomplete},sync,backups}
+sudo chown -R 1000:1000 /data
+
+# Create Traefik network (required by all services)
+docker network create traefik-public
+```
+
+### 2. Start Services (Recommended Order)
+
+```bash
+# 1. Traefik (reverse proxy) - FIRST
+cd traefik && cp .env.example .env && nano .env
+docker compose up -d
+
+# 2. Core services
+cd ../mongodb && cp .env.example .env && docker compose up -d
+cd ../adguard && cp .env.example .env && docker compose up -d
+cd ../uptime-kuma && cp .env.example .env && docker compose up -d
+
+# 3. Applications
+cd ../vaultwarden && cp .env.example .env && nano .env && docker compose up -d
+cd ../syncthing && cp .env.example .env && docker compose up -d
+cd ../homeassistant && cp .env.example .env && docker compose up -d
+
+# 4. Expense Tracker (needs WhatsApp QR scan)
+cd ../expense-tracker && cp .env.example .env && nano .env
+docker compose up whatsapp-bot  # Scan QR, then Ctrl+C
+docker compose up -d
+
+# 5. Media stack
+cd ../media && cp .env.example .env && nano .env && docker compose up -d
+```
+
+## Domain Setup (with Traefik)
+
+If using a domain with Cloudflare:
+
+| Subdomain | Service |
+|-----------|---------|
+| `traefik.domain.com` | Traefik Dashboard |
+| `vault.domain.com` | Vaultwarden |
+| `status.domain.com` | Uptime Kuma |
+| `home.domain.com` | Home Assistant |
+| `sync.domain.com` | Syncthing |
+| `jellyfin.domain.com` | Jellyfin |
+| `adguard.domain.com` | AdGuard Home |
+| `sonarr.domain.com` | Sonarr |
+| `radarr.domain.com` | Radarr |
+
+## Maintenance
+
+### View all containers
+```bash
+docker ps -a
+```
+
+### Check resource usage
+```bash
+docker stats
+```
+
+### Update all services
+```bash
+# In each service directory:
+docker compose pull
+docker compose up -d
+```
+
+### Backup script
+```bash
+#!/bin/bash
+BACKUP_DIR="/data/backups/$(date +%Y%m%d)"
+mkdir -p $BACKUP_DIR
+
+# Backup Docker volumes
+for vol in $(docker volume ls -q); do
+  docker run --rm -v $vol:/data -v $BACKUP_DIR:/backup alpine \
+    tar czf /backup/$vol.tar.gz /data
+done
+```
+
+## Network Diagram
+
+```
+Internet
+    │
+    ▼
+┌─────────────┐
+│  Router     │ ◄── Set DNS to server IP for AdGuard
+│ 192.168.x.1 │
+└─────┬───────┘
+      │
+      ▼
+┌─────────────────┐
+│  Home Server    │
+│  192.168.x.100  │
+├─────────────────┤
+│ :80/:443 Traefik│
+│ :53     AdGuard │
+│ :27017  MongoDB │
+│ :3000   API     │
+│ :8096   Jellyfin│
+│ :8123   HA      │
+│ :3002   Uptime  │
+└─────────────────┘
+```
+
+## Security Checklist
+
+- [ ] Change all default passwords
+- [ ] Set up Vaultwarden admin token
+- [ ] Disable signups after creating accounts
+- [ ] Configure firewall (UFW)
+- [ ] Set up regular backups
+- [ ] Configure AdGuard as network DNS
+- [ ] Enable 2FA where available

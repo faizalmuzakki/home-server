@@ -1,0 +1,25 @@
+# Environment files
+.env
+*.env.local
+
+# Node
+node_modules/
+dist/
+
+# Data directories
+**/data/
+**/auth_info/
+**/certs/
+**/backup/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
