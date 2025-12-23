@@ -2,6 +2,40 @@
 
 Personal home server running on Docker.
 
+## Prerequisites
+
+### Recommended OS
+
+**Ubuntu Server 24.04 LTS** (recommended) or Debian 12
+
+### Server Setup
+
+Run the setup script on a fresh server installation:
+
+```bash
+git clone git@github.com:faizalmuzakki/home-server.git
+cd home-server
+sudo ./scripts/setup-server.sh
+```
+
+This installs:
+- Docker & Docker Compose
+- Git, curl, wget, htop, vim, jq, tmux
+- UFW firewall (configured)
+- fail2ban (SSH protection)
+- Automatic security updates
+
+### Manual Prerequisites (if not using setup script)
+
+```bash
+# Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+
+# Essential tools
+sudo apt install -y git curl wget htop vim jq tmux
+```
+
 ## Hardware
 
 | Component | Spec |
@@ -96,11 +130,22 @@ Personal home server running on Docker.
 
 ```bash
 # Create data directories
-sudo mkdir -p /data/{media/{movies,tv,music},downloads/{complete,incomplete},sync,backups}
+sudo mkdir -p /data/{media/{movies,tv,music},downloads/{complete,incomplete},sync,backups,shared/{imports,exports}}
 sudo chown -R 1000:1000 /data
 
 # Create Traefik network (required by all services)
 docker network create traefik-public
+```
+
+### Optional: Install Teleport Client
+
+If you need to sync databases from work servers via Teleport:
+
+```bash
+sudo ./scripts/install-teleport.sh
+
+# Login to your Teleport cluster
+tsh login --proxy=teleport.yourcompany.com
 ```
 
 ### 2. Start Services (Recommended Order)
