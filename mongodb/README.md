@@ -87,6 +87,65 @@ sudo firewall-cmd --permanent --add-port=27017/tcp
 sudo firewall-cmd --reload
 ```
 
+## Shared Directory & Database Sync
+
+The MongoDB container mounts `/data/shared` to `/shared` inside the container for database imports/exports.
+
+### Directory Structure
+```
+/data/shared/
+├── imports/     # Database dumps to import
+└── exports/     # Database exports from MongoDB
+```
+
+### Sync from Work Server
+
+1. **Configure work server connection:**
+   ```bash
+   cp scripts/.env.example scripts/.env
+   nano scripts/.env
+   ```
+
+2. **Sync database dumps:**
+   ```bash
+   # Sync all dumps
+   ./scripts/sync-from-work.sh
+
+   # Sync specific database
+   ./scripts/sync-from-work.sh mydb
+   ```
+
+3. **Import into MongoDB:**
+   ```bash
+   # Import database
+   ./scripts/import-to-mongodb.sh mydb
+
+   # Import and drop existing collections
+   ./scripts/import-to-mongodb.sh mydb --drop
+   ```
+
+### Export from MongoDB
+
+```bash
+./scripts/export-from-mongodb.sh mydb
+```
+
+Exports to `/data/shared/exports/mydb_YYYYMMDD_HHMMSS/`
+
+### Manual SCP + Import
+
+```bash
+# 1. SCP dump from work server
+scp -r user@work-server:/path/to/dump/mydb /data/shared/imports/
+
+# 2. Import into MongoDB
+docker exec mongodb mongorestore \
+  --uri="mongodb://admin:password@localhost:27017" \
+  --authenticationDatabase=admin \
+  --nsInclude="mydb.*" \
+  /shared/imports/mydb
+```
+
 ## Security Notes
 
 - Change default credentials immediately

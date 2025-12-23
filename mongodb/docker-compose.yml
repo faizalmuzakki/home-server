@@ -13,6 +13,7 @@ services:
     volumes:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
+      - ${SHARED_DATA_PATH:-/data/shared}:/shared
     networks:
       - mongodb_network
     healthcheck:
