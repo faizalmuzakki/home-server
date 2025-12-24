@@ -81,6 +81,7 @@ sudo apt install -y git curl wget htop vim jq tmux
 | Service | Port | Description | Directory |
 |---------|------|-------------|-----------|
 | [Traefik](./traefik/) | 80, 443 | Reverse proxy with auto SSL | `traefik/` |
+| [Cloudflare Tunnel](./cloudflare-tunnel/) | - | Secure tunnel without port forwarding | `cloudflare-tunnel/` |
 | [AdGuard Home](./adguard/) | 53, 3001 | Network-wide ad blocking & DNS | `adguard/` |
 | [Uptime Kuma](./uptime-kuma/) | 3002 | Service monitoring & status page | `uptime-kuma/` |
 
@@ -257,3 +258,10 @@ Internet
 - [ ] Set up regular backups
 - [ ] Configure AdGuard as network DNS
 - [ ] Enable 2FA where available
+- [ ] Set up Cloudflare Tunnel for external access
+
+## Guides
+
+| Guide | Description |
+|-------|-------------|
+| [Cloudflare Tunnel Setup](./cloudflare-tunnel/README.md) | Securely expose services without port forwarding |
