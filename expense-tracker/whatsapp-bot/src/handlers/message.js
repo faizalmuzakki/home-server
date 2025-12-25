@@ -1,19 +1,22 @@
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
 import { parseText, parseImage, createExpense, getCategories } from '../services/api.js';
 
-const ALLOWED_NUMBERS = process.env.ALLOWED_NUMBERS?.split(',') || [];
+const ALLOWED_NUMBERS = process.env.ALLOWED_NUMBERS?.split(',').map(n => n.trim()).filter(n => n) || [];
+console.log('🔐 Allowed numbers configured:', ALLOWED_NUMBERS);
 
 function isAllowed(jid) {
   if (ALLOWED_NUMBERS.length === 0) return true;
   const number = jid.split('@')[0];
-  return ALLOWED_NUMBERS.includes(number);
+  const allowed = ALLOWED_NUMBERS.includes(number);
+  console.log(`🔍 Checking ${number} against allowed list: ${allowed}`);
+  return allowed;
 }
 
 function extractText(msg) {
-  return msg.message?.conversation || 
-         msg.message?.extendedTextMessage?.text || 
-         msg.message?.imageMessage?.caption ||
-         '';
+  return msg.message?.conversation ||
+    msg.message?.extendedTextMessage?.text ||
+    msg.message?.imageMessage?.caption ||
+    '';
 }
 
 function hasImage(msg) {
@@ -22,14 +25,14 @@ function hasImage(msg) {
 
 export async function handleMessage(sock, msg) {
   const jid = msg.key.remoteJid;
-  
+
   if (!isAllowed(jid)) {
     console.log(`Ignored message from unauthorized number: ${jid}`);
     return;
   }
 
   const text = extractText(msg).trim();
-  
+
   // Handle commands
   if (text.toLowerCase() === '/help') {
     await sendHelp(sock, jid);
@@ -59,10 +62,10 @@ async function handleTextExpense(sock, jid, text) {
 
   try {
     const parsed = await parseText(text);
-    
+
     if (parsed.error) {
-      await sock.sendMessage(jid, { 
-        text: `❌ Couldn't parse expense: ${parsed.error}\n\nTry format like: "50k lunch at warung" or "Grab 25000"` 
+      await sock.sendMessage(jid, {
+        text: `❌ Couldn't parse expense: ${parsed.error}\n\nTry format like: "50k lunch at warung" or "Grab 25000"`
       });
       return;
     }
@@ -79,11 +82,11 @@ async function handleTextExpense(sock, jid, text) {
 
     await sock.sendMessage(jid, {
       text: `✅ *Expense Recorded!*\n\n` +
-            `💰 Amount: ${formatCurrency(expense.amount)}\n` +
-            `📝 Description: ${expense.description || '-'}\n` +
-            `🏪 Vendor: ${expense.vendor || '-'}\n` +
-            `📅 Date: ${expense.date}\n` +
-            `🏷️ Category ID: ${expense.category_id}`
+        `💰 Amount: ${formatCurrency(expense.amount)}\n` +
+        `📝 Description: ${expense.description || '-'}\n` +
+        `🏪 Vendor: ${expense.vendor || '-'}\n` +
+        `📅 Date: ${expense.date}\n` +
+        `🏷️ Category ID: ${expense.category_id}`
     });
   } catch (error) {
     console.error('Text expense error:', error);
@@ -97,12 +100,12 @@ async function handleImageExpense(sock, msg, jid, caption) {
   try {
     const buffer = await downloadMediaMessage(msg, 'buffer', {});
     const base64 = buffer.toString('base64');
-    
+
     const parsed = await parseImage(base64);
-    
+
     if (parsed.error) {
-      await sock.sendMessage(jid, { 
-        text: `❌ Couldn't parse receipt: ${parsed.error}` 
+      await sock.sendMessage(jid, {
+        text: `❌ Couldn't parse receipt: ${parsed.error}`
       });
       return;
     }
@@ -124,13 +127,13 @@ async function handleImageExpense(sock, msg, jid, caption) {
 
     await sock.sendMessage(jid, {
       text: `✅ *Receipt Recorded!*\n\n` +
-            `💰 Amount: ${formatCurrency(expense.amount)}\n` +
-            `🏪 Vendor: ${expense.vendor || '-'}\n` +
-            `📝 Description: ${expense.description || '-'}\n` +
-            `📅 Date: ${expense.date}\n` +
-            `🏷️ Category ID: ${expense.category_id}` +
-            itemsList +
-            `\n\n_Confidence: ${Math.round((parsed.confidence || 0) * 100)}%_`
+        `💰 Amount: ${formatCurrency(expense.amount)}\n` +
+        `🏪 Vendor: ${expense.vendor || '-'}\n` +
+        `📝 Description: ${expense.description || '-'}\n` +
+        `📅 Date: ${expense.date}\n` +
+        `🏷️ Category ID: ${expense.category_id}` +
+        itemsList +
+        `\n\n_Confidence: ${Math.round((parsed.confidence || 0) * 100)}%_`
     });
   } catch (error) {
     console.error('Image expense error:', error);
@@ -141,17 +144,17 @@ async function handleImageExpense(sock, msg, jid, caption) {
 async function sendHelp(sock, jid) {
   await sock.sendMessage(jid, {
     text: `📊 *Expense Tracker Bot*\n\n` +
-          `*How to use:*\n` +
-          `• Send text: "50k lunch at warung"\n` +
-          `• Send receipt photo\n` +
-          `• Photo + caption for context\n\n` +
-          `*Commands:*\n` +
-          `/help - Show this message\n` +
-          `/categories - List categories\n\n` +
-          `*Examples:*\n` +
-          `• "Grab 25000"\n` +
-          `• "Coffee 35k starbucks"\n` +
-          `• "Groceries 150000 at supermarket"`
+      `*How to use:*\n` +
+      `• Send text: "50k lunch at warung"\n` +
+      `• Send receipt photo\n` +
+      `• Photo + caption for context\n\n` +
+      `*Commands:*\n` +
+      `/help - Show this message\n` +
+      `/categories - List categories\n\n` +
+      `*Examples:*\n` +
+      `• "Grab 25000"\n` +
+      `• "Coffee 35k starbucks"\n` +
+      `• "Groceries 150000 at supermarket"`
   });
 }
 
