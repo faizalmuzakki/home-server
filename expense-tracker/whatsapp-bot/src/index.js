@@ -1,12 +1,14 @@
-import makeWASocket, { 
-  DisconnectReason, 
+import makeWASocket, {
+  DisconnectReason,
   useMultiFileAuthState,
-  downloadMediaMessage 
+  downloadMediaMessage
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
+import QRCode from 'qrcode';
 import dotenv from 'dotenv';
 import { handleMessage } from './handlers/message.js';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -23,12 +25,21 @@ async function startBot() {
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
       console.log('\n📱 Scan this QR code with WhatsApp:\n');
       qrcode.generate(qr, { small: true });
+
+      // Also save QR as image file for easier access
+      try {
+        await QRCode.toFile('./auth_info/qr-code.png', qr);
+        console.log('📁 QR code also saved to: ./auth_info/qr-code.png');
+        console.log('   Access via: http://YOUR_SERVER_IP:3000/qr (if API serves it)');
+      } catch (err) {
+        console.error('Could not save QR image:', err.message);
+      }
     }
 
     if (connection === 'close') {
