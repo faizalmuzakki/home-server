@@ -22,7 +22,7 @@ async function startBot() {
   const sock = makeWASocket({
     auth: state,
     logger,
-    browser: ['ExpenseTracker', 'Chrome', '120.0.0'],
+    // Use default browser identification
   });
 
   sock.ev.on('creds.update', saveCreds);

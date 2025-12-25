@@ -1,13 +1,16 @@
 services:
   syncthing:
-    image: syncthing/syncthing:latest
+    image: lscr.io/linuxserver/syncthing:latest
     container_name: syncthing
     restart: unless-stopped
     hostname: home-server
-    user: "1000:1000"  # Run as your user (check with `id` command)
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Jakarta
     volumes:
-      - syncthing_config:/var/syncthing/config
-      - ${SYNC_PATH:-/data/sync}:/var/syncthing/data
+      - syncthing_config:/config
+      - ${SYNC_PATH:-/data/sync}:/data/sync
     ports:
       - "8384:8384"   # Web UI
       - "22000:22000/tcp" # Sync protocol
