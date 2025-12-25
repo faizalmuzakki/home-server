@@ -3,11 +3,11 @@
 # This only installs the client tools, not the full Teleport server
 #
 # Usage: sudo ./install-teleport.sh [version]
-# Example: sudo ./install-teleport.sh 14.3.3
+# Example: sudo ./install-teleport.sh 17.0.0
 
 set -e
 
-TELEPORT_VERSION="${1:-14.3.3}"
+TELEPORT_VERSION="${1:-17.0.0}"
 
 echo "🔧 Installing Teleport client v${TELEPORT_VERSION}..."
 echo ""
