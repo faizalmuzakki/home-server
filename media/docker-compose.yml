@@ -155,4 +155,5 @@ networks:
   traefik-public:
     external: true
   media-network:
+    name: media-network
     driver: bridge
