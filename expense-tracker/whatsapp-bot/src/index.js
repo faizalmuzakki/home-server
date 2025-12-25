@@ -1,7 +1,8 @@
 import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
-  downloadMediaMessage
+  downloadMediaMessage,
+  fetchLatestBaileysVersion
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
@@ -12,17 +13,22 @@ import fs from 'fs';
 
 dotenv.config();
 
-const logger = pino({ level: 'info' });  // Changed to info for more logs
+const logger = pino({ level: 'info' });
 
 async function startBot() {
   console.log('📂 Loading auth state...');
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
   console.log('✅ Auth state loaded');
 
+  // Fetch latest WhatsApp version to avoid 405 errors
+  console.log('📡 Fetching latest WhatsApp version...');
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  console.log(`✅ Using WA version: ${version.join('.')}, isLatest: ${isLatest}`);
+
   const sock = makeWASocket({
     auth: state,
     logger,
-    // Use default browser identification
+    version,
   });
 
   sock.ev.on('creds.update', saveCreds);
