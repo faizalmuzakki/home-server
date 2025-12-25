@@ -14,6 +14,7 @@ services:
       - ${SHARED_DATA_PATH:-/data/shared}:/shared
     networks:
       - mongodb_network
+      - traefik-public
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 30s
@@ -30,3 +31,5 @@ volumes:
 networks:
   mongodb_network:
     driver: bridge
+  traefik-public:
+    external: true
