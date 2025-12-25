@@ -27,7 +27,7 @@ entryPoints:
         certResolver: cloudflare
   # Entrypoint for Cloudflare Tunnel (no HTTPS redirect)
   tunnel:
-    address: ":8080"
+    address: ":8888"
 
 providers:
   docker:
