@@ -2,6 +2,9 @@ api:
   dashboard: true
   insecure: false
 
+ping:
+  entryPoint: web
+
 log:
   level: INFO
   filePath: /logs/traefik.log

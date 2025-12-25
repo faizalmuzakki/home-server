@@ -48,7 +48,7 @@ Add these for your home server:
 
 | Service | Type | URL/Host |
 |---------|------|----------|
-| Traefik | HTTP | `http://traefik:8080/ping` |
+| Traefik | HTTP | `http://traefik:80/ping` |
 | MongoDB | TCP | `mongodb:27017` |
 | Expense API | HTTP | `http://expense-tracker-api:3000/health` |
 | Jellyfin | HTTP | `http://jellyfin:8096/health` |
@@ -56,6 +56,8 @@ Add these for your home server:
 | Vaultwarden | HTTP | `http://vaultwarden:80` |
 | Home Assistant | HTTP | `http://homeassistant:8123` |
 | Syncthing | HTTP | `http://syncthing:8384` |
+| Dockge | HTTP | `http://dockge:5001` |
+| Uptime Kuma | HTTP | `http://uptime-kuma:3001` |
 
 ## Notifications
 
