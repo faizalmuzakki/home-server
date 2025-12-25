@@ -66,10 +66,11 @@ sudo apt install -y git curl wget htop vim jq tmux
 │ │       │  │ Tracker  │  │ Stack   │  │Assistant│  │          │  │        │ │
 │ └───────┘  └──────────┘  └─────────┘  └────────┘  └──────────┘  └────────┘ │
 │                                                                              │
-│ ┌───────────────┐  ┌───────────────┐                                        │
-│ │  AdGuard Home │  │  Uptime Kuma  │                                        │
-│ │  (DNS + Ads)  │  │  (Monitoring) │                                        │
-│ └───────────────┘  └───────────────┘                                        │
+│ ┌───────────────┐  ┌───────────────┐  ┌───────────────┐                     │
+│ │  AdGuard Home │  │  Uptime Kuma  │  │    Dockge     │                     │
+│ │  (DNS + Ads)  │  │  (Monitoring) │  │  (Container   │                     │
+│ └───────────────┘  └───────────────┘  │   Management) │                     │
+│                                       └───────────────┘                     │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -84,6 +85,7 @@ sudo apt install -y git curl wget htop vim jq tmux
 | [Cloudflare Tunnel](./cloudflare-tunnel/) | - | Secure tunnel without port forwarding | `cloudflare-tunnel/` |
 | [AdGuard Home](./adguard/) | 53, 3001 | Network-wide ad blocking & DNS | `adguard/` |
 | [Uptime Kuma](./uptime-kuma/) | 3002 | Service monitoring & status page | `uptime-kuma/` |
+| [Dockge](./dockge/) | 5001 | Docker Compose management UI | `dockge/` |
 
 ### Applications
 
@@ -182,6 +184,7 @@ If using a domain with Cloudflare:
 | Subdomain | Service |
 |-----------|---------|
 | `traefik.domain.com` | Traefik Dashboard |
+| `dockge.domain.com` | Dockge |
 | `vault.domain.com` | Vaultwarden |
 | `status.domain.com` | Uptime Kuma |
 | `home.domain.com` | Home Assistant |

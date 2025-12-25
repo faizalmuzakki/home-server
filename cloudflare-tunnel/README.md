@@ -324,8 +324,6 @@ This approach runs cloudflared as a separate container that connects to your exi
 Create `cloudflare-tunnel/docker-compose.yml`:
 
 ```yaml
-version: "3.8"
-
 services:
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -366,8 +364,6 @@ CLOUDFLARE_TUNNEL_TOKEN=
 If using a config file instead of token:
 
 ```yaml
-version: "3.8"
-
 services:
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -428,8 +424,6 @@ networks:
 ### Complete Example: cloudflare-tunnel/docker-compose.yml
 
 ```yaml
-version: "3.8"
-
 services:
   cloudflared:
     image: cloudflare/cloudflared:latest

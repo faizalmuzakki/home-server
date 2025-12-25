@@ -1,0 +1,30 @@
+services:
+  dockge:
+    image: louislam/dockge:latest
+    container_name: dockge
+    restart: unless-stopped
+    environment:
+      - DOCKGE_STACKS_DIR=/opt/stacks
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - dockge_data:/app/data
+      # Mount all your compose stacks here
+      - /home/solork/Projects/home-server:/opt/stacks
+    ports:
+      - "5001:5001"
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dockge.rule=Host(`dockge.${DOMAIN}`)"
+      - "traefik.http.routers.dockge.entrypoints=websecure"
+      - "traefik.http.routers.dockge.tls.certresolver=cloudflare"
+      - "traefik.http.services.dockge.loadbalancer.server.port=5001"
+
+volumes:
+  dockge_data:
+    driver: local
+
+networks:
+  traefik-public:
+    external: true
