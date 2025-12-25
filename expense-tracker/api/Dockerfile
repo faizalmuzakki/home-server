@@ -2,8 +2,8 @@ FROM node:24-alpine
 
 WORKDIR /app
 
-# Install build dependencies for better-sqlite3
-RUN apk add --no-cache python3 make g++
+# Install build dependencies for better-sqlite3 and wget for healthcheck
+RUN apk add --no-cache python3 make g++ wget
 
 COPY package*.json ./
 RUN npm install
