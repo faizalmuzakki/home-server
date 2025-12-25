@@ -19,8 +19,9 @@ async function startBot() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false,
+    printQRInTerminal: true,  // Enable built-in QR printing
     logger,
+    browser: ['ExpenseTracker', 'Chrome', '120.0.0'],  // Identify as browser client
   });
 
   sock.ev.on('creds.update', saveCreds);
