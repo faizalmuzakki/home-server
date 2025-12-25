@@ -8,11 +8,26 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Helper to clean markdown code blocks from JSON response
+function cleanJsonResponse(text) {
+  // Remove ```json and ``` wrappers
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.slice(7);
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.slice(3);
+  }
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.slice(0, -3);
+  }
+  return cleaned.trim();
+}
+
 // Parse expense from text
 router.post('/text', async (req, res) => {
   try {
     const { text } = req.body;
-    
+
     if (!text) {
       return res.status(400).json({ error: 'Text is required' });
     }
@@ -47,8 +62,8 @@ If you cannot extract expense info, return: {"error": "reason"}`
     });
 
     const content = response.content[0].text;
-    const parsed = JSON.parse(content);
-    
+    const parsed = JSON.parse(cleanJsonResponse(content));
+
     res.json(parsed);
   } catch (error) {
     console.error('Parse text error:', error);
@@ -60,7 +75,7 @@ If you cannot extract expense info, return: {"error": "reason"}`
 router.post('/image', async (req, res) => {
   try {
     const { image } = req.body; // base64 encoded image
-    
+
     if (!image) {
       return res.status(400).json({ error: 'Image is required (base64)' });
     }
@@ -114,8 +129,8 @@ If you cannot extract expense info, return: {"error": "reason"}`
     });
 
     const content = response.content[0].text;
-    const parsed = JSON.parse(content);
-    
+    const parsed = JSON.parse(cleanJsonResponse(content));
+
     res.json(parsed);
   } catch (error) {
     console.error('Parse image error:', error);
