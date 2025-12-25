@@ -34,5 +34,4 @@ volumes:
 
 networks:
   traefik-public:
-    name: traefik-public
-    driver: bridge
+    external: true

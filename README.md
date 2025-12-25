@@ -162,6 +162,8 @@ docker compose up -d
 cd ../mongodb && cp .env.example .env && docker compose up -d
 cd ../adguard && cp .env.example .env && docker compose up -d
 cd ../uptime-kuma && cp .env.example .env && docker compose up -d
+cd ../dockge && docker compose up -d  # No .env needed
+cd ../cloudflare-tunnel && cp .env.example .env && nano .env && docker compose up -d
 
 # 3. Applications
 cd ../vaultwarden && cp .env.example .env && nano .env && docker compose up -d
