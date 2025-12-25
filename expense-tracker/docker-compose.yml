@@ -13,6 +13,7 @@ services:
       - "3000:3000"
     networks:
       - expense-network
+      - traefik-public
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
       interval: 30s
@@ -59,3 +60,5 @@ volumes:
 networks:
   expense-network:
     driver: bridge
+  traefik-public:
+    external: true
