@@ -20,7 +20,7 @@ WORK_SERVER_PATH="${WORK_SERVER_PATH:-/path/to/dumps}"
 LOCAL_SHARED_PATH="${LOCAL_SHARED_PATH:-/data/shared}"
 
 # Teleport configuration (optional)
-TELEPORT_PROXY="${TELEPORT_PROXY:-teleport.example.com}"
+TELEPORT_PROXY="${TELEPORT_PROXY:-teleport.solork.dev}"
 TELEPORT_CLUSTER="${TELEPORT_CLUSTER:-}"
 
 # Parse arguments

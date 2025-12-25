@@ -199,39 +199,39 @@ credentials-file: /home/<username>/.cloudflared/<TUNNEL_ID>.json
 # Ingress rules - map hostnames to services
 ingress:
   # Jellyfin - Media streaming
-  - hostname: jellyfin.example.com
+  - hostname: jellyfin.solork.dev
     service: http://localhost:8096
 
   # Vaultwarden - Password manager
-  - hostname: vault.example.com
+  - hostname: vault.solork.dev
     service: http://localhost:80
 
   # Home Assistant - Home automation
-  - hostname: home.example.com
+  - hostname: home.solork.dev
     service: http://localhost:8123
 
   # Syncthing - File sync (web UI)
-  - hostname: sync.example.com
+  - hostname: sync.solork.dev
     service: http://localhost:8384
 
   # Uptime Kuma - Monitoring
-  - hostname: status.example.com
+  - hostname: status.solork.dev
     service: http://localhost:3002
 
   # Sonarr - TV management
-  - hostname: sonarr.example.com
+  - hostname: sonarr.solork.dev
     service: http://localhost:8989
 
   # Radarr - Movie management
-  - hostname: radarr.example.com
+  - hostname: radarr.solork.dev
     service: http://localhost:7878
 
   # Prowlarr - Indexer manager
-  - hostname: prowlarr.example.com
+  - hostname: prowlarr.solork.dev
     service: http://localhost:9696
 
   # qBittorrent - Torrent client
-  - hostname: qbit.example.com
+  - hostname: qbit.solork.dev
     service: http://localhost:8081
 
   # Catch-all rule (required - must be last)
@@ -255,23 +255,23 @@ originRequest:
 
 ingress:
   # Service with custom settings
-  - hostname: jellyfin.example.com
+  - hostname: jellyfin.solork.dev
     service: http://localhost:8096
     originRequest:
       # Allow large media uploads
-      httpHostHeader: jellyfin.example.com
+      httpHostHeader: jellyfin.solork.dev
       # Increase timeout for streaming
       connectTimeout: 60s
 
   # WebSocket support (for Home Assistant, Vaultwarden, etc.)
-  - hostname: home.example.com
+  - hostname: home.solork.dev
     service: http://localhost:8123
     originRequest:
       # Required for WebSocket connections
       noTLSVerify: false
 
   # SSH access (optional)
-  - hostname: ssh.example.com
+  - hostname: ssh.solork.dev
     service: ssh://localhost:22
 
   # Required catch-all
@@ -308,9 +308,9 @@ status      CNAME   abc123-def456-ghi789.cfargotunnel.com
 
 ```bash
 # Route DNS to your tunnel
-cloudflared tunnel route dns home-server jellyfin.example.com
-cloudflared tunnel route dns home-server vault.example.com
-cloudflared tunnel route dns home-server home.example.com
+cloudflared tunnel route dns home-server jellyfin.solork.dev
+cloudflared tunnel route dns home-server vault.solork.dev
+cloudflared tunnel route dns home-server home.solork.dev
 ```
 
 ---
@@ -394,16 +394,16 @@ When cloudflared runs in Docker, use **container names** instead of `localhost`:
 ```yaml
 # In Cloudflare Dashboard or config.yml
 ingress:
-  - hostname: jellyfin.example.com
+  - hostname: jellyfin.solork.dev
     service: http://jellyfin:8096  # Container name, internal port
 
-  - hostname: vault.example.com
+  - hostname: vault.solork.dev
     service: http://vaultwarden:80
 
-  - hostname: home.example.com
+  - hostname: home.solork.dev
     service: http://homeassistant:8123
 
-  - hostname: status.example.com
+  - hostname: status.solork.dev
     service: http://uptime-kuma:3001  # Internal port, not mapped port
 
   - service: http_status:404
@@ -583,7 +583,7 @@ Add authentication to your services via Cloudflare Zero Trust:
 3. Configure:
    - **Application name**: Jellyfin
    - **Session duration**: 24 hours
-   - **Application domain**: jellyfin.example.com
+   - **Application domain**: jellyfin.solork.dev
 4. Add policies:
    - Allow specific emails
    - Require authentication via Google, GitHub, etc.
@@ -594,7 +594,7 @@ Add authentication to your services via Cloudflare Zero Trust:
 # In Cloudflare Dashboard, configure per-service settings:
 
 # Vaultwarden - Require strong authentication
-- hostname: vault.example.com
+- hostname: vault.solork.dev
   access:
     required: true
     teamName: your-team
@@ -602,17 +602,17 @@ Add authentication to your services via Cloudflare Zero Trust:
       - name: Allow Admins
         decision: allow
         include:
-          - email: admin@example.com
+          - email: admin@solork.dev
 
 # Jellyfin - Allow authenticated users
-- hostname: jellyfin.example.com
+- hostname: jellyfin.solork.dev
   access:
     required: true
     policies:
       - name: Family Access
         decision: allow
         include:
-          - emailDomain: example.com
+          - emailDomain: solork.dev
 ```
 
 ### 3. Private Network Access
@@ -622,10 +622,10 @@ For sensitive services (like Sonarr, Radarr), consider not exposing them publicl
 ```yaml
 # Only expose essential services
 ingress:
-  - hostname: jellyfin.example.com
+  - hostname: jellyfin.solork.dev
     service: http://jellyfin:8096
 
-  - hostname: vault.example.com
+  - hostname: vault.solork.dev
     service: http://vaultwarden:80
 
   # Don't expose media management tools publicly
@@ -676,7 +676,7 @@ journalctl -u cloudflared -f
 
 **Solutions**:
 - Verify DNS record in Cloudflare Dashboard
-- Check propagation: `dig jellyfin.example.com`
+- Check propagation: `dig jellyfin.solork.dev`
 - Ensure record is proxied (orange cloud)
 
 #### 4. WebSocket Connection Failed
@@ -696,7 +696,7 @@ journalctl -u cloudflared -f
 **Solutions**:
 ```yaml
 ingress:
-  - hostname: example.com
+  - hostname: solork.dev
     service: https://localhost:443
     originRequest:
       noTLSVerify: true  # Only if using self-signed certs
@@ -706,7 +706,7 @@ ingress:
 
 ```bash
 # Test from outside your network (use mobile data or VPN)
-curl -I https://jellyfin.example.com
+curl -I https://jellyfin.solork.dev
 
 # Test tunnel connectivity
 docker exec cloudflared cloudflared tunnel info
