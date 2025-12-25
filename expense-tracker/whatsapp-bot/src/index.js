@@ -12,21 +12,23 @@ import fs from 'fs';
 
 dotenv.config();
 
-const logger = pino({ level: 'silent' });
+const logger = pino({ level: 'info' });  // Changed to info for more logs
 
 async function startBot() {
+  console.log('📂 Loading auth state...');
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
+  console.log('✅ Auth state loaded');
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: true,  // Enable built-in QR printing
     logger,
-    browser: ['ExpenseTracker', 'Chrome', '120.0.0'],  // Identify as browser client
+    browser: ['ExpenseTracker', 'Chrome', '120.0.0'],
   });
 
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', async (update) => {
+    console.log('🔄 Connection update:', JSON.stringify(update, null, 2));
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
@@ -37,17 +39,17 @@ async function startBot() {
       try {
         await QRCode.toFile('./auth_info/qr-code.png', qr);
         console.log('📁 QR code also saved to: ./auth_info/qr-code.png');
-        console.log('   Access via: http://YOUR_SERVER_IP:3000/qr (if API serves it)');
       } catch (err) {
         console.error('Could not save QR image:', err.message);
       }
     }
 
     if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log('Connection closed. Reconnecting:', shouldReconnect);
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      console.log(`Connection closed. Status: ${statusCode}, Reconnecting: ${shouldReconnect}`);
       if (shouldReconnect) {
-        startBot();
+        setTimeout(() => startBot(), 3000);  // Add delay before reconnect
       }
     } else if (connection === 'open') {
       console.log('✅ WhatsApp bot connected!');
