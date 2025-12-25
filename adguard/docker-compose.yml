@@ -8,7 +8,7 @@ services:
       - "53:53/udp"
       - "3001:3000/tcp"  # Initial setup UI
       - "8080:80/tcp"    # Admin panel (after setup)
-      - "443:443/tcp"    # DNS-over-HTTPS
+      # - "443:443/tcp"  # DNS-over-HTTPS (disabled - Traefik uses 443)
       - "853:853/tcp"    # DNS-over-TLS
     volumes:
       - adguard_work:/opt/adguardhome/work
