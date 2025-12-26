@@ -44,6 +44,11 @@ export async function handleMessage(sock, msg) {
     return;
   }
 
+  if (text.toLowerCase() === '/pin') {
+    await sendPin(sock, jid);
+    return;
+  }
+
   // Handle image (receipt)
   if (hasImage(msg)) {
     await handleImageExpense(sock, msg, jid, text);
@@ -125,15 +130,19 @@ async function handleImageExpense(sock, msg, jid, caption) {
       itemsList = `\n📋 Items: ${parsed.items.slice(0, 5).join(', ')}`;
     }
 
+    // Calculate approximate cost (Claude Sonnet 4 pricing)
+    const inputCost = (parsed.usage?.input_tokens || 0) * 0.000003;
+    const outputCost = (parsed.usage?.output_tokens || 0) * 0.000015;
+    const totalCost = (inputCost + outputCost).toFixed(6);
+
     await sock.sendMessage(jid, {
       text: `✅ *Receipt Recorded!*\n\n` +
         `💰 Amount: ${formatCurrency(expense.amount)}\n` +
         `🏪 Vendor: ${expense.vendor || '-'}\n` +
         `📝 Description: ${expense.description || '-'}\n` +
-        `📅 Date: ${expense.date}\n` +
-        `🏷️ Category ID: ${expense.category_id}` +
+        `📅 Date: ${expense.date}` +
         itemsList +
-        `\n\n_Confidence: ${Math.round((parsed.confidence || 0) * 100)}%_`
+        `\n\n_Confidence: ${Math.round((parsed.confidence || 0) * 100)}% | Tokens: ${parsed.usage?.input_tokens || 0}/${parsed.usage?.output_tokens || 0} (~$${totalCost})_`
     });
   } catch (error) {
     console.error('Image expense error:', error);
@@ -150,7 +159,8 @@ async function sendHelp(sock, jid) {
       `• Photo + caption for context\n\n` +
       `*Commands:*\n` +
       `/help - Show this message\n` +
-      `/categories - List categories\n\n` +
+      `/categories - List categories\n` +
+      `/pin - Get dashboard PIN\n\n` +
       `*Examples:*\n` +
       `• "Grab 25000"\n` +
       `• "Coffee 35k starbucks"\n` +
@@ -170,6 +180,15 @@ async function sendCategories(sock, jid) {
   }
 }
 
+async function sendPin(sock, jid) {
+  const pin = process.env.DASHBOARD_PIN || '123456';
+  await sock.sendMessage(jid, {
+    text: `🔐 *Dashboard PIN*\n\n` +
+      `Your PIN: *${pin}*\n\n` +
+      `Use this to login at:\nhttps://expenses.solork.dev`
+  });
+}
+
 function formatCurrency(amount) {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -177,3 +196,4 @@ function formatCurrency(amount) {
     minimumFractionDigits: 0
   }).format(amount);
 }
+

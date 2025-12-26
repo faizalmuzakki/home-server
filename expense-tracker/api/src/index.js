@@ -6,6 +6,7 @@ import expenseRoutes from './routes/expenses.js';
 import categoryRoutes from './routes/categories.js';
 import parseRoutes from './routes/parse.js';
 import statsRoutes from './routes/stats.js';
+import authRoutes from './routes/auth.js';
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/parse', parseRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/auth', authRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

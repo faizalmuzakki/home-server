@@ -64,6 +64,12 @@ If you cannot extract expense info, return: {"error": "reason"}`
     const content = response.content[0].text;
     const parsed = JSON.parse(cleanJsonResponse(content));
 
+    // Add token usage for cost tracking
+    parsed.usage = {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens
+    };
+
     res.json(parsed);
   } catch (error) {
     console.error('Parse text error:', error);
@@ -130,6 +136,12 @@ If you cannot extract expense info, return: {"error": "reason"}`
 
     const content = response.content[0].text;
     const parsed = JSON.parse(cleanJsonResponse(content));
+
+    // Add token usage for cost tracking
+    parsed.usage = {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens
+    };
 
     res.json(parsed);
   } catch (error) {
