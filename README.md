@@ -81,6 +81,7 @@ sudo apt install -y git curl wget htop vim jq tmux
 
 | Service | Port | Description | Directory |
 |---------|------|-------------|-----------|
+| [Homer](./homer/) | - | Home dashboard / landing page | `homer/` |
 | [Traefik](./traefik/) | 80, 443 | Reverse proxy with auto SSL | `traefik/` |
 | [Cloudflare Tunnel](./cloudflare-tunnel/) | - | Secure tunnel without port forwarding | `cloudflare-tunnel/` |
 | [AdGuard Home](./adguard/) | 53, 3001 | Network-wide ad blocking & DNS | `adguard/` |

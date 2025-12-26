@@ -1,0 +1,19 @@
+services:
+  homer:
+    image: b4bz/homer:latest
+    container_name: homer
+    restart: unless-stopped
+    volumes:
+      - ./config:/www/assets
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homer.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.homer.entrypoints=websecure"
+      - "traefik.http.routers.homer.tls.certresolver=cloudflare"
+      - "traefik.http.services.homer.loadbalancer.server.port=8080"
+
+networks:
+  traefik-public:
+    external: true
