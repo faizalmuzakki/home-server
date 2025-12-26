@@ -91,6 +91,11 @@ services:
   - name: "Tools"
     icon: "fas fa-tools"
     items:
+      - name: "Expenses"
+        subtitle: "Expense Tracker Dashboard"
+        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/wallet.png"
+        url: "https://expenses.solork.dev"
+        target: "_blank"
       - name: "Syncthing"
         subtitle: "File Synchronization"
         logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/syncthing.png"
@@ -105,6 +110,11 @@ services:
   - name: "Infrastructure"
     icon: "fas fa-server"
     items:
+      - name: "Netdata"
+        subtitle: "Server Monitoring"
+        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/netdata.png"
+        url: "https://monitor.solork.dev"
+        target: "_blank"
       - name: "Traefik"
         subtitle: "Reverse Proxy Dashboard"
         logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/traefik.png"
