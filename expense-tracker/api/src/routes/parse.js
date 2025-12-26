@@ -23,7 +23,7 @@ function cleanJsonResponse(text) {
   return cleaned.trim();
 }
 
-// Parse expense from text
+// Parse expense or income from text
 router.post('/text', async (req, res) => {
   try {
     const { text } = req.body;
@@ -32,32 +32,42 @@ router.post('/text', async (req, res) => {
       return res.status(400).json({ error: 'Text is required' });
     }
 
-    const categories = db.prepare('SELECT id, name FROM categories').all();
-    const categoryList = categories.map(c => `${c.id}: ${c.name}`).join('\n');
+    const expenseCategories = db.prepare("SELECT id, name FROM categories WHERE type = 'expense'").all();
+    const incomeCategories = db.prepare("SELECT id, name FROM categories WHERE type = 'income'").all();
+
+    const expenseCategoryList = expenseCategories.map(c => `${c.id}: ${c.name}`).join('\n');
+    const incomeCategoryList = incomeCategories.map(c => `${c.id}: ${c.name}`).join('\n');
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
       messages: [{
         role: 'user',
-        content: `Extract expense information from this text. Return ONLY valid JSON, no other text.
+        content: `Analyze this text and determine if it's an EXPENSE (money spent) or INCOME (money received).
 
 Text: "${text}"
 
-Available categories:
-${categoryList}
+INCOME indicators: received, got paid, salary, gaji, terima, dapat, income, freelance, transfer masuk, refund, cashback, bonus, commission, dividend
+EXPENSE indicators: bought, paid, spent, beli, bayar, lunch, dinner, grab, gojek, shopping, bill, groceries
 
-Return JSON format:
+EXPENSE categories:
+${expenseCategoryList}
+
+INCOME categories:
+${incomeCategoryList}
+
+Return ONLY valid JSON:
 {
+  "type": "expense" or "income",
   "amount": <number>,
   "description": "<string>",
   "vendor": "<string or null>",
-  "category_id": <number from list above>,
+  "category_id": <number from appropriate category list above>,
   "date": "<YYYY-MM-DD, use today if not specified: ${new Date().toISOString().split('T')[0]}>",
   "confidence": <0-1 how confident you are>
 }
 
-If you cannot extract expense info, return: {"error": "reason"}`
+If you cannot extract transaction info, return: {"error": "reason"}`
       }]
     });
 
@@ -77,7 +87,7 @@ If you cannot extract expense info, return: {"error": "reason"}`
   }
 });
 
-// Parse expense from image (receipt)
+// Parse expense or income from image (receipt/transfer proof)
 router.post('/image', async (req, res) => {
   try {
     const { image } = req.body; // base64 encoded image
@@ -86,8 +96,11 @@ router.post('/image', async (req, res) => {
       return res.status(400).json({ error: 'Image is required (base64)' });
     }
 
-    const categories = db.prepare('SELECT id, name FROM categories').all();
-    const categoryList = categories.map(c => `${c.id}: ${c.name}`).join('\n');
+    const expenseCategories = db.prepare("SELECT id, name FROM categories WHERE type = 'expense'").all();
+    const incomeCategories = db.prepare("SELECT id, name FROM categories WHERE type = 'income'").all();
+
+    const expenseCategoryList = expenseCategories.map(c => `${c.id}: ${c.name}`).join('\n');
+    const incomeCategoryList = incomeCategories.map(c => `${c.id}: ${c.name}`).join('\n');
 
     // Detect media type from base64 header or default to jpeg
     let mediaType = 'image/jpeg';
@@ -112,23 +125,30 @@ router.post('/image', async (req, res) => {
           },
           {
             type: 'text',
-            text: `Extract expense information from this receipt/image. Return ONLY valid JSON, no other text.
+            text: `Analyze this image and determine if it shows an EXPENSE (receipt, purchase, payment) or INCOME (transfer received, salary slip, payment received).
 
-Available categories:
-${categoryList}
+EXPENSE indicators: Receipt, invoice, purchase, payment confirmation, bill, struk, nota
+INCOME indicators: Transfer received, salary slip, payment received, "dari", incoming transfer, credit notification
 
-Return JSON format:
+EXPENSE categories:
+${expenseCategoryList}
+
+INCOME categories:
+${incomeCategoryList}
+
+Return ONLY valid JSON:
 {
-  "amount": <number - total amount paid>,
-  "description": "<brief description of purchase>",
-  "vendor": "<store/restaurant name>",
-  "category_id": <number from list above>,
-  "date": "<YYYY-MM-DD from receipt, or today: ${new Date().toISOString().split('T')[0]}>",
+  "type": "expense" or "income",
+  "amount": <number - total amount>,
+  "description": "<brief description>",
+  "vendor": "<store/sender name>",
+  "category_id": <number from appropriate category list above>,
+  "date": "<YYYY-MM-DD from image, or today: ${new Date().toISOString().split('T')[0]}>",
   "items": ["<item1>", "<item2>"],
   "confidence": <0-1 how confident you are>
 }
 
-If you cannot extract expense info, return: {"error": "reason"}`
+If this is not a valid transaction image (e.g., order tracking, shopping cart, unrelated image), return: {"error": "reason"}`
           }
         ]
       }]

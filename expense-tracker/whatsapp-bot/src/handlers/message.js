@@ -49,58 +49,65 @@ export async function handleMessage(sock, msg) {
     return;
   }
 
-  // Handle image (receipt)
+  // Handle image (receipt or income proof)
   if (hasImage(msg)) {
-    await handleImageExpense(sock, msg, jid, text);
+    await handleImageTransaction(sock, msg, jid, text);
     return;
   }
 
-  // Handle text expense
+  // Handle text transaction
   if (text) {
-    await handleTextExpense(sock, jid, text);
+    await handleTextTransaction(sock, jid, text);
     return;
   }
 }
 
-async function handleTextExpense(sock, jid, text) {
-  await sock.sendMessage(jid, { text: '🔍 Parsing your expense...' });
+async function handleTextTransaction(sock, jid, text) {
+  await sock.sendMessage(jid, { text: '🔍 Analyzing...' });
 
   try {
     const parsed = await parseText(text);
 
     if (parsed.error) {
       await sock.sendMessage(jid, {
-        text: `❌ Couldn't parse expense: ${parsed.error}\n\nTry format like: "50k lunch at warung" or "Grab 25000"`
+        text: `❌ Couldn't parse: ${parsed.error}\n\nTry:\n• "50k lunch at warung" (expense)\n• "Received 5m salary" (income)`
       });
       return;
     }
 
-    const expense = await createExpense({
+    const isIncome = parsed.type === 'income';
+
+    const transaction = await createExpense({
       amount: parsed.amount,
       description: parsed.description,
       vendor: parsed.vendor,
       category_id: parsed.category_id,
       date: parsed.date,
+      type: parsed.type || 'expense',
       source: 'whatsapp',
       raw_text: text
     });
 
+    const emoji = isIncome ? '💵' : '✅';
+    const label = isIncome ? 'Income Recorded!' : 'Expense Recorded!';
+    const vendorLabel = isIncome ? 'From' : 'Vendor';
+
     await sock.sendMessage(jid, {
-      text: `✅ *Expense Recorded!*\n\n` +
-        `💰 Amount: ${formatCurrency(expense.amount)}\n` +
-        `📝 Description: ${expense.description || '-'}\n` +
-        `🏪 Vendor: ${expense.vendor || '-'}\n` +
-        `📅 Date: ${expense.date}\n` +
-        `🏷️ Category ID: ${expense.category_id}`
+      text: `${emoji} *${label}*\n\n` +
+        `💰 Amount: ${formatCurrency(transaction.amount)}\n` +
+        `📝 Description: ${transaction.description || '-'}\n` +
+        `🏪 ${vendorLabel}: ${transaction.vendor || '-'}\n` +
+        `📅 Date: ${transaction.date}\n` +
+        `🏷️ Category ID: ${transaction.category_id}`
     });
   } catch (error) {
-    console.error('Text expense error:', error);
+    console.error('Text transaction error:', error);
     await sock.sendMessage(jid, { text: `❌ Error: ${error.message}` });
   }
 }
 
-async function handleImageExpense(sock, msg, jid, caption) {
-  await sock.sendMessage(jid, { text: '🔍 Analyzing receipt...' });
+async function handleImageTransaction(sock, msg, jid, caption) {
+  await sock.sendMessage(jid, { text: '🔍 Analyzing image...' });
 
   try {
     const buffer = await downloadMediaMessage(msg, 'buffer', {});
@@ -110,17 +117,20 @@ async function handleImageExpense(sock, msg, jid, caption) {
 
     if (parsed.error) {
       await sock.sendMessage(jid, {
-        text: `❌ Couldn't parse receipt: ${parsed.error}`
+        text: `❌ Couldn't parse: ${parsed.error}`
       });
       return;
     }
 
-    const expense = await createExpense({
+    const isIncome = parsed.type === 'income';
+
+    const transaction = await createExpense({
       amount: parsed.amount,
       description: parsed.description,
       vendor: parsed.vendor,
       category_id: parsed.category_id,
       date: parsed.date,
+      type: parsed.type || 'expense',
       source: 'whatsapp_image',
       raw_text: caption || null
     });
@@ -135,45 +145,55 @@ async function handleImageExpense(sock, msg, jid, caption) {
     const outputCost = (parsed.usage?.output_tokens || 0) * 0.000015;
     const totalCost = (inputCost + outputCost).toFixed(6);
 
+    const emoji = isIncome ? '💵' : '✅';
+    const label = isIncome ? 'Income Recorded!' : 'Receipt Recorded!';
+    const vendorLabel = isIncome ? 'From' : 'Vendor';
+
     await sock.sendMessage(jid, {
-      text: `✅ *Receipt Recorded!*\n\n` +
-        `💰 Amount: ${formatCurrency(expense.amount)}\n` +
-        `🏪 Vendor: ${expense.vendor || '-'}\n` +
-        `📝 Description: ${expense.description || '-'}\n` +
-        `📅 Date: ${expense.date}` +
+      text: `${emoji} *${label}*\n\n` +
+        `💰 Amount: ${formatCurrency(transaction.amount)}\n` +
+        `🏪 ${vendorLabel}: ${transaction.vendor || '-'}\n` +
+        `📝 Description: ${transaction.description || '-'}\n` +
+        `📅 Date: ${transaction.date}` +
         itemsList +
         `\n\n_Confidence: ${Math.round((parsed.confidence || 0) * 100)}% | Tokens: ${parsed.usage?.input_tokens || 0}/${parsed.usage?.output_tokens || 0} (~$${totalCost})_`
     });
   } catch (error) {
-    console.error('Image expense error:', error);
+    console.error('Image transaction error:', error);
     await sock.sendMessage(jid, { text: `❌ Error: ${error.message}` });
   }
 }
 
 async function sendHelp(sock, jid) {
   await sock.sendMessage(jid, {
-    text: `📊 *Expense Tracker Bot*\n\n` +
-      `*How to use:*\n` +
-      `• Send text: "50k lunch at warung"\n` +
-      `• Send receipt photo\n` +
-      `• Photo + caption for context\n\n` +
+    text: `📊 *Finance Tracker Bot*\n\n` +
+      `*Track Expenses:*\n` +
+      `• "50k lunch at warung"\n` +
+      `• "Grab 25000"\n` +
+      `• Send receipt photo\n\n` +
+      `*Track Income:*\n` +
+      `• "Received 5m salary"\n` +
+      `• "Got paid 2.5m freelance"\n` +
+      `• "Dapat transfer 500k dari client"\n` +
+      `• Send transfer screenshot\n\n` +
       `*Commands:*\n` +
       `/help - Show this message\n` +
       `/categories - List categories\n` +
-      `/pin - Get dashboard PIN\n\n` +
-      `*Examples:*\n` +
-      `• "Grab 25000"\n` +
-      `• "Coffee 35k starbucks"\n` +
-      `• "Groceries 150000 at supermarket"`
+      `/pin - Get dashboard PIN`
   });
 }
 
 async function sendCategories(sock, jid) {
   try {
     const categories = await getCategories();
-    const list = categories.map(c => `${c.icon} ${c.name}`).join('\n');
+    const expenseCategories = categories.filter(c => c.type !== 'income');
+    const incomeCategories = categories.filter(c => c.type === 'income');
+
+    const expenseList = expenseCategories.map(c => `${c.icon} ${c.name}`).join('\n');
+    const incomeList = incomeCategories.map(c => `${c.icon} ${c.name}`).join('\n');
+
     await sock.sendMessage(jid, {
-      text: `📂 *Available Categories:*\n\n${list}`
+      text: `📂 *Expense Categories:*\n${expenseList}\n\n💵 *Income Categories:*\n${incomeList}`
     });
   } catch (error) {
     await sock.sendMessage(jid, { text: `❌ Error fetching categories` });
