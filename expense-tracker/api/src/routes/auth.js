@@ -12,8 +12,19 @@ const ALLOWED_EMAIL = process.env.DASHBOARD_EMAIL || '';
 router.post('/verify-email', (req, res) => {
     const { email } = req.body;
 
+    console.log('🔐 Auth attempt:', {
+        inputEmail: email,
+        allowedEmail: ALLOWED_EMAIL,
+        match: email?.toLowerCase() === ALLOWED_EMAIL?.toLowerCase()
+    });
+
     if (!email) {
         return res.status(400).json({ error: 'Email is required' });
+    }
+
+    if (!ALLOWED_EMAIL) {
+        console.error('❌ DASHBOARD_EMAIL env var not set!');
+        return res.status(500).json({ error: 'Auth not configured' });
     }
 
     if (email.toLowerCase() === ALLOWED_EMAIL.toLowerCase()) {
