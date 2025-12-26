@@ -8,6 +8,7 @@ const dbPath = process.env.DB_PATH || path.join(__dirname, '../../data/expenses.
 export const db = new Database(dbPath);
 
 export function initDatabase() {
+  // Step 1: Create tables (without type-dependent indexes for existing DBs)
   db.exec(`
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,29 +37,27 @@ export function initDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
     CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category_id);
-    CREATE INDEX IF NOT EXISTS idx_expenses_type ON expenses(type);
   `);
 
-  // Migration: Add type column if it doesn't exist (for existing databases)
-  try {
-    const tableInfo = db.prepare("PRAGMA table_info(expenses)").all();
-    const hasTypeColumn = tableInfo.some(col => col.name === 'type');
-    if (!hasTypeColumn) {
-      db.exec("ALTER TABLE expenses ADD COLUMN type TEXT DEFAULT 'expense'");
-      console.log('Migration: Added type column to expenses table');
-    }
-    
-    const catTableInfo = db.prepare("PRAGMA table_info(categories)").all();
-    const catHasTypeColumn = catTableInfo.some(col => col.name === 'type');
-    if (!catHasTypeColumn) {
-      db.exec("ALTER TABLE categories ADD COLUMN type TEXT DEFAULT 'expense'");
-      console.log('Migration: Added type column to categories table');
-    }
-  } catch (e) {
-    // Column might already exist, ignore
+  // Step 2: Migration - Add type column if it doesn't exist (for existing databases)
+  const tableInfo = db.prepare("PRAGMA table_info(expenses)").all();
+  const hasTypeColumn = tableInfo.some(col => col.name === 'type');
+  if (!hasTypeColumn) {
+    db.exec("ALTER TABLE expenses ADD COLUMN type TEXT DEFAULT 'expense'");
+    console.log('Migration: Added type column to expenses table');
   }
 
-  // Insert default expense categories if none exist
+  const catTableInfo = db.prepare("PRAGMA table_info(categories)").all();
+  const catHasTypeColumn = catTableInfo.some(col => col.name === 'type');
+  if (!catHasTypeColumn) {
+    db.exec("ALTER TABLE categories ADD COLUMN type TEXT DEFAULT 'expense'");
+    console.log('Migration: Added type column to categories table');
+  }
+
+  // Step 3: Create type index AFTER migration ensures column exists
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_type ON expenses(type);`);
+
+  // Step 4: Insert default categories if none exist
   const categoryCount = db.prepare('SELECT COUNT(*) as count FROM categories').get();
   if (categoryCount.count === 0) {
     const defaultCategories = [
