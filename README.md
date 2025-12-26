@@ -86,6 +86,8 @@ sudo apt install -y git curl wget htop vim jq tmux
 | [Cloudflare Tunnel](./cloudflare-tunnel/) | - | Secure tunnel without port forwarding | `cloudflare-tunnel/` |
 | [AdGuard Home](./adguard/) | 53, 3001 | Network-wide ad blocking & DNS | `adguard/` |
 | [Uptime Kuma](./uptime-kuma/) | 3002 | Service monitoring & status page | `uptime-kuma/` |
+| [Netdata](./netdata/) | - | Real-time server performance monitoring | `netdata/` |
+| [Webhook](./webhook/) | - | GitHub CI/CD auto-deployment | `webhook/` |
 | [Dockge](./dockge/) | 5001 | Docker Compose management UI | `dockge/` |
 
 ### Applications
@@ -191,7 +193,10 @@ If using a domain with Cloudflare:
 | `dockge.domain.com` | Dockge |
 | `vault.domain.com` | Vaultwarden |
 | `auth.domain.com` | 2FAuth |
+| `apps.domain.com` | Homer Dashboard |
 | `status.domain.com` | Uptime Kuma |
+| `monitor.domain.com` | Netdata |
+| `webhook.domain.com` | GitHub Webhook |
 | `home.domain.com` | Home Assistant |
 | `sync.domain.com` | Syncthing |
 | `jellyfin.domain.com` | Jellyfin |

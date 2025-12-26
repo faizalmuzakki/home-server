@@ -1,0 +1,25 @@
+services:
+  webhook:
+    image: almir/webhook:latest
+    container_name: webhook
+    restart: unless-stopped
+    command: -verbose -hooks=/etc/webhook/hooks.json -hotreload
+    volumes:
+      - ./hooks.json:/etc/webhook/hooks.json:ro
+      - ./scripts:/scripts:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOME_SERVER_PATH:-/home/solork/Projects/home-server}:/home-server
+    environment:
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.webhook.rule=Host(`webhook.${DOMAIN}`)"
+      - "traefik.http.routers.webhook.entrypoints=websecure"
+      - "traefik.http.routers.webhook.tls.certresolver=cloudflare"
+      - "traefik.http.services.webhook.loadbalancer.server.port=9000"
+
+networks:
+  traefik-public:
+    external: true
