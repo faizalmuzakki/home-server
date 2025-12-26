@@ -1,0 +1,35 @@
+services:
+  2fauth:
+    image: 2fauth/2fauth:latest
+    container_name: 2fauth
+    restart: unless-stopped
+    environment:
+      - APP_NAME=2FAuth
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - APP_URL=https://auth.${DOMAIN}
+      - APP_KEY=${APP_KEY}
+      - AUTHENTICATION_GUARD=web-guard
+      - LOG_CHANNEL=daily
+      - LOG_LEVEL=info
+      - DB_DATABASE=/srv/database/database.sqlite
+      - CACHE_DRIVER=file
+      - SESSION_DRIVER=file
+    volumes:
+      - 2fauth_data:/srv
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.2fauth.rule=Host(`auth.${DOMAIN}`)"
+      - "traefik.http.routers.2fauth.entrypoints=websecure"
+      - "traefik.http.routers.2fauth.tls.certresolver=cloudflare"
+      - "traefik.http.services.2fauth.loadbalancer.server.port=8000"
+
+volumes:
+  2fauth_data:
+    driver: local
+
+networks:
+  traefik-public:
+    external: true

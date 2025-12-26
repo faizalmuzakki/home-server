@@ -94,6 +94,7 @@ sudo apt install -y git curl wget htop vim jq tmux
 | [MongoDB](./mongodb/) | 27017 | Database server | `mongodb/` |
 | [Expense Tracker](./expense-tracker/) | 3000 | WhatsApp expense bot + API | `expense-tracker/` |
 | [Vaultwarden](./vaultwarden/) | - | Bitwarden password manager | `vaultwarden/` |
+| [2FAuth](./2fauth/) | - | Self-hosted TOTP authenticator | `2fauth/` |
 | [Syncthing](./syncthing/) | 8384 | File synchronization | `syncthing/` |
 | [Home Assistant](./homeassistant/) | 8123 | Home automation | `homeassistant/` |
 
@@ -188,6 +189,7 @@ If using a domain with Cloudflare:
 | `traefik.domain.com` | Traefik Dashboard |
 | `dockge.domain.com` | Dockge |
 | `vault.domain.com` | Vaultwarden |
+| `auth.domain.com` | 2FAuth |
 | `status.domain.com` | Uptime Kuma |
 | `home.domain.com` | Home Assistant |
 | `sync.domain.com` | Syncthing |
