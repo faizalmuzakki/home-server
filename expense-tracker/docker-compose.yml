@@ -7,6 +7,8 @@ services:
       - PORT=3000
       - DB_PATH=/app/data/expenses.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DASHBOARD_EMAIL=${DASHBOARD_EMAIL}
+      - DASHBOARD_PIN=${DASHBOARD_PIN}
     volumes:
       - api_data:/app/data
     ports:
@@ -27,6 +29,7 @@ services:
     environment:
       - API_URL=http://api:3000
       - ALLOWED_NUMBERS=${ALLOWED_NUMBERS:-}
+      - DASHBOARD_PIN=${DASHBOARD_PIN}
     volumes:
       - whatsapp_auth:/app/auth_info
     depends_on:
