@@ -93,7 +93,7 @@ services:
     items:
       - name: "Expenses"
         subtitle: "Expense Tracker Dashboard"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/wallet.png"
+        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/firefly-iii.png"
         url: "https://expenses.solork.dev"
         target: "_blank"
       - name: "Syncthing"
