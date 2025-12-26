@@ -18,7 +18,7 @@ docker compose up -d
 
 ## Access
 
-- **URL**: `https://solork.dev` (root domain)
+- **URL**: `https://apps.solork.dev`
 
 ## Configuration
 
