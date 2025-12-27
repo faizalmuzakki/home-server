@@ -6,6 +6,9 @@ services:
     command: tunnel run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    # Allow access to host's SSH service from within the container
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - traefik-public
       - media-network

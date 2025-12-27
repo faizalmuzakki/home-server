@@ -280,6 +280,99 @@ ingress:
 
 ---
 
+## SSH Remote Access
+
+This section explains how to access your home server via SSH from anywhere in the world using Cloudflare Tunnel.
+
+### Server-Side Configuration
+
+1. **Ensure `extra_hosts` is configured** in `docker-compose.yml`:
+   ```yaml
+   extra_hosts:
+     - "host.docker.internal:host-gateway"
+   ```
+
+2. **Add SSH hostname in Cloudflare Dashboard**:
+   - Go to [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/)
+   - Navigate to **Networks** → **Tunnels**
+   - Click on your tunnel → **Public Hostname** tab
+   - Click **Add a public hostname**
+   - Configure:
+     | Field | Value |
+     |-------|-------|
+     | **Subdomain** | `ssh` |
+     | **Domain** | `solork.dev` |
+     | **Type** | `SSH` |
+     | **URL** | `host.docker.internal:22` |
+   - Click **Save**
+
+### Client-Side Configuration
+
+#### macOS / Linux
+
+1. **Install cloudflared**:
+   ```bash
+   # macOS
+   brew install cloudflared
+
+   # Ubuntu/Debian
+   curl -L https://pkg.cloudflare.com/cloudflared-stable-linux-amd64.deb -o cloudflared.deb
+   sudo dpkg -i cloudflared.deb
+
+   # Or download binary directly
+   curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+   chmod +x cloudflared && sudo mv cloudflared /usr/local/bin/
+   ```
+
+2. **Configure SSH** (`~/.ssh/config`):
+   ```
+   # Remote SSH via Cloudflare Tunnel
+   Host home-server ssh.solork.dev
+       HostName ssh.solork.dev
+       User <your-username>
+       ProxyCommand cloudflared access ssh --hostname %h
+   ```
+
+3. **Connect from anywhere**:
+   ```bash
+   ssh home-server
+   ```
+
+#### Windows
+
+1. **Install cloudflared**:
+   - Download from [GitHub Releases](https://github.com/cloudflare/cloudflared/releases)
+   - Or use: `winget install Cloudflare.cloudflared`
+
+2. **Configure SSH** (`%USERPROFILE%\.ssh\config`):
+   ```
+   Host home-server
+       HostName ssh.solork.dev
+       User <your-username>
+       ProxyCommand cloudflared access ssh --hostname %h
+   ```
+
+3. **Connect**:
+   ```powershell
+   ssh home-server
+   ```
+
+### Security: Add Cloudflare Access (Recommended)
+
+For additional security, require authentication before SSH access:
+
+1. Go to Zero Trust Dashboard → **Access** → **Applications**
+2. Click **Add an application** → **Self-hosted**
+3. Configure:
+   - **Name**: `SSH Access`
+   - **Application domain**: `ssh.solork.dev`
+4. Create a policy:
+   - **Action**: Allow
+   - **Include**: Your email address or email domain
+5. Save
+
+Now when you run `ssh home-server`, a browser window will open for authentication the first time.
+
 ## Setting Up DNS Records
 
 ### Automatic DNS (Recommended)
