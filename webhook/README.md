@@ -17,9 +17,7 @@ cp .env.example .env
 # Generate webhook secret
 openssl rand -hex 32
 # Add to .env as WEBHOOK_SECRET
-
-# Update hooks.json with your secret
-# Replace WEBHOOK_SECRET_PLACEHOLDER with your secret
+# (hooks.json reads this automatically via template)
 
 # Make deploy script executable
 chmod +x scripts/deploy.sh
