@@ -36,3 +36,11 @@ export async function getStats(params = {}) {
   const response = await api.get('/api/stats/summary', { params });
   return response.data;
 }
+
+export async function uploadImage(base64Image, filename) {
+  const response = await api.post('/api/upload', {
+    image: base64Image,
+    filename
+  });
+  return response.data;
+}
