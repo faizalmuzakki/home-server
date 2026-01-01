@@ -2,7 +2,7 @@
 set -e
 
 REPO_NAME=$1
-LOG_FILE="/home-server/webhook/deploy.log"
+LOG_FILE="/home/solork/Projects/home-server/webhook/deploy.log"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -10,7 +10,7 @@ log() {
 
 log "=== Starting deployment for $REPO_NAME ==="
 
-cd /home-server
+cd /home/solork/Projects/home-server
 
 # Pull latest changes
 log "Pulling latest changes..."
@@ -22,7 +22,7 @@ REBUILD_SERVICES="expense-tracker"
 # Function to deploy a service
 deploy_service() {
     local dir=$1
-    cd /home-server/$dir
+    cd /home/solork/Projects/home-server/$dir
     
     if echo "$REBUILD_SERVICES" | grep -qw "$dir"; then
         log "Rebuilding $dir (local build)..."
