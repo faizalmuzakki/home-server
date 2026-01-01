@@ -144,7 +144,8 @@ export function initDatabase() {
   // Add start_date column to config if it doesn't exist
   const configInfo = db.prepare("PRAGMA table_info(investment_config)").all();
   if (!configInfo.some(col => col.name === 'start_date')) {
-    db.exec("ALTER TABLE investment_config ADD COLUMN start_date DATE DEFAULT CURRENT_DATE");
+    // SQLite doesn't allow non-constant defaults in ALTER TABLE, so use NULL
+    db.exec("ALTER TABLE investment_config ADD COLUMN start_date DATE");
   }
 
   // Step 4: Insert default categories if none exist
