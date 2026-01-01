@@ -6,43 +6,47 @@ const router = express.Router();
 // Asset type order for display
 const ASSET_ORDER = ['emergency_fund', 'pension_fund', 'indonesian_equity', 'international_equity', 'gold'];
 
+// Allocation group config (for 50/40/10 chart)
+const ALLOCATION_GROUPS = {
+  indonesian: {
+    name: 'Indonesian',
+    emoji: '🇮🇩',
+    color: '#EF4444',
+    target: 50
+  },
+  international: {
+    name: 'International',
+    emoji: '🌍',
+    color: '#3B82F6',
+    target: 40
+  },
+  gold: {
+    name: 'Gold',
+    emoji: '🥇',
+    color: '#F59E0B',
+    target: 10
+  }
+};
+
 // Phase definitions
 const PHASES = {
   1: {
     name: 'Build Gold',
     description: 'Focus 100% on building gold position',
-    duration: 2, // months
-    allocation: {
-      emergency_fund: 0,
-      pension_fund: 0,
-      indonesian_equity: 0,
-      international_equity: 0,
-      gold: 100
-    }
+    duration: 2,
+    allocation: { indonesian: 0, international: 0, gold: 100 }
   },
   2: {
     name: 'Build Indonesian Equity',
     description: 'Focus on Indonesian equity while maintaining gold',
-    duration: 6, // months (3-8)
-    allocation: {
-      emergency_fund: 0,
-      pension_fund: 0,
-      indonesian_equity: 90,
-      international_equity: 0,
-      gold: 10
-    }
+    duration: 6,
+    allocation: { indonesian: 90, international: 0, gold: 10 }
   },
   3: {
     name: 'Maintenance',
     description: 'Balanced allocation across all categories',
-    duration: null, // ongoing
-    allocation: {
-      emergency_fund: 10,
-      pension_fund: 25,
-      indonesian_equity: 30,
-      international_equity: 25,
-      gold: 10
-    }
+    duration: null,
+    allocation: { indonesian: 50, international: 40, gold: 10 }
   }
 };
 
@@ -54,9 +58,31 @@ function calculateCurrentPhase(startDate) {
   const now = new Date();
   const monthsDiff = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
 
-  if (monthsDiff < 2) return 1;  // Months 1-2
-  if (monthsDiff < 8) return 2;  // Months 3-8
-  return 3;  // Month 9+
+  if (monthsDiff < 2) return 1;
+  if (monthsDiff < 8) return 2;
+  return 3;
+}
+
+// Calculate grouped allocations from holdings
+function calculateGroupedAllocations(holdings) {
+  const groups = { indonesian: 0, international: 0, gold: 0 };
+
+  for (const h of holdings) {
+    const group = h.allocation_group || 'indonesian';
+    groups[group] = (groups[group] || 0) + h.current_value;
+  }
+
+  const total = Object.values(groups).reduce((sum, v) => sum + v, 0);
+
+  return Object.entries(groups).map(([key, value]) => ({
+    group: key,
+    name: ALLOCATION_GROUPS[key]?.name || key,
+    emoji: ALLOCATION_GROUPS[key]?.emoji || '📊',
+    color: ALLOCATION_GROUPS[key]?.color || '#888',
+    value,
+    percentage: total > 0 ? (value / total) * 100 : 0,
+    target: ALLOCATION_GROUPS[key]?.target || 0
+  }));
 }
 
 // Get all investment holdings
@@ -94,21 +120,29 @@ router.get('/summary', (req, res) => {
       ASSET_ORDER.indexOf(a.type) - ASSET_ORDER.indexOf(b.type)
     );
 
+    // Calculate grouped allocations for 50/40/10 chart
+    const allocations = calculateGroupedAllocations(holdings);
+
     const summary = {
       totalValue: total,
       monthlyBudget: config?.monthly_budget || 5000000,
       startDate: config?.start_date || null,
       currentPhase,
       phaseInfo: PHASES[currentPhase],
+      // Individual holdings for detailed view
       holdings: sortedHoldings.map(h => ({
         ...h,
         percentage: total > 0 ? (h.current_value / total) * 100 : 0
       })),
+      // Grouped allocations for 50/40/10 chart
+      allocations,
+      // Target percentages for each allocation group
       targets: targets.reduce((acc, t) => {
         acc[t.type] = t.target_percentage;
         return acc;
       }, {}),
-      phases: PHASES
+      phases: PHASES,
+      allocationGroups: ALLOCATION_GROUPS
     };
 
     res.json(summary);
@@ -121,9 +155,8 @@ router.get('/summary', (req, res) => {
 router.put('/holdings/:type', (req, res) => {
   try {
     const { type } = req.params;
-    const { current_value, name, platform } = req.body;
+    const { current_value, name, platform, allocation_group } = req.body;
 
-    // Check if holding exists
     const existing = db.prepare('SELECT * FROM investment_holdings WHERE type = ?').get(type);
 
     if (existing) {
@@ -131,16 +164,16 @@ router.put('/holdings/:type', (req, res) => {
         UPDATE investment_holdings 
         SET current_value = COALESCE(?, current_value), 
             name = COALESCE(?, name), 
-            platform = COALESCE(?, platform), 
+            platform = COALESCE(?, platform),
+            allocation_group = COALESCE(?, allocation_group),
             updated_at = CURRENT_TIMESTAMP
         WHERE type = ?
-      `).run(current_value, name, platform, type);
+      `).run(current_value, name, platform, allocation_group, type);
     } else {
-      // Insert new holding
       db.prepare(`
-        INSERT INTO investment_holdings (type, name, platform, current_value) 
-        VALUES (?, ?, ?, ?)
-      `).run(type, name || type, platform || '', current_value || 0);
+        INSERT INTO investment_holdings (type, name, platform, current_value, allocation_group) 
+        VALUES (?, ?, ?, ?, ?)
+      `).run(type, name || type, platform || '', current_value || 0, allocation_group || 'indonesian');
     }
 
     res.json({ success: true });
@@ -162,29 +195,42 @@ router.get('/contribution-plan', (req, res) => {
 
     const total = holdings.reduce((sum, h) => sum + h.current_value, 0);
 
-    // Calculate target values and differences (final targets)
-    const targetMap = targets.reduce((acc, t) => {
-      acc[t.type] = t.target_percentage / 100;
-      return acc;
-    }, {});
+    // Calculate grouped allocations
+    const allocations = calculateGroupedAllocations(holdings);
 
-    // Sort holdings
+    // Calculate contributions per allocation group
+    const groupContributions = Object.entries(phaseAllocation).map(([group, pct]) => {
+      const allocation = allocations.find(a => a.group === group);
+      return {
+        group,
+        name: ALLOCATION_GROUPS[group]?.name || group,
+        emoji: ALLOCATION_GROUPS[group]?.emoji || '📊',
+        currentValue: allocation?.value || 0,
+        currentPercentage: allocation?.percentage || 0,
+        targetPercentage: ALLOCATION_GROUPS[group]?.target || 0,
+        suggestedContribution: Math.round(monthlyBudget * (pct / 100)),
+        contributionPercentage: pct
+      };
+    });
+
+    // Also provide per-holding breakdown for detailed view
     const sortedHoldings = holdings.sort((a, b) =>
       ASSET_ORDER.indexOf(a.type) - ASSET_ORDER.indexOf(b.type)
     );
 
-    const contributions = sortedHoldings.map(h => {
-      const currentPct = total > 0 ? h.current_value / total : 0;
-      const targetPct = targetMap[h.type] || 0;
-      const phaseContribPct = phaseAllocation[h.type] || 0;
+    const holdingContributions = sortedHoldings.map(h => {
+      const group = h.allocation_group || 'indonesian';
+      const groupPct = phaseAllocation[group] || 0;
+
+      // Divide group contribution among holdings in that group
+      const holdingsInGroup = holdings.filter(x => x.allocation_group === group);
+      const holdingShare = holdingsInGroup.length > 0 ? 1 / holdingsInGroup.length : 0;
 
       return {
         ...h,
-        currentPercentage: currentPct * 100,
-        targetPercentage: targetPct * 100,
-        difference: (currentPct - targetPct) * 100,
-        suggestedContribution: Math.round(monthlyBudget * (phaseContribPct / 100)),
-        contributionPercentage: phaseContribPct
+        currentPercentage: total > 0 ? (h.current_value / total) * 100 : 0,
+        suggestedContribution: Math.round(monthlyBudget * (groupPct / 100) * holdingShare),
+        contributionPercentage: groupPct * holdingShare
       };
     });
 
@@ -210,7 +256,10 @@ router.get('/contribution-plan', (req, res) => {
       phaseInfo: PHASES[currentPhase],
       monthsInPhase,
       monthsRemaining,
-      contributions
+      // Group-level contributions (for 50/40/10 view)
+      groupContributions,
+      // Per-holding contributions (for detailed view)
+      contributions: holdingContributions
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -243,7 +292,7 @@ router.put('/config', (req, res) => {
   }
 });
 
-// Start the investment plan (sets start_date)
+// Start the investment plan
 router.post('/start-plan', (req, res) => {
   try {
     const startDate = new Date().toISOString().split('T')[0];
@@ -272,12 +321,10 @@ router.post('/contributions', (req, res) => {
   try {
     const { type, amount, date, notes } = req.body;
 
-    // Log the contribution
     db.prepare(`
       INSERT INTO investment_contributions (type, amount, date, notes) VALUES (?, ?, ?, ?)
     `).run(type, amount, date || new Date().toISOString().split('T')[0], notes);
 
-    // Update the holding value
     const existing = db.prepare('SELECT * FROM investment_holdings WHERE type = ?').get(type);
 
     if (existing) {
@@ -286,12 +333,6 @@ router.post('/contributions', (req, res) => {
         SET current_value = current_value + ?, updated_at = CURRENT_TIMESTAMP
         WHERE type = ?
       `).run(amount, type);
-    } else {
-      // Create holding if it doesn't exist
-      db.prepare(`
-        INSERT INTO investment_holdings (type, name, platform, current_value) 
-        VALUES (?, ?, '', ?)
-      `).run(type, type, amount);
     }
 
     res.json({ success: true });
@@ -330,13 +371,9 @@ router.put('/targets/:type', (req, res) => {
     const existing = db.prepare('SELECT * FROM investment_targets WHERE type = ?').get(type);
 
     if (existing) {
-      db.prepare(`
-        UPDATE investment_targets SET target_percentage = ? WHERE type = ?
-      `).run(target_percentage, type);
+      db.prepare(`UPDATE investment_targets SET target_percentage = ? WHERE type = ?`).run(target_percentage, type);
     } else {
-      db.prepare(`
-        INSERT INTO investment_targets (type, target_percentage) VALUES (?, ?)
-      `).run(type, target_percentage);
+      db.prepare(`INSERT INTO investment_targets (type, target_percentage) VALUES (?, ?)`).run(type, target_percentage);
     }
 
     res.json({ success: true });
@@ -345,46 +382,19 @@ router.put('/targets/:type', (req, res) => {
   }
 });
 
-// Get action items / checklist
+// Get action items
 router.get('/action-items', (req, res) => {
   try {
     const holdings = db.prepare('SELECT * FROM investment_holdings').all();
     const config = db.prepare('SELECT * FROM investment_config LIMIT 1').get();
 
-    const holdingMap = holdings.reduce((acc, h) => {
-      acc[h.type] = h;
-      return acc;
-    }, {});
+    const allocations = calculateGroupedAllocations(holdings);
+    const goldAlloc = allocations.find(a => a.group === 'gold');
+    const indoAlloc = allocations.find(a => a.group === 'indonesian');
 
     const currentPhase = calculateCurrentPhase(config?.start_date);
     const actionItems = [];
 
-    // Phase-specific actions
-    if (currentPhase === 1) {
-      if ((holdingMap.gold?.current_value || 0) < 10000000) {
-        actionItems.push({
-          id: 'build_gold',
-          priority: 'high',
-          category: 'contribution',
-          title: 'Build Gold Position',
-          description: `Target: Rp10M. Current: Rp${((holdingMap.gold?.current_value || 0) / 1000000).toFixed(1)}M. Put 100% of monthly budget into gold.`,
-          completed: false
-        });
-      }
-    } else if (currentPhase === 2) {
-      if ((holdingMap.indonesian_equity?.current_value || 0) < 32000000) {
-        actionItems.push({
-          id: 'build_indo_equity',
-          priority: 'high',
-          category: 'contribution',
-          title: 'Build Indonesian Equity',
-          description: `Target: Rp32M. Current: Rp${((holdingMap.indonesian_equity?.current_value || 0) / 1000000).toFixed(1)}M. Put 90% into Reksa Dana Saham.`,
-          completed: false
-        });
-      }
-    }
-
-    // One-time setup actions
     if (!config?.start_date) {
       actionItems.unshift({
         id: 'start_plan',
@@ -396,15 +406,24 @@ router.get('/action-items', (req, res) => {
       });
     }
 
-    // Check pension allocation (should be Agresif)
-    const pensionHolding = holdingMap.pension_fund;
-    if (pensionHolding && !pensionHolding.platform?.toLowerCase().includes('agresif')) {
+    if (currentPhase === 1 && (goldAlloc?.value || 0) < 10000000) {
       actionItems.push({
-        id: 'switch_pension',
+        id: 'build_gold',
         priority: 'high',
-        category: 'setup',
-        title: 'Switch Pension to Agresif',
-        description: 'Change your robo-advisor from Moderat to Agresif for higher growth potential.',
+        category: 'contribution',
+        title: 'Build Gold Position',
+        description: `Target: Rp10M. Current: Rp${((goldAlloc?.value || 0) / 1000000).toFixed(1)}M. Put 100% of monthly budget into gold.`,
+        completed: false
+      });
+    }
+
+    if (currentPhase === 2) {
+      actionItems.push({
+        id: 'build_indo_equity',
+        priority: 'high',
+        category: 'contribution',
+        title: 'Build Indonesian Allocation',
+        description: `Focus 90% on Indonesian assets (Emergency/Pension/Equity). Current: ${indoAlloc?.percentage.toFixed(1)}%`,
         completed: false
       });
     }

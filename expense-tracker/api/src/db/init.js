@@ -97,37 +97,60 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_contributions_type ON investment_contributions(type);
   `);
 
+  // Add allocation_group column if it doesn't exist
+  const holdingsInfo = db.prepare("PRAGMA table_info(investment_holdings)").all();
+  if (!holdingsInfo.some(col => col.name === 'allocation_group')) {
+    db.exec("ALTER TABLE investment_holdings ADD COLUMN allocation_group TEXT");
+  }
+
   // Initialize default investment holdings if none exist
   const holdingsCount = db.prepare('SELECT COUNT(*) as count FROM investment_holdings').get();
   if (holdingsCount.count === 0) {
+    // allocation_group determines which 50/40/10 bucket this holding belongs to
     const defaultHoldings = [
-      { type: 'emergency_fund', name: 'Emergency Fund', platform: 'Bibit Pasar Uang', current_value: 18500000 },
-      { type: 'pension_fund', name: 'Pension Fund', platform: 'Robo-Advisor Agresif', current_value: 30100000 },
-      { type: 'indonesian_equity', name: 'Indonesian Equity', platform: 'Bibit Reksa Dana Saham', current_value: 10500000 },
-      { type: 'international_equity', name: 'International Equity', platform: 'Gotrade', current_value: 47000000 },
-      { type: 'gold', name: 'Gold', platform: 'Bibit/Pluang', current_value: 0 }
+      { type: 'emergency_fund', name: 'Emergency Fund', platform: 'Bibit Pasar Uang', current_value: 18500000, allocation_group: 'indonesian' },
+      { type: 'pension_fund', name: 'Pension Fund', platform: 'Robo-Advisor Agresif', current_value: 30100000, allocation_group: 'indonesian' },
+      { type: 'indonesian_equity', name: 'Indonesian Equity', platform: 'Bibit Reksa Dana Saham', current_value: 10500000, allocation_group: 'indonesian' },
+      { type: 'international_equity', name: 'International Equity', platform: 'Gotrade', current_value: 47000000, allocation_group: 'international' },
+      { type: 'gold', name: 'Gold', platform: 'Bibit/Pluang', current_value: 0, allocation_group: 'gold' }
     ];
 
-    const insertHolding = db.prepare('INSERT INTO investment_holdings (type, name, platform, current_value) VALUES (?, ?, ?, ?)');
+    const insertHolding = db.prepare('INSERT INTO investment_holdings (type, name, platform, current_value, allocation_group) VALUES (?, ?, ?, ?, ?)');
     for (const h of defaultHoldings) {
-      insertHolding.run(h.type, h.name, h.platform, h.current_value);
+      insertHolding.run(h.type, h.name, h.platform, h.current_value, h.allocation_group);
     }
+  } else {
+    // Migration: Update existing holdings with allocation_group if not set
+    db.prepare("UPDATE investment_holdings SET allocation_group = 'indonesian' WHERE type IN ('emergency_fund', 'pension_fund', 'indonesian_equity') AND allocation_group IS NULL").run();
+    db.prepare("UPDATE investment_holdings SET allocation_group = 'international' WHERE type = 'international_equity' AND allocation_group IS NULL").run();
+    db.prepare("UPDATE investment_holdings SET allocation_group = 'gold' WHERE type = 'gold' AND allocation_group IS NULL").run();
   }
 
-  // Initialize default investment targets if none exist (final target allocation)
+  // Initialize default investment targets if none exist (3 allocation buckets: 50/40/10)
   const targetsCount = db.prepare('SELECT COUNT(*) as count FROM investment_targets').get();
   if (targetsCount.count === 0) {
+    // Targets are for the 3 allocation groups, not individual holdings
     const defaultTargets = [
-      { type: 'emergency_fund', target_percentage: 10 },
-      { type: 'pension_fund', target_percentage: 25 },
-      { type: 'indonesian_equity', target_percentage: 30 },
-      { type: 'international_equity', target_percentage: 25 },
+      { type: 'indonesian', target_percentage: 50 },
+      { type: 'international', target_percentage: 40 },
       { type: 'gold', target_percentage: 10 }
     ];
 
     const insertTarget = db.prepare('INSERT INTO investment_targets (type, target_percentage) VALUES (?, ?)');
     for (const t of defaultTargets) {
       insertTarget.run(t.type, t.target_percentage);
+    }
+  } else {
+    // Migration: Update old targets to new 3-bucket system
+    const existingTargets = db.prepare('SELECT type FROM investment_targets').all();
+    const types = existingTargets.map(t => t.type);
+    
+    // If we have old-style targets, migrate them
+    if (types.includes('emergency_fund') || types.includes('pension_fund')) {
+      db.exec('DELETE FROM investment_targets');
+      db.prepare('INSERT INTO investment_targets (type, target_percentage) VALUES (?, ?)').run('indonesian', 50);
+      db.prepare('INSERT INTO investment_targets (type, target_percentage) VALUES (?, ?)').run('international', 40);
+      db.prepare('INSERT INTO investment_targets (type, target_percentage) VALUES (?, ?)').run('gold', 10);
     }
   }
 
