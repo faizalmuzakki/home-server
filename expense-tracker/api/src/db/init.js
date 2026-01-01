@@ -101,7 +101,9 @@ export function initDatabase() {
   const holdingsCount = db.prepare('SELECT COUNT(*) as count FROM investment_holdings').get();
   if (holdingsCount.count === 0) {
     const defaultHoldings = [
-      { type: 'indonesian_equity', name: 'Indonesian Equity', platform: 'Bibit Saham', current_value: 59200000 },
+      { type: 'emergency_fund', name: 'Emergency Fund', platform: 'Bibit Pasar Uang', current_value: 18500000 },
+      { type: 'pension_fund', name: 'Pension Fund', platform: 'Robo-Advisor Agresif', current_value: 30100000 },
+      { type: 'indonesian_equity', name: 'Indonesian Equity', platform: 'Bibit Reksa Dana Saham', current_value: 10500000 },
       { type: 'international_equity', name: 'International Equity', platform: 'Gotrade', current_value: 47000000 },
       { type: 'gold', name: 'Gold', platform: 'Bibit/Pluang', current_value: 0 }
     ];
@@ -112,12 +114,14 @@ export function initDatabase() {
     }
   }
 
-  // Initialize default investment targets if none exist
+  // Initialize default investment targets if none exist (final target allocation)
   const targetsCount = db.prepare('SELECT COUNT(*) as count FROM investment_targets').get();
   if (targetsCount.count === 0) {
     const defaultTargets = [
-      { type: 'indonesian_equity', target_percentage: 50 },
-      { type: 'international_equity', target_percentage: 40 },
+      { type: 'emergency_fund', target_percentage: 10 },
+      { type: 'pension_fund', target_percentage: 25 },
+      { type: 'indonesian_equity', target_percentage: 30 },
+      { type: 'international_equity', target_percentage: 25 },
       { type: 'gold', target_percentage: 10 }
     ];
 
@@ -130,7 +134,17 @@ export function initDatabase() {
   // Initialize default investment config if none exists
   const configCount = db.prepare('SELECT COUNT(*) as count FROM investment_config').get();
   if (configCount.count === 0) {
-    db.prepare('INSERT INTO investment_config (monthly_budget, catch_up_phase) VALUES (?, ?)').run(5000000, 1);
+    // start_month is when the user started the investment plan (for phase calculation)
+    db.prepare(`
+      INSERT INTO investment_config (monthly_budget, catch_up_phase) 
+      VALUES (?, ?)
+    `).run(5000000, 1);
+  }
+
+  // Add start_date column to config if it doesn't exist
+  const configInfo = db.prepare("PRAGMA table_info(investment_config)").all();
+  if (!configInfo.some(col => col.name === 'start_date')) {
+    db.exec("ALTER TABLE investment_config ADD COLUMN start_date DATE DEFAULT CURRENT_DATE");
   }
 
   // Step 4: Insert default categories if none exist
