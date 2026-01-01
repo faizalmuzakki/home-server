@@ -16,16 +16,31 @@ cd /home-server
 log "Pulling latest changes..."
 git pull origin main
 
-# Find all docker-compose.yml files and restart them
+# Services that need rebuilding (use local Dockerfiles)
+REBUILD_SERVICES="expense-tracker"
+
+# Function to deploy a service
+deploy_service() {
+    local dir=$1
+    cd /home-server/$dir
+    
+    if echo "$REBUILD_SERVICES" | grep -qw "$dir"; then
+        log "Rebuilding $dir (local build)..."
+        docker compose build --no-cache
+        docker compose up -d --force-recreate
+    else
+        log "Updating $dir (image pull)..."
+        docker compose pull --quiet 2>/dev/null || true
+        docker compose up -d
+    fi
+}
+
 log "Restarting Docker services..."
 
-# Core services first
+# Core services first (order matters)
 for dir in traefik mongodb; do
     if [ -f "$dir/docker-compose.yml" ]; then
-        log "Restarting $dir..."
-        cd /home-server/$dir
-        docker compose pull --quiet
-        docker compose up -d
+        deploy_service "$dir"
     fi
 done
 
@@ -33,11 +48,9 @@ done
 for dir in */; do
     dir=${dir%/}
     if [ -f "$dir/docker-compose.yml" ] && [ "$dir" != "traefik" ] && [ "$dir" != "mongodb" ] && [ "$dir" != "webhook" ]; then
-        log "Restarting $dir..."
-        cd /home-server/$dir
-        docker compose pull --quiet 2>/dev/null || true
-        docker compose up -d
+        deploy_service "$dir"
     fi
 done
 
 log "=== Deployment complete ==="
+

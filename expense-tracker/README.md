@@ -156,3 +156,65 @@ docker compose restart api
 docker compose ps
 docker compose logs -f
 ```
+
+## Deployment
+
+### Quick Deployment Script
+
+Use the dedicated deployment script for quick deployments:
+
+```bash
+# Deploy everything (backend + frontend)
+./scripts/deploy-expense-tracker.sh
+
+# Deploy only the API
+./scripts/deploy-expense-tracker.sh api
+
+# Deploy only the WhatsApp bot
+./scripts/deploy-expense-tracker.sh whatsapp
+
+# Deploy only the frontend to Cloudflare
+./scripts/deploy-expense-tracker.sh frontend
+
+# Check status
+./scripts/deploy-expense-tracker.sh status
+
+# View logs
+./scripts/deploy-expense-tracker.sh logs
+./scripts/deploy-expense-tracker.sh logs api
+```
+
+### CI/CD (Automatic Deployment)
+
+**Backend (Home Server):**
+- Push to `main` branch triggers the webhook: `https://webhook.yourdomain.com/hooks/expense-tracker-deploy`
+- The webhook is configured in `webhook/hooks.json`
+
+**Frontend (Cloudflare Pages):**
+- Push to `main` branch of the `expenses` repo triggers GitHub Actions
+- Automatically builds and deploys to Cloudflare Pages
+- Required secrets in GitHub:
+  - `CLOUDFLARE_API_TOKEN`
+  - `CLOUDFLARE_ACCOUNT_ID`
+- Required variables in GitHub:
+  - `VITE_API_URL` (e.g., `https://expense-api.yourdomain.com`)
+
+### Manual Deployment
+
+**Backend:**
+```bash
+cd ~/Projects/home-server/expense-tracker
+git pull origin main
+docker compose build --no-cache
+docker compose up -d --force-recreate
+```
+
+**Frontend:**
+```bash
+cd ~/Projects/expenses
+git pull origin main
+npm install
+npm run build
+npx wrangler pages deploy dist --project-name=expenses
+```
+
