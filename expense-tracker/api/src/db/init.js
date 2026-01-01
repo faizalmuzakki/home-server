@@ -57,6 +57,82 @@ export function initDatabase() {
   // Step 3: Create type index AFTER migration ensures column exists
   db.exec(`CREATE INDEX IF NOT EXISTS idx_expenses_type ON expenses(type);`);
 
+  // Step 3.5: Create investment-related tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS investment_holdings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      platform TEXT,
+      current_value REAL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS investment_targets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL UNIQUE,
+      target_percentage REAL NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS investment_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      monthly_budget REAL DEFAULT 5000000,
+      catch_up_phase INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS investment_contributions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      amount REAL NOT NULL,
+      date DATE NOT NULL,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_contributions_date ON investment_contributions(date);
+    CREATE INDEX IF NOT EXISTS idx_contributions_type ON investment_contributions(type);
+  `);
+
+  // Initialize default investment holdings if none exist
+  const holdingsCount = db.prepare('SELECT COUNT(*) as count FROM investment_holdings').get();
+  if (holdingsCount.count === 0) {
+    const defaultHoldings = [
+      { type: 'indonesian_equity', name: 'Indonesian Equity', platform: 'Bibit Saham', current_value: 59200000 },
+      { type: 'international_equity', name: 'International Equity', platform: 'Gotrade', current_value: 47000000 },
+      { type: 'gold', name: 'Gold', platform: 'Bibit/Pluang', current_value: 0 }
+    ];
+
+    const insertHolding = db.prepare('INSERT INTO investment_holdings (type, name, platform, current_value) VALUES (?, ?, ?, ?)');
+    for (const h of defaultHoldings) {
+      insertHolding.run(h.type, h.name, h.platform, h.current_value);
+    }
+  }
+
+  // Initialize default investment targets if none exist
+  const targetsCount = db.prepare('SELECT COUNT(*) as count FROM investment_targets').get();
+  if (targetsCount.count === 0) {
+    const defaultTargets = [
+      { type: 'indonesian_equity', target_percentage: 50 },
+      { type: 'international_equity', target_percentage: 40 },
+      { type: 'gold', target_percentage: 10 }
+    ];
+
+    const insertTarget = db.prepare('INSERT INTO investment_targets (type, target_percentage) VALUES (?, ?)');
+    for (const t of defaultTargets) {
+      insertTarget.run(t.type, t.target_percentage);
+    }
+  }
+
+  // Initialize default investment config if none exists
+  const configCount = db.prepare('SELECT COUNT(*) as count FROM investment_config').get();
+  if (configCount.count === 0) {
+    db.prepare('INSERT INTO investment_config (monthly_budget, catch_up_phase) VALUES (?, ?)').run(5000000, 1);
+  }
+
   // Step 4: Insert default categories if none exist
   const categoryCount = db.prepare('SELECT COUNT(*) as count FROM categories').get();
   if (categoryCount.count === 0) {

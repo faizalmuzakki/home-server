@@ -10,6 +10,7 @@ import parseRoutes from './routes/parse.js';
 import statsRoutes from './routes/stats.js';
 import authRoutes from './routes/auth.js';
 import uploadRoutes from './routes/upload.js';
+import investmentRoutes from './routes/investments.js';
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use('/api/parse', parseRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/investments', investmentRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
