@@ -7,7 +7,7 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     ports:
-      - "0.0.0.0:27017:27017"
+      - "127.0.0.1:27017:27017"  # Localhost only - containers use Docker network
     volumes:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb

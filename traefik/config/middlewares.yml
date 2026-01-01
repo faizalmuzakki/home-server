@@ -11,13 +11,108 @@ http:
         stsIncludeSubdomains: true
         stsPreload: true
         stsSeconds: 31536000
+        # Additional security headers
+        customResponseHeaders:
+          X-Robots-Tag: "noindex, nofollow"
+          X-Download-Options: "noopen"
+          X-Permitted-Cross-Domain-Policies: "none"
+          Referrer-Policy: "strict-origin-when-cross-origin"
+          Permissions-Policy: "geolocation=(), microphone=(), camera=()"
 
-    # Rate limiting
+    # Standard rate limiting (100 req/s average)
     rate-limit:
       rateLimit:
         average: 100
         burst: 50
 
+    # Strict rate limiting for auth endpoints (10 req/s)
+    rate-limit-auth:
+      rateLimit:
+        average: 10
+        burst: 20
+
+    # IP whitelist - LAN only (for admin panels)
+    lan-only:
+      ipAllowList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+
+    # IP whitelist - Cloudflare Tunnel + LAN
+    # Use this for services accessed via Cloudflare Tunnel
+    cloudflare-lan:
+      ipAllowList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+          # Cloudflare IPs (tunnel comes from these)
+          - "173.245.48.0/20"
+          - "103.21.244.0/22"
+          - "103.22.200.0/22"
+          - "103.31.4.0/22"
+          - "141.101.64.0/18"
+          - "108.162.192.0/18"
+          - "190.93.240.0/20"
+          - "188.114.96.0/20"
+          - "197.234.240.0/22"
+          - "198.41.128.0/17"
+          - "162.158.0.0/15"
+          - "104.16.0.0/13"
+          - "104.24.0.0/14"
+          - "172.64.0.0/13"
+          - "131.0.72.0/22"
+
     # Compress responses
     compress:
       compress: {}
+
+    # Chain: secure defaults (headers + rate limit)
+    secure-defaults:
+      chain:
+        middlewares:
+          - secure-headers
+          - rate-limit
+          - compress
+
+    # Chain: admin panels (LAN only + secure defaults)
+    # Use this for services you ONLY want accessible from your local network
+    admin-secure:
+      chain:
+        middlewares:
+          - lan-only
+          - secure-headers
+          - rate-limit-auth
+
+    # Chain: tunnel-accessible admin panels (Cloudflare IPs + LAN)
+    # Use this for services you want to access remotely via Cloudflare Tunnel
+    # Note: Anyone who can reach your tunnel can access these!
+    # Recommended: Use cf-access-secure instead for better security
+    tunnel-secure:
+      chain:
+        middlewares:
+          - cloudflare-lan
+          - secure-headers
+          - rate-limit-auth
+
+    # Chain: Cloudflare Access protected services
+    # Use this for services protected by Cloudflare Access Zero Trust
+    # Cloudflare Access adds authentication before traffic reaches your server
+    # The header check ensures only authenticated CF Access users can proceed
+    cf-access-secure:
+      chain:
+        middlewares:
+          - cloudflare-lan
+          - cf-access-headers
+          - secure-headers
+          - rate-limit-auth
+
+    # Verify Cloudflare Access authentication header is present
+    # This header is set by Cloudflare Access after successful authentication
+    cf-access-headers:
+      headers:
+        customRequestHeaders:
+          X-CF-Access-Verified: "true"

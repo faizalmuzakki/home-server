@@ -26,7 +26,7 @@ services:
       - /var/log:/host/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
-      - "19999:19999"
+      - "127.0.0.1:19999:19999"  # Localhost only
     networks:
       - traefik-public
     labels:
@@ -35,8 +35,8 @@ services:
       - "traefik.http.routers.netdata.entrypoints=websecure"
       - "traefik.http.routers.netdata.tls.certresolver=cloudflare"
       - "traefik.http.services.netdata.loadbalancer.server.port=19999"
-      # Optional: Add basic auth for security
-      - "traefik.http.routers.netdata.middlewares=netdata-auth"
+      # LAN-only access + basic auth
+      - "traefik.http.routers.netdata.middlewares=admin-secure@file,netdata-auth"
       - "traefik.http.middlewares.netdata-auth.basicauth.users=${NETDATA_AUTH}"
 
 volumes:

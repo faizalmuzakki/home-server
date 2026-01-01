@@ -89,6 +89,8 @@ sudo apt install -y git curl wget htop vim jq tmux
 | [Netdata](./netdata/) | - | Real-time server performance monitoring | `netdata/` |
 | [Webhook](./webhook/) | - | GitHub CI/CD auto-deployment | `webhook/` |
 | [Dockge](./dockge/) | 5001 | Docker Compose management UI | `dockge/` |
+| [CrowdSec](./crowdsec/) | - | Community IDS & threat intelligence | `crowdsec/` |
+| [Watchtower](./watchtower/) | - | Container update monitoring | `watchtower/` |
 
 ### Applications
 
@@ -264,17 +266,134 @@ Internet
 
 ## Security Checklist
 
+### Initial Setup
 - [ ] Change all default passwords
 - [ ] Set up Vaultwarden admin token
-- [ ] Disable signups after creating accounts
-- [ ] Configure firewall (UFW)
+- [ ] Disable signups after creating accounts (`SIGNUPS_ALLOWED=false`)
+- [ ] Configure firewall (UFW) - auto-configured by setup script
 - [ ] Set up regular backups
 - [ ] Configure AdGuard as network DNS
-- [ ] Enable 2FA where available
+- [ ] Enable 2FA on all services that support it
 - [ ] Set up Cloudflare Tunnel for external access
+
+### Implemented Security Features
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| **UFW Firewall** | ✅ | Deny-by-default with specific port allowances |
+| **fail2ban** | ✅ | SSH protection (3 retries, 1h ban) |
+| **Auto Security Updates** | ✅ | unattended-upgrades enabled |
+| **HTTPS Only** | ✅ | HTTP → HTTPS redirect |
+| **Security Headers** | ✅ | HSTS, XSS, Content-Type, Frame-Deny |
+| **Rate Limiting** | ✅ | 100 req/s standard, 10 req/s for auth |
+| **IP Whitelisting** | ✅ | Admin panels restricted to LAN only |
+| **Container Security** | ✅ | no-new-privileges, read-only mounts |
+| **MongoDB** | ✅ | Bound to localhost only |
+| **Admin Panels** | ✅ | LAN-only access via Traefik middleware |
+| **SSH Key-Only** | 🔧 | Run `scripts/harden-ssh.sh` to enable |
+| **Encrypted Backups** | 🔧 | Run `scripts/backup-encrypted.sh` |
+| **CrowdSec IDS** | 🔧 | Community threat intelligence (`crowdsec/`) |
+| **Watchtower** | 🔧 | Container update monitoring (`watchtower/`) |
+
+> 🔧 = Optional, run manually to enable
+
+### Middleware Reference
+
+| Middleware | Purpose | Use For |
+|------------|---------|---------|
+| `secure-defaults@file` | Headers + Rate limit + Compress | Default for all services |
+| `admin-secure@file` | LAN-only + Headers + Strict rate limit | Admin panels, sensitive services |
+| `lan-only@file` | IP whitelist for private networks | Custom configurations |
+| `rate-limit-auth@file` | 10 req/s limit | Authentication endpoints |
+| `cloudflare-lan@file` | Cloudflare IPs + LAN | Tunnel-accessed services |
 
 ## Guides
 
 | Guide | Description |
 |-------|-------------|
 | [Cloudflare Tunnel Setup](./cloudflare-tunnel/README.md) | Securely expose services without port forwarding |
+
+## Remote Access
+
+### SSH via Cloudflare Tunnel
+
+Access your home server from anywhere without port forwarding.
+
+#### Client Setup (macOS)
+
+```bash
+# 1. Install cloudflared
+brew install cloudflared
+
+# 2. Add to ~/.ssh/config
+cat >> ~/.ssh/config << 'EOF'
+Host home-server
+    HostName ssh.solork.dev
+    User solork
+    ProxyCommand cloudflared access ssh --hostname %h
+EOF
+
+# 3. Connect from anywhere
+ssh home-server
+```
+
+#### Server Setup (One-time)
+
+Add SSH hostname in [Cloudflare Zero Trust](https://one.dash.cloudflare.com/):
+1. **Networks** → **Tunnels** → Your tunnel → **Public Hostname**
+2. Add hostname:
+   - **Subdomain**: `ssh`
+   - **Domain**: `solork.dev`
+   - **Type**: `SSH`
+   - **URL**: `host.docker.internal:22`
+
+#### Recommended: Add Cloudflare Access
+
+Require email authentication before SSH access:
+1. **Access** → **Applications** → **Add Application** → **Self-hosted**
+2. **Name**: `SSH Access`, **Domain**: `ssh.solork.dev`
+3. Add policy: Allow your email with One-time PIN
+
+### Middleware Options
+
+| Middleware | IP Restriction | Use For |
+|------------|----------------|---------|
+| `secure-defaults@file` | None (public) | Services with their own auth (Jellyfin, Vaultwarden) |
+| `tunnel-secure@file` | Cloudflare + LAN | Remote access via tunnel |
+| `cf-access-secure@file` | Cloudflare + LAN | Remote access + Cloudflare Access auth ⭐ |
+| `admin-secure@file` | LAN only | Sensitive admin panels (Dockge, Netdata) |
+
+To enable remote access for a service: change middleware from `admin-secure@file` to `tunnel-secure@file` or `cf-access-secure@file`.
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `scripts/setup-server.sh` | Initial server setup (Docker, UFW, fail2ban) |
+| `scripts/install-teleport.sh` | Install Teleport client for work DB access |
+| `scripts/sync-atlas-db.sh` | Sync MongoDB Atlas database to local |
+| `scripts/harden-ssh.sh` | Disable password auth, enforce SSH keys only |
+| `scripts/backup-encrypted.sh` | Encrypted backups with age encryption |
+
+### Sync Atlas Database
+
+Sync a database from MongoDB Atlas to your local MongoDB:
+
+```bash
+# On home server (local or via SSH)
+cd ~/Projects/home-server
+
+# Set Atlas URI in mongodb/.env
+# ATLAS_URI=mongodb+srv://user:pass@cluster.mongodb.net
+
+# Run sync
+./scripts/sync-atlas-db.sh <database_name>
+
+# Example
+./scripts/sync-atlas-db.sh myapp_production
+```
+
+Or remotely via SSH:
+```bash
+ssh home-server "cd ~/Projects/home-server && ./scripts/sync-atlas-db.sh myapp_production"
+```

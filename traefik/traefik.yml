@@ -25,6 +25,8 @@ entryPoints:
     http:
       tls:
         certResolver: cloudflare
+      middlewares:
+        - secure-defaults@file
   # Entrypoint for Cloudflare Tunnel (no HTTPS redirect)
   tunnel:
     address: ":8888"

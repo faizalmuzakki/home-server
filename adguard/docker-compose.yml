@@ -20,6 +20,7 @@ services:
       - "traefik.http.routers.adguard.rule=Host(`adguard.${DOMAIN}`)"
       - "traefik.http.routers.adguard.entrypoints=websecure"
       - "traefik.http.routers.adguard.tls.certresolver=cloudflare"
+      - "traefik.http.routers.adguard.middlewares=admin-secure@file"
       - "traefik.http.services.adguard.loadbalancer.server.port=80"
 
 volumes:

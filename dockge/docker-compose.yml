@@ -11,7 +11,7 @@ services:
       # Mount all your compose stacks here
       - /home/solork/Projects/home-server:/opt/stacks
     ports:
-      - "5001:5001"
+      - "127.0.0.1:5001:5001"  # Localhost only
     networks:
       - traefik-public
     labels:
@@ -19,6 +19,7 @@ services:
       - "traefik.http.routers.dockge.rule=Host(`dockge.${DOMAIN}`)"
       - "traefik.http.routers.dockge.entrypoints=websecure"
       - "traefik.http.routers.dockge.tls.certresolver=cloudflare"
+      - "traefik.http.routers.dockge.middlewares=admin-secure@file"
       - "traefik.http.services.dockge.loadbalancer.server.port=5001"
 
 volumes:
