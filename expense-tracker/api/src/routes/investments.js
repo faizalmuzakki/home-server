@@ -6,84 +6,39 @@ const router = express.Router();
 // Asset type order for display
 const ASSET_ORDER = ['emergency_fund', 'pension_fund', 'indonesian_equity', 'international_equity', 'gold'];
 
-// Allocation group config (for 50/40/10 chart)
-const ALLOCATION_GROUPS = {
-  indonesian: {
-    name: 'Indonesian',
-    emoji: '🇮🇩',
-    color: '#EF4444',
-    target: 50
+// Portfolio bucket definitions
+const PORTFOLIO_BUCKETS = {
+  safety: {
+    name: 'Safety',
+    description: 'Emergency fund - untouchable safety money',
+    emoji: '🛡️',
+    color: '#6B7280',
+    holdings: ['emergency_fund'],
+    targetAmount: 30000000, // Target Rp30M
+    showIn5040: false
   },
-  international: {
-    name: 'International',
-    emoji: '🌍',
-    color: '#3B82F6',
-    target: 40
+  pension: {
+    name: 'Pension',
+    description: 'Auto-pilot retirement fund (Robo Agresif)',
+    emoji: '🏦',
+    color: '#8B5CF6',
+    holdings: ['pension_fund'],
+    showIn5040: false
   },
-  gold: {
-    name: 'Gold',
-    emoji: '🥇',
-    color: '#F59E0B',
-    target: 10
+  active: {
+    name: 'Active Portfolio',
+    description: '50/40/10 strategy - Indonesian/International/Gold',
+    emoji: '📊',
+    color: '#10B981',
+    holdings: ['indonesian_equity', 'international_equity', 'gold'],
+    showIn5040: true,
+    allocation: {
+      indonesian_equity: 50,
+      international_equity: 40,
+      gold: 10
+    }
   }
 };
-
-// Phase definitions
-const PHASES = {
-  1: {
-    name: 'Build Gold',
-    description: 'Focus 100% on building gold position',
-    duration: 2,
-    allocation: { indonesian: 0, international: 0, gold: 100 }
-  },
-  2: {
-    name: 'Build Indonesian Equity',
-    description: 'Focus on Indonesian equity while maintaining gold',
-    duration: 6,
-    allocation: { indonesian: 90, international: 0, gold: 10 }
-  },
-  3: {
-    name: 'Maintenance',
-    description: 'Balanced allocation across all categories',
-    duration: null,
-    allocation: { indonesian: 50, international: 40, gold: 10 }
-  }
-};
-
-// Calculate current phase based on start date
-function calculateCurrentPhase(startDate) {
-  if (!startDate) return 1;
-
-  const start = new Date(startDate);
-  const now = new Date();
-  const monthsDiff = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-
-  if (monthsDiff < 2) return 1;
-  if (monthsDiff < 8) return 2;
-  return 3;
-}
-
-// Calculate grouped allocations from holdings
-function calculateGroupedAllocations(holdings) {
-  const groups = { indonesian: 0, international: 0, gold: 0 };
-
-  for (const h of holdings) {
-    const group = h.allocation_group || 'indonesian';
-    groups[group] = (groups[group] || 0) + h.current_value;
-  }
-
-  const total = Object.values(groups).reduce((sum, v) => sum + v, 0);
-
-  return Object.entries(groups).map(([key, value]) => ({
-    group: key,
-    name: ALLOCATION_GROUPS[key]?.name || key,
-    emoji: ALLOCATION_GROUPS[key]?.emoji || '📊',
-    color: ALLOCATION_GROUPS[key]?.color || '#888',
-    value,
-    percentage: total > 0 ? (value / total) * 100 : 0,
-    target: ALLOCATION_GROUPS[key]?.target || 0
-  }));
-}
 
 // Get all investment holdings
 router.get('/holdings', (req, res) => {
@@ -105,47 +60,156 @@ router.get('/holdings', (req, res) => {
   }
 });
 
-// Get investment summary with allocations
+// Get investment summary with portfolio breakdown
 router.get('/summary', (req, res) => {
   try {
     const holdings = db.prepare('SELECT * FROM investment_holdings').all();
-    const targets = db.prepare('SELECT * FROM investment_targets').all();
     const config = db.prepare('SELECT * FROM investment_config LIMIT 1').get();
 
-    const total = holdings.reduce((sum, h) => sum + h.current_value, 0);
-    const currentPhase = calculateCurrentPhase(config?.start_date);
+    // Map holdings by type
+    const holdingMap = {};
+    holdings.forEach(h => { holdingMap[h.type] = h; });
 
-    // Sort holdings by asset order
-    const sortedHoldings = holdings.sort((a, b) =>
-      ASSET_ORDER.indexOf(a.type) - ASSET_ORDER.indexOf(b.type)
-    );
+    // Calculate totals for each bucket
+    const buckets = {};
+    let totalPortfolio = 0;
 
-    // Calculate grouped allocations for 50/40/10 chart
-    const allocations = calculateGroupedAllocations(holdings);
+    for (const [bucketKey, bucketDef] of Object.entries(PORTFOLIO_BUCKETS)) {
+      const bucketHoldings = bucketDef.holdings.map(type => holdingMap[type]).filter(Boolean);
+      const bucketTotal = bucketHoldings.reduce((sum, h) => sum + h.current_value, 0);
+      totalPortfolio += bucketTotal;
 
-    const summary = {
-      totalValue: total,
+      buckets[bucketKey] = {
+        ...bucketDef,
+        key: bucketKey,
+        total: bucketTotal,
+        holdings: bucketHoldings.map(h => ({
+          ...h,
+          targetPercentage: bucketDef.allocation?.[h.type] || null
+        }))
+      };
+    }
+
+    // Calculate active portfolio 50/40/10 allocation
+    const activeBucket = buckets.active;
+    const activeTotal = activeBucket.total;
+
+    const activeAllocation = activeBucket.holdings.map(h => {
+      const targetPct = PORTFOLIO_BUCKETS.active.allocation[h.type] || 0;
+      const currentPct = activeTotal > 0 ? (h.current_value / activeTotal) * 100 : 0;
+      return {
+        type: h.type,
+        name: h.name,
+        platform: h.platform,
+        value: h.current_value,
+        currentPercentage: currentPct,
+        targetPercentage: targetPct,
+        difference: currentPct - targetPct,
+        targetValue: activeTotal * (targetPct / 100)
+      };
+    });
+
+    // Calculate overall portfolio percentages
+    const portfolioBreakdown = Object.entries(buckets).map(([key, bucket]) => ({
+      key,
+      name: bucket.name,
+      emoji: bucket.emoji,
+      color: bucket.color,
+      value: bucket.total,
+      percentage: totalPortfolio > 0 ? (bucket.total / totalPortfolio) * 100 : 0
+    }));
+
+    res.json({
+      totalPortfolio,
+      activePortfolioTotal: activeTotal,
       monthlyBudget: config?.monthly_budget || 5000000,
       startDate: config?.start_date || null,
-      currentPhase,
-      phaseInfo: PHASES[currentPhase],
+      buckets,
+      portfolioBreakdown,
+      activeAllocation,
       // Individual holdings for detailed view
-      holdings: sortedHoldings.map(h => ({
+      holdings: holdings.sort((a, b) => ASSET_ORDER.indexOf(a.type) - ASSET_ORDER.indexOf(b.type)).map(h => ({
         ...h,
-        percentage: total > 0 ? (h.current_value / total) * 100 : 0
+        percentage: totalPortfolio > 0 ? (h.current_value / totalPortfolio) * 100 : 0
       })),
-      // Grouped allocations for 50/40/10 chart
-      allocations,
-      // Target percentages for each allocation group
-      targets: targets.reduce((acc, t) => {
-        acc[t.type] = t.target_percentage;
-        return acc;
-      }, {}),
-      phases: PHASES,
-      allocationGroups: ALLOCATION_GROUPS
-    };
+      portfolioBuckets: PORTFOLIO_BUCKETS
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    res.json(summary);
+// Get contribution plan
+router.get('/contribution-plan', (req, res) => {
+  try {
+    const holdings = db.prepare('SELECT * FROM investment_holdings').all();
+    const config = db.prepare('SELECT * FROM investment_config LIMIT 1').get();
+
+    const monthlyBudget = config?.monthly_budget || 5000000;
+
+    // Map holdings by type
+    const holdingMap = {};
+    holdings.forEach(h => { holdingMap[h.type] = h; });
+
+    // Emergency fund check
+    const emergencyFund = holdingMap.emergency_fund?.current_value || 0;
+    const emergencyTarget = PORTFOLIO_BUCKETS.safety.targetAmount;
+    const emergencyMet = emergencyFund >= emergencyTarget;
+
+    // Calculate active portfolio total
+    const activeHoldings = PORTFOLIO_BUCKETS.active.holdings.map(type => holdingMap[type]).filter(Boolean);
+    const activeTotal = activeHoldings.reduce((sum, h) => sum + h.current_value, 0);
+
+    // Build contribution suggestions
+    let contributions = [];
+    let remainingBudget = monthlyBudget;
+
+    // If emergency not met, prioritize it
+    if (!emergencyMet) {
+      const emergencyContrib = Math.min(remainingBudget, emergencyTarget - emergencyFund);
+      contributions.push({
+        type: 'emergency_fund',
+        name: 'Emergency Fund',
+        amount: Math.min(emergencyContrib, monthlyBudget * 0.5), // Max 50% to emergency
+        reason: 'Building safety buffer'
+      });
+      remainingBudget -= contributions[0].amount;
+    }
+
+    // Pension contribution (25% of remaining)
+    const pensionContrib = remainingBudget * 0.25;
+    contributions.push({
+      type: 'pension_fund',
+      name: 'Pension Fund',
+      amount: Math.round(pensionContrib),
+      reason: 'Retirement auto-pilot'
+    });
+    remainingBudget -= pensionContrib;
+
+    // Active portfolio (75% of remaining) split by 50/40/10
+    const activeContrib = remainingBudget;
+    const activeAllocation = PORTFOLIO_BUCKETS.active.allocation;
+
+    for (const [type, pct] of Object.entries(activeAllocation)) {
+      const holding = holdingMap[type];
+      contributions.push({
+        type,
+        name: holding?.name || type,
+        amount: Math.round(activeContrib * (pct / 100)),
+        reason: `50/40/10 (${pct}%)`
+      });
+    }
+
+    res.json({
+      monthlyBudget,
+      emergencyMet,
+      emergencyProgress: Math.min(100, (emergencyFund / emergencyTarget) * 100),
+      contributions,
+      activePortfolioTotal: activeTotal,
+      note: emergencyMet
+        ? 'Emergency fund complete! Contributions split between Pension (25%) and Active Portfolio (75%).'
+        : 'Building emergency fund first, then splitting remaining budget.'
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -155,7 +219,7 @@ router.get('/summary', (req, res) => {
 router.put('/holdings/:type', (req, res) => {
   try {
     const { type } = req.params;
-    const { current_value, name, platform, allocation_group } = req.body;
+    const { current_value, name, platform } = req.body;
 
     const existing = db.prepare('SELECT * FROM investment_holdings WHERE type = ?').get(type);
 
@@ -165,102 +229,17 @@ router.put('/holdings/:type', (req, res) => {
         SET current_value = COALESCE(?, current_value), 
             name = COALESCE(?, name), 
             platform = COALESCE(?, platform),
-            allocation_group = COALESCE(?, allocation_group),
             updated_at = CURRENT_TIMESTAMP
         WHERE type = ?
-      `).run(current_value, name, platform, allocation_group, type);
+      `).run(current_value, name, platform, type);
     } else {
       db.prepare(`
-        INSERT INTO investment_holdings (type, name, platform, current_value, allocation_group) 
-        VALUES (?, ?, ?, ?, ?)
-      `).run(type, name || type, platform || '', current_value || 0, allocation_group || 'indonesian');
+        INSERT INTO investment_holdings (type, name, platform, current_value) 
+        VALUES (?, ?, ?, ?)
+      `).run(type, name || type, platform || '', current_value || 0);
     }
 
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get contribution plan based on current phase
-router.get('/contribution-plan', (req, res) => {
-  try {
-    const holdings = db.prepare('SELECT * FROM investment_holdings').all();
-    const targets = db.prepare('SELECT * FROM investment_targets').all();
-    const config = db.prepare('SELECT * FROM investment_config LIMIT 1').get();
-
-    const monthlyBudget = config?.monthly_budget || 5000000;
-    const currentPhase = calculateCurrentPhase(config?.start_date);
-    const phaseAllocation = PHASES[currentPhase].allocation;
-
-    const total = holdings.reduce((sum, h) => sum + h.current_value, 0);
-
-    // Calculate grouped allocations
-    const allocations = calculateGroupedAllocations(holdings);
-
-    // Calculate contributions per allocation group
-    const groupContributions = Object.entries(phaseAllocation).map(([group, pct]) => {
-      const allocation = allocations.find(a => a.group === group);
-      return {
-        group,
-        name: ALLOCATION_GROUPS[group]?.name || group,
-        emoji: ALLOCATION_GROUPS[group]?.emoji || '📊',
-        currentValue: allocation?.value || 0,
-        currentPercentage: allocation?.percentage || 0,
-        targetPercentage: ALLOCATION_GROUPS[group]?.target || 0,
-        suggestedContribution: Math.round(monthlyBudget * (pct / 100)),
-        contributionPercentage: pct
-      };
-    });
-
-    // Also provide per-holding breakdown for detailed view
-    const sortedHoldings = holdings.sort((a, b) =>
-      ASSET_ORDER.indexOf(a.type) - ASSET_ORDER.indexOf(b.type)
-    );
-
-    const holdingContributions = sortedHoldings.map(h => {
-      const group = h.allocation_group || 'indonesian';
-      const groupPct = phaseAllocation[group] || 0;
-
-      // Divide group contribution among holdings in that group
-      const holdingsInGroup = holdings.filter(x => x.allocation_group === group);
-      const holdingShare = holdingsInGroup.length > 0 ? 1 / holdingsInGroup.length : 0;
-
-      return {
-        ...h,
-        currentPercentage: total > 0 ? (h.current_value / total) * 100 : 0,
-        suggestedContribution: Math.round(monthlyBudget * (groupPct / 100) * holdingShare),
-        contributionPercentage: groupPct * holdingShare
-      };
-    });
-
-    // Calculate months remaining in current phase
-    let monthsInPhase = 0;
-    let monthsRemaining = null;
-
-    if (config?.start_date) {
-      const start = new Date(config.start_date);
-      const now = new Date();
-      monthsInPhase = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-
-      if (currentPhase === 1) {
-        monthsRemaining = Math.max(0, 2 - monthsInPhase);
-      } else if (currentPhase === 2) {
-        monthsRemaining = Math.max(0, 8 - monthsInPhase);
-      }
-    }
-
-    res.json({
-      monthlyBudget,
-      currentPhase,
-      phaseInfo: PHASES[currentPhase],
-      monthsInPhase,
-      monthsRemaining,
-      // Group-level contributions (for 50/40/10 view)
-      groupContributions,
-      // Per-holding contributions (for detailed view)
-      contributions: holdingContributions
-    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -283,34 +262,10 @@ router.put('/config', (req, res) => {
     } else {
       db.prepare(`
         INSERT INTO investment_config (monthly_budget, start_date, catch_up_phase) VALUES (?, ?, 1)
-      `).run(monthly_budget || 5000000, start_date || new Date().toISOString().split('T')[0]);
+      `).run(monthly_budget || 5000000, start_date);
     }
 
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Start the investment plan
-router.post('/start-plan', (req, res) => {
-  try {
-    const startDate = new Date().toISOString().split('T')[0];
-
-    const existing = db.prepare('SELECT * FROM investment_config LIMIT 1').get();
-
-    if (existing) {
-      db.prepare(`
-        UPDATE investment_config 
-        SET start_date = ?, updated_at = CURRENT_TIMESTAMP
-      `).run(startDate);
-    } else {
-      db.prepare(`
-        INSERT INTO investment_config (monthly_budget, start_date, catch_up_phase) VALUES (?, ?, 1)
-      `).run(5000000, startDate);
-    }
-
-    res.json({ success: true, startDate });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -353,30 +308,10 @@ router.get('/contributions', (req, res) => {
       params.push(startDate, endDate);
     }
 
-    query += ' ORDER BY date DESC, created_at DESC';
+    query += ' ORDER BY date DESC, created_at DESC LIMIT 50';
 
     const contributions = db.prepare(query).all(...params);
     res.json(contributions);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Update target allocation
-router.put('/targets/:type', (req, res) => {
-  try {
-    const { type } = req.params;
-    const { target_percentage } = req.body;
-
-    const existing = db.prepare('SELECT * FROM investment_targets WHERE type = ?').get(type);
-
-    if (existing) {
-      db.prepare(`UPDATE investment_targets SET target_percentage = ? WHERE type = ?`).run(target_percentage, type);
-    } else {
-      db.prepare(`INSERT INTO investment_targets (type, target_percentage) VALUES (?, ?)`).run(type, target_percentage);
-    }
-
-    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -386,44 +321,49 @@ router.put('/targets/:type', (req, res) => {
 router.get('/action-items', (req, res) => {
   try {
     const holdings = db.prepare('SELECT * FROM investment_holdings').all();
-    const config = db.prepare('SELECT * FROM investment_config LIMIT 1').get();
 
-    const allocations = calculateGroupedAllocations(holdings);
-    const goldAlloc = allocations.find(a => a.group === 'gold');
-    const indoAlloc = allocations.find(a => a.group === 'indonesian');
+    const holdingMap = {};
+    holdings.forEach(h => { holdingMap[h.type] = h; });
 
-    const currentPhase = calculateCurrentPhase(config?.start_date);
     const actionItems = [];
 
-    if (!config?.start_date) {
-      actionItems.unshift({
-        id: 'start_plan',
+    // Check emergency fund
+    const emergency = holdingMap.emergency_fund?.current_value || 0;
+    const emergencyTarget = PORTFOLIO_BUCKETS.safety.targetAmount;
+
+    if (emergency < emergencyTarget) {
+      actionItems.push({
+        id: 'build_emergency',
         priority: 'high',
-        category: 'setup',
-        title: 'Start Investment Plan',
-        description: 'Click "Start Plan" to begin your 8-month investment journey.',
+        category: 'safety',
+        title: 'Build Emergency Fund',
+        description: `Target: Rp30M. Current: Rp${(emergency / 1000000).toFixed(1)}M (${((emergency / emergencyTarget) * 100).toFixed(0)}%)`,
         completed: false
       });
     }
 
-    if (currentPhase === 1 && (goldAlloc?.value || 0) < 10000000) {
+    // Check gold (if 0, suggest starting)
+    const gold = holdingMap.gold?.current_value || 0;
+    if (gold === 0) {
       actionItems.push({
-        id: 'build_gold',
-        priority: 'high',
-        category: 'contribution',
-        title: 'Build Gold Position',
-        description: `Target: Rp10M. Current: Rp${((goldAlloc?.value || 0) / 1000000).toFixed(1)}M. Put 100% of monthly budget into gold.`,
+        id: 'start_gold',
+        priority: 'medium',
+        category: 'active',
+        title: 'Start Gold Position',
+        description: 'You have no gold allocation yet. Consider starting with your monthly contribution.',
         completed: false
       });
     }
 
-    if (currentPhase === 2) {
+    // Check pension platform
+    const pension = holdingMap.pension_fund;
+    if (pension && !pension.platform?.toLowerCase().includes('agresif')) {
       actionItems.push({
-        id: 'build_indo_equity',
+        id: 'switch_pension',
         priority: 'high',
-        category: 'contribution',
-        title: 'Build Indonesian Allocation',
-        description: `Focus 90% on Indonesian assets (Emergency/Pension/Equity). Current: ${indoAlloc?.percentage.toFixed(1)}%`,
+        category: 'pension',
+        title: 'Switch Pension to Agresif',
+        description: 'Change robo-advisor from Moderat to Agresif for higher growth.',
         completed: false
       });
     }
