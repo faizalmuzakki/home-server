@@ -16,7 +16,7 @@ services:
       - CACHE_DRIVER=file
       - SESSION_DRIVER=file
     volumes:
-      - 2fauth_data:/srv
+      - ./data:/srv
     networks:
       - traefik-public
     labels:
@@ -26,9 +26,7 @@ services:
       - "traefik.http.routers.2fauth.tls.certresolver=cloudflare"
       - "traefik.http.services.2fauth.loadbalancer.server.port=8000"
 
-volumes:
-  2fauth_data:
-    driver: local
+# Data is stored in ./data
 
 networks:
   traefik-public:

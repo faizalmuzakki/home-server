@@ -14,7 +14,7 @@ services:
       - ./traefik.yml:/traefik.yml:ro
       - ./config:/config:ro
       - ./certs:/certs
-      - traefik_logs:/logs
+      - ./logs:/logs
     environment:
       - CF_API_EMAIL=${CF_API_EMAIL}
       - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
@@ -29,9 +29,7 @@ services:
       - "traefik.http.routers.traefik.middlewares=auth"
       - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
 
-volumes:
-  traefik_logs:
-    driver: local
+# Logs are stored in ./logs
 
 networks:
   traefik-public:

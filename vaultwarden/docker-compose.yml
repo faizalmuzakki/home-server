@@ -16,7 +16,7 @@ services:
       - WEBSOCKET_ENABLED=true
       - LOG_LEVEL=info
     volumes:
-      - vaultwarden_data:/data
+      - ./data:/data
     networks:
       - traefik-public
     labels:
@@ -32,9 +32,7 @@ services:
       - "traefik.http.routers.vaultwarden-ws.tls.certresolver=cloudflare"
       - "traefik.http.services.vaultwarden-ws.loadbalancer.server.port=3012"
 
-volumes:
-  vaultwarden_data:
-    driver: local
+# Data is stored in ./data (CRITICAL - contains password vault)
 
 networks:
   traefik-public:

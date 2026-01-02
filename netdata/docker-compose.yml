@@ -14,9 +14,9 @@ services:
       - NETDATA_CLAIM_TOKEN=${NETDATA_CLAIM_TOKEN:-}
       - NETDATA_CLAIM_URL=${NETDATA_CLAIM_URL:-https://app.netdata.cloud}
     volumes:
-      - netdata_config:/etc/netdata
-      - netdata_lib:/var/lib/netdata
-      - netdata_cache:/var/cache/netdata
+      - ./config:/etc/netdata
+      - ./lib:/var/lib/netdata
+      - ./cache:/var/cache/netdata
       - /etc/passwd:/host/etc/passwd:ro
       - /etc/group:/host/etc/group:ro
       - /etc/localtime:/etc/localtime:ro
@@ -39,13 +39,7 @@ services:
       - "traefik.http.routers.netdata.middlewares=admin-secure@file,netdata-auth"
       - "traefik.http.middlewares.netdata-auth.basicauth.users=${NETDATA_AUTH}"
 
-volumes:
-  netdata_config:
-    driver: local
-  netdata_lib:
-    driver: local
-  netdata_cache:
-    driver: local
+# Data is stored in ./config, ./lib, ./cache
 
 networks:
   traefik-public:

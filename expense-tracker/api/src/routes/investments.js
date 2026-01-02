@@ -304,7 +304,7 @@ router.get('/contributions', (req, res) => {
     const params = [];
 
     if (startDate && endDate) {
-      query += ' WHERE date BETWEEN ? AND ?';
+      query += ' WHERE DATE(date) BETWEEN DATE(?) AND DATE(?)';
       params.push(startDate, endDate);
     }
 

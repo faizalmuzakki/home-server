@@ -7,7 +7,7 @@ services:
     environment:
       - TZ=${TZ:-Asia/Jakarta}
     volumes:
-      - homeassistant_config:/config
+      - ./homeassistant:/config
       - /run/dbus:/run/dbus:ro
     ports:
       - "8123:8123"
@@ -26,9 +26,9 @@ services:
     container_name: mosquitto
     restart: unless-stopped
     volumes:
-      - mosquitto_config:/mosquitto/config
-      - mosquitto_data:/mosquitto/data
-      - mosquitto_log:/mosquitto/log
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
     ports:
       - "1883:1883"
       - "9001:9001"
@@ -44,7 +44,7 @@ services:
     environment:
       - TZ=${TZ:-Asia/Jakarta}
     volumes:
-      - zigbee2mqtt_data:/app/data
+      - ./zigbee2mqtt:/app/data
       - /run/udev:/run/udev:ro
     ports:
       - "8082:8080"
@@ -61,12 +61,10 @@ services:
       - "traefik.http.routers.zigbee2mqtt.tls.certresolver=cloudflare"
       - "traefik.http.services.zigbee2mqtt.loadbalancer.server.port=8080"
 
-volumes:
-  homeassistant_config:
-  mosquitto_config:
-  mosquitto_data:
-  mosquitto_log:
-  zigbee2mqtt_data:
+# Data is stored in:
+# - ./homeassistant (Home Assistant config)
+# - ./mosquitto (MQTT broker)
+# - ./zigbee2mqtt (Zigbee2MQTT)
 
 networks:
   traefik-public:

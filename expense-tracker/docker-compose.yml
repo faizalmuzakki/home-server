@@ -10,7 +10,7 @@ services:
       - DASHBOARD_EMAIL=${DASHBOARD_EMAIL}
       - DASHBOARD_PIN=${DASHBOARD_PIN}
     volumes:
-      - api_data:/app/data
+      - ./api/data:/app/data
     ports:
       - "3000:3000"
     networks:
@@ -31,7 +31,7 @@ services:
       - ALLOWED_NUMBERS=${ALLOWED_NUMBERS:-}
       - DASHBOARD_PIN=${DASHBOARD_PIN}
     volumes:
-      - whatsapp_auth:/app/auth_info
+      - ./whatsapp-bot/auth_info:/app/auth_info
     depends_on:
       api:
         condition: service_healthy
@@ -54,11 +54,9 @@ services:
     networks:
       - expense-network
 
-volumes:
-  api_data:
-    driver: local
-  whatsapp_auth:
-    driver: local
+# Data is stored in local directories:
+# - ./api/data (database)
+# - ./whatsapp-bot/auth_info (WhatsApp session)
 
 networks:
   expense-network:

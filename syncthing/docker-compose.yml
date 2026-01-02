@@ -9,7 +9,7 @@ services:
       - PGID=1000
       - TZ=Asia/Jakarta
     volumes:
-      - syncthing_config:/config
+      - ./config:/config
       - ${SYNC_PATH:-/data/sync}:/data/sync
     ports:
       - "8384:8384"   # Web UI
@@ -25,9 +25,7 @@ services:
       - "traefik.http.routers.syncthing.tls.certresolver=cloudflare"
       - "traefik.http.services.syncthing.loadbalancer.server.port=8384"
 
-volumes:
-  syncthing_config:
-    driver: local
+# Data is stored in ./config
 
 networks:
   traefik-public:

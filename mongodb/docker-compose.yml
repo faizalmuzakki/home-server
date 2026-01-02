@@ -9,8 +9,8 @@ services:
     ports:
       - "127.0.0.1:27017:27017"  # Localhost only - containers use Docker network
     volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
+      - ./data/db:/data/db
+      - ./data/configdb:/data/configdb
       - ${SHARED_DATA_PATH:-/data/shared}:/shared
     networks:
       - mongodb_network
@@ -22,11 +22,7 @@ services:
       retries: 3
       start_period: 20s
 
-volumes:
-  mongodb_data:
-    driver: local
-  mongodb_config:
-    driver: local
+# Data is stored in ./data/db and ./data/configdb
 
 networks:
   mongodb_network:

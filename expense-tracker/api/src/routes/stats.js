@@ -12,11 +12,11 @@ router.get('/summary', (req, res) => {
     const params = [];
 
     if (startDate) {
-      dateFilter += ' AND date >= ?';
+      dateFilter += ' AND DATE(date) >= DATE(?)';
       params.push(startDate);
     }
     if (endDate) {
-      dateFilter += ' AND date <= ?';
+      dateFilter += ' AND DATE(date) <= DATE(?)';
       params.push(endDate);
     }
 
@@ -88,11 +88,11 @@ router.get('/daily', (req, res) => {
     const params = [];
 
     if (startDate) {
-      query += ' AND date >= ?';
+      query += ' AND DATE(date) >= DATE(?)';
       params.push(startDate);
     }
     if (endDate) {
-      query += ' AND date <= ?';
+      query += ' AND DATE(date) <= DATE(?)';
       params.push(endDate);
     }
     if (type && (type === 'expense' || type === 'income')) {

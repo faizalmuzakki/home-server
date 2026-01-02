@@ -7,7 +7,7 @@ services:
       - DOCKGE_STACKS_DIR=/opt/stacks
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - dockge_data:/app/data
+      - ./data:/app/data
       # Mount all your compose stacks here
       - /home/solork/Projects/home-server:/opt/stacks
     ports:
@@ -22,9 +22,7 @@ services:
       - "traefik.http.routers.dockge.middlewares=admin-secure@file"
       - "traefik.http.services.dockge.loadbalancer.server.port=5001"
 
-volumes:
-  dockge_data:
-    driver: local
+# Data is stored in ./data
 
 networks:
   traefik-public:

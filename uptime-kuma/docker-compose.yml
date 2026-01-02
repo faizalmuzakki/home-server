@@ -4,7 +4,7 @@ services:
     container_name: uptime-kuma
     restart: unless-stopped
     volumes:
-      - uptime_kuma_data:/app/data
+      - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "127.0.0.1:3002:3001"  # Localhost only
@@ -18,9 +18,7 @@ services:
       - "traefik.http.routers.uptime.middlewares=admin-secure@file"
       - "traefik.http.services.uptime.loadbalancer.server.port=3001"
 
-volumes:
-  uptime_kuma_data:
-    driver: local
+# Data is stored in ./data
 
 networks:
   traefik-public:

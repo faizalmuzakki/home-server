@@ -17,11 +17,11 @@ router.get('/', (req, res) => {
     const params = [];
 
     if (startDate) {
-      query += ' AND e.date >= ?';
+      query += ' AND DATE(e.date) >= DATE(?)';
       params.push(startDate);
     }
     if (endDate) {
-      query += ' AND e.date <= ?';
+      query += ' AND DATE(e.date) <= DATE(?)';
       params.push(endDate);
     }
     if (categoryId) {
