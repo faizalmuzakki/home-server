@@ -133,6 +133,70 @@ sudo apt install -y git curl wget htop vim jq tmux
 └── /data/backups/
 ```
 
+## Data Persistence (Bind Mounts)
+
+All services use **bind mounts** instead of Docker named volumes for data persistence. This means:
+
+- ✅ **Direct file access** - Data is stored in visible directories you can browse
+- ✅ **Easy backups** - Just copy the folders (rsync, rclone, etc.)
+- ✅ **Survives Docker issues** - Data is independent of Docker's storage layer
+- ✅ **Version controlled** - `.gitignore` excludes data, but structure is documented
+
+### Data Locations by Service
+
+| Service | Data Directory | Contents |
+|---------|---------------|----------|
+| **Vaultwarden** 🔐 | `vaultwarden/data/` | Password vault (CRITICAL) |
+| **2FAuth** 🔐 | `2fauth/data/` | 2FA tokens (CRITICAL) |
+| **MongoDB** | `mongodb/data/` | Database files |
+| **Expense Tracker** | `expense-tracker/api/data/` | SQLite database |
+| | `expense-tracker/whatsapp-bot/auth_info/` | WhatsApp session |
+| **Home Assistant** | `homeassistant/homeassistant/` | HA config |
+| | `homeassistant/mosquitto/` | MQTT broker |
+| | `homeassistant/zigbee2mqtt/` | Zigbee config |
+| **Media Stack** | `media/jellyfin/` | Jellyfin config + cache |
+| | `media/sonarr/`, `media/radarr/` | *arr configs |
+| | `media/prowlarr/`, `media/qbittorrent/` | Indexer + torrent |
+| | `media/bazarr/` | Subtitles config |
+| **AdGuard** | `adguard/work/`, `adguard/conf/` | DNS config + blocklists |
+| **CrowdSec** | `crowdsec/data/`, `crowdsec/config/` | Security decisions |
+| **Uptime Kuma** | `uptime-kuma/data/` | Monitors + history |
+| **Dockge** | `dockge/data/` | UI settings |
+| **Syncthing** | `syncthing/config/` | Sync config |
+| **Traefik** | `traefik/logs/` | Access logs |
+| **Netdata** | `netdata/config/`, `netdata/lib/` | Monitoring data |
+
+### Migration from Named Volumes
+
+If upgrading from an older setup using Docker named volumes:
+
+```bash
+# Run the migration script (copies data from containers to local dirs)
+./migrate-volumes.sh
+
+# Then restart services
+for d in */; do (cd "$d" && docker compose down 2>/dev/null); done
+for d in */; do (cd "$d" && docker compose up -d 2>/dev/null); done
+
+# Optional: Clean up old volumes after verifying
+docker volume prune
+```
+
+### Backup Strategy
+
+```bash
+# Simple backup - copy all service data
+rsync -av --exclude='*.log' ~/Projects/home-server/ /data/backups/home-server/
+
+# Critical data only (passwords + 2FA)
+cp -r vaultwarden/data /data/backups/vaultwarden-$(date +%Y%m%d)
+cp -r 2fauth/data /data/backups/2fauth-$(date +%Y%m%d)
+
+# Database export (MongoDB)
+docker exec mongodb mongodump --out /shared/backup
+cp -r /data/shared/backup /data/backups/mongodb-$(date +%Y%m%d)
+```
+
 ## Quick Start
 
 ### 1. Initial Setup
@@ -374,6 +438,7 @@ To enable remote access for a service: change middleware from `admin-secure@file
 | `scripts/sync-atlas-db.sh` | Sync MongoDB Atlas database to local |
 | `scripts/harden-ssh.sh` | Disable password auth, enforce SSH keys only |
 | `scripts/backup-encrypted.sh` | Encrypted backups with age encryption |
+| `migrate-volumes.sh` | Migrate from Docker named volumes to bind mounts |
 
 ### Sync Atlas Database
 
