@@ -1,4 +1,5 @@
-import { downloadMediaMessage } from '@whiskeysockets/baileys';
+import pkg from '@whiskeysockets/baileys';
+const { downloadMediaMessage } = pkg;
 import { parseText, parseImage, createExpense, getCategories, uploadImage } from '../services/api.js';
 
 const ALLOWED_NUMBERS = process.env.ALLOWED_NUMBERS?.split(',').map(n => n.trim()).filter(n => n) || [];
