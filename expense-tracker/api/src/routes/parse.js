@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db/init.js';
+import { parseTextValidators, parseImageValidators, sanitizeBase64Image } from '../middleware/validators.js';
 
 const router = Router();
 
@@ -24,7 +25,7 @@ function cleanJsonResponse(text) {
 }
 
 // Parse expense or income from text
-router.post('/text', async (req, res) => {
+router.post('/text', parseTextValidators, async (req, res) => {
   try {
     const { text } = req.body;
 
@@ -88,7 +89,7 @@ If you cannot extract transaction info, return: {"error": "reason"}`
 });
 
 // Parse expense or income from image (receipt/transfer proof)
-router.post('/image', async (req, res) => {
+router.post('/image', sanitizeBase64Image, parseImageValidators, async (req, res) => {
   try {
     const { image } = req.body; // base64 encoded image
 

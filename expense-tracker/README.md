@@ -34,6 +34,21 @@ A WhatsApp-integrated expense tracker with a web dashboard.
 - Anthropic API key (for Claude Vision)
 - Cloudflare account (for tunnel and Pages)
 
+## Security
+
+This application includes comprehensive security hardening. See [SECURITY.md](SECURITY.md) for full details.
+
+**Key security features:**
+- ✅ WhatsApp bot requires phone number whitelist (`ALLOWED_NUMBERS`)
+- ✅ API rate limiting (general, AI, and upload endpoints)
+- ✅ Input validation on all endpoints
+- ✅ Helmet.js security headers
+- ✅ Docker security hardening (read-only, no-new-privileges, capability drops)
+- ✅ Pinned dependency versions with 0 known vulnerabilities
+- ✅ CORS protection with configurable origins
+
+**⚠️ Important:** The WhatsApp bot will **not start** without `ALLOWED_NUMBERS` configured!
+
 ## Quick Start
 
 ### 1. Configure Environment
@@ -46,7 +61,8 @@ nano .env
 Set your:
 - `ANTHROPIC_API_KEY` - Get from https://console.anthropic.com
 - `CLOUDFLARE_TUNNEL_TOKEN` - See Cloudflare Tunnel Setup below
-- `ALLOWED_NUMBERS` - Your WhatsApp number(s)
+- `ALLOWED_NUMBERS` - **Required!** Your WhatsApp number(s)
+- `ALLOWED_ORIGINS` - Set to your frontend domain in production
 
 ### 2. Start Services
 

@@ -13,6 +13,27 @@ import fs from 'fs';
 
 dotenv.config();
 
+// ============================================
+// SECURITY: Require ALLOWED_NUMBERS configuration
+// ============================================
+const ALLOWED_NUMBERS = process.env.ALLOWED_NUMBERS?.split(',').map(n => n.trim()).filter(n => n) || [];
+
+if (ALLOWED_NUMBERS.length === 0) {
+  console.error('❌ SECURITY ERROR: ALLOWED_NUMBERS environment variable is not set!');
+  console.error('');
+  console.error('To prevent unauthorized access, you MUST configure allowed phone numbers.');
+  console.error('Set ALLOWED_NUMBERS in your .env or docker-compose.yml:');
+  console.error('');
+  console.error('  ALLOWED_NUMBERS=6281234567890,6289876543210');
+  console.error('');
+  console.error('Format: country code + number without + sign, comma-separated');
+  console.error('');
+  process.exit(1);
+}
+
+console.log(`🔐 Security: ${ALLOWED_NUMBERS.length} phone number(s) whitelisted`);
+
+
 const logger = pino({ level: 'info' });
 
 async function startBot() {

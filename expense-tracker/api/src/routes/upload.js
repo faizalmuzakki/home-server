@@ -3,6 +3,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
+import { uploadValidators, sanitizeBase64Image } from '../middleware/validators.js';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ async function ensureUploadDir() {
 }
 
 // Upload image and return URL
-router.post('/', async (req, res) => {
+router.post('/', sanitizeBase64Image, uploadValidators, async (req, res) => {
     try {
         const { image, filename } = req.body; // base64 encoded image
 
