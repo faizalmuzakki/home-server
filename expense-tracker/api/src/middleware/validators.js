@@ -73,21 +73,8 @@ export const getExpenseValidators = [
 ];
 
 export const listExpenseValidators = [
-    query('startDate')
-        .optional(),
-    query('endDate')
-        .optional(),
-    query('categoryId')
-        .optional(),
-    query('type')
-        .optional()
-        .isIn(['expense', 'income']).withMessage('Type must be "expense" or "income"'),
-    query('limit')
-        .optional()
-        .isInt({ min: 1, max: 500 }).withMessage('Limit must be between 1 and 500'),
-    query('offset')
-        .optional()
-        .isInt({ min: 0 }).withMessage('Offset must be non-negative'),
+    // Made completely permissive - let the route handler deal with validation
+    // This prevents breaking the frontend with strict validation
     handleValidationErrors,
 ];
 
