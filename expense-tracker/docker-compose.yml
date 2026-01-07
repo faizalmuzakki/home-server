@@ -4,15 +4,9 @@ services:
     container_name: expense-tracker-api
     restart: unless-stopped
     # Security hardening
-    # Note: read_only is NOT used here because SQLite needs write access to data directory
+    # Note: read_only and cap_drop are NOT used here because SQLite and file uploads need full filesystem access
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - SETGID
-      - SETUID
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
     environment:

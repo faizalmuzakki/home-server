@@ -4,6 +4,7 @@ import { body, param, query, validationResult } from 'express-validator';
 export const handleValidationErrors = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array());
         return res.status(400).json({
             error: 'Validation failed',
             details: errors.array().map(e => ({ field: e.path, message: e.msg }))
@@ -15,40 +16,33 @@ export const handleValidationErrors = (req, res, next) => {
 // Expense/Transaction validators
 export const createExpenseValidators = [
     body('amount')
+        .notEmpty().withMessage('Amount is required')
         .isNumeric().withMessage('Amount must be a number')
-        .custom(val => val > 0).withMessage('Amount must be positive'),
+        .custom(val => parseFloat(val) > 0).withMessage('Amount must be positive'),
     body('date')
-        .isISO8601().withMessage('Date must be in YYYY-MM-DD format')
-        .toDate(),
+        .notEmpty().withMessage('Date is required')
+        .isString().withMessage('Date must be a string'),
     body('description')
-        .optional()
+        .optional({ nullable: true })
         .isString().withMessage('Description must be a string')
         .isLength({ max: 500 }).withMessage('Description too long (max 500 chars)')
-        .trim()
-        .escape(),
+        .trim(),
     body('vendor')
-        .optional()
+        .optional({ nullable: true })
         .isString().withMessage('Vendor must be a string')
         .isLength({ max: 200 }).withMessage('Vendor name too long (max 200 chars)')
-        .trim()
-        .escape(),
+        .trim(),
     body('category_id')
-        .optional()
-        .isInt({ min: 1 }).withMessage('Invalid category ID'),
+        .optional({ nullable: true }),
     body('type')
-        .optional()
+        .optional({ nullable: true })
         .isIn(['expense', 'income']).withMessage('Type must be "expense" or "income"'),
     body('source')
-        .optional()
-        .isIn(['manual', 'whatsapp', 'whatsapp_image', 'api']).withMessage('Invalid source'),
+        .optional({ nullable: true }),
     body('image_url')
-        .optional()
-        .isString().withMessage('Image URL must be a string')
-        .isLength({ max: 500 }).withMessage('Image URL too long'),
+        .optional({ nullable: true }),
     body('raw_text')
-        .optional()
-        .isString().withMessage('Raw text must be a string')
-        .isLength({ max: 2000 }).withMessage('Raw text too long'),
+        .optional({ nullable: true }),
     handleValidationErrors,
 ];
 
@@ -56,29 +50,18 @@ export const updateExpenseValidators = [
     param('id')
         .isInt({ min: 1 }).withMessage('Invalid expense ID'),
     body('amount')
-        .optional()
-        .isNumeric().withMessage('Amount must be a number')
-        .custom(val => val > 0).withMessage('Amount must be positive'),
+        .optional({ nullable: true })
+        .isNumeric().withMessage('Amount must be a number'),
     body('date')
-        .optional()
-        .isISO8601().withMessage('Date must be in YYYY-MM-DD format'),
+        .optional({ nullable: true }),
     body('description')
-        .optional()
-        .isString().withMessage('Description must be a string')
-        .isLength({ max: 500 }).withMessage('Description too long')
-        .trim()
-        .escape(),
+        .optional({ nullable: true }),
     body('vendor')
-        .optional()
-        .isString().withMessage('Vendor must be a string')
-        .isLength({ max: 200 }).withMessage('Vendor name too long')
-        .trim()
-        .escape(),
+        .optional({ nullable: true }),
     body('category_id')
-        .optional()
-        .isInt({ min: 1 }).withMessage('Invalid category ID'),
+        .optional({ nullable: true }),
     body('type')
-        .optional()
+        .optional({ nullable: true })
         .isIn(['expense', 'income']).withMessage('Type must be "expense" or "income"'),
     handleValidationErrors,
 ];
@@ -91,14 +74,11 @@ export const getExpenseValidators = [
 
 export const listExpenseValidators = [
     query('startDate')
-        .optional()
-        .isISO8601().withMessage('Start date must be in YYYY-MM-DD format'),
+        .optional(),
     query('endDate')
-        .optional()
-        .isISO8601().withMessage('End date must be in YYYY-MM-DD format'),
+        .optional(),
     query('categoryId')
-        .optional()
-        .isInt({ min: 1 }).withMessage('Invalid category ID'),
+        .optional(),
     query('type')
         .optional()
         .isIn(['expense', 'income']).withMessage('Type must be "expense" or "income"'),
@@ -116,15 +96,14 @@ export const parseTextValidators = [
     body('text')
         .notEmpty().withMessage('Text is required')
         .isString().withMessage('Text must be a string')
-        .isLength({ max: 1000 }).withMessage('Text too long (max 1000 chars)'),
+        .isLength({ max: 2000 }).withMessage('Text too long (max 2000 chars)'),
     handleValidationErrors,
 ];
 
 export const parseImageValidators = [
     body('image')
         .notEmpty().withMessage('Image is required')
-        .isString().withMessage('Image must be a base64 string')
-        .isLength({ max: 20 * 1024 * 1024 }).withMessage('Image too large (max ~15MB)'),
+        .isString().withMessage('Image must be a base64 string'),
     handleValidationErrors,
 ];
 
@@ -132,21 +111,18 @@ export const parseImageValidators = [
 export const uploadValidators = [
     body('image')
         .notEmpty().withMessage('Image is required')
-        .isString().withMessage('Image must be a base64 string')
-        .isLength({ max: 20 * 1024 * 1024 }).withMessage('Image too large'),
+        .isString().withMessage('Image must be a base64 string'),
     body('filename')
-        .optional()
-        .isString().withMessage('Filename must be a string')
-        .isLength({ max: 100 }).withMessage('Filename too long')
-        .matches(/^[a-zA-Z0-9_\-\.]+$/).withMessage('Invalid filename characters'),
+        .optional({ nullable: true }),
     handleValidationErrors,
 ];
 
 // Sanitize base64 image - remove potential script injections
 export const sanitizeBase64Image = (req, res, next) => {
-    if (req.body.image) {
+    if (req.body.image && typeof req.body.image === 'string') {
         // Remove any non-base64 characters that could be malicious
         req.body.image = req.body.image.replace(/[^A-Za-z0-9+/=]/g, '');
     }
     next();
 };
+
