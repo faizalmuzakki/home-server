@@ -4,7 +4,7 @@ services:
     container_name: expense-tracker-api
     restart: unless-stopped
     # Security hardening
-    read_only: true
+    # Note: read_only is NOT used here because SQLite needs write access to data directory
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -24,7 +24,7 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
       - NODE_ENV=production
     volumes:
-      - ./api/data:/app/data
+      - ./api/data:/app/data:rw
     ports:
       - "3000:3000"
     networks:
@@ -50,7 +50,7 @@ services:
     container_name: expense-tracker-whatsapp
     restart: unless-stopped
     # Security hardening
-    read_only: true
+    # Note: read_only is NOT used here because Baileys needs write access to auth_info
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -63,7 +63,7 @@ services:
       - DASHBOARD_PIN=${DASHBOARD_PIN}
       - NODE_ENV=production
     volumes:
-      - ./whatsapp-bot/auth_info:/app/auth_info
+      - ./whatsapp-bot/auth_info:/app/auth_info:rw
     depends_on:
       api:
         condition: service_healthy
