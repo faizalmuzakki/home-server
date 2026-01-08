@@ -12,11 +12,10 @@ services:
       - AUTHENTICATION_GUARD=web-guard
       - LOG_CHANNEL=daily
       - LOG_LEVEL=info
-      - DB_DATABASE=/srv/database/database.sqlite
       - CACHE_DRIVER=file
       - SESSION_DRIVER=file
     volumes:
-      - ./data:/srv
+      - ./data:/2fauth
     networks:
       - traefik-public
     labels:
