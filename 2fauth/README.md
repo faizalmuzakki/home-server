@@ -1,6 +1,6 @@
-# 2FAuth - Self-Hosted Authenticator
+# 2FAuth
 
-A web-based self-hosted TOTP authenticator as an alternative to Google Authenticator, Authy, etc.
+Self-hosted 2FA management service.
 
 ## Features
 
@@ -44,12 +44,47 @@ docker compose up -d
 - Enable 2FA for your 2FAuth account (yes, meta!)
 - Consider IP restrictions via Cloudflare
 
+## Data Persistence
+
+All data is stored in `./data/` which is mounted to `/2fauth` inside the container:
+
+```
+data/
+├── database.sqlite    # Main database (accounts, tokens, settings)
+├── storage/           # Uploaded icons and files
+└── installed          # Installation marker
+```
+
+⚠️ **Important**: The `./data` directory is gitignored. Make sure to back it up!
+
 ## Backup
 
-Data is stored in the `2fauth_data` volume:
+Run the backup script to create a timestamped backup:
+
 ```bash
-docker run --rm -v 2fauth_2fauth_data:/data -v $(pwd):/backup alpine tar czf /backup/2fauth-backup.tar.gz /data
+./backup.sh
 ```
+
+Backups are stored in `./backups/` and automatically rotated (30 days by default).
+
+### Restore from backup
+
+```bash
+# Stop the container
+docker compose down
+
+# Restore database
+gunzip -c backups/2fauth_backup_YYYYMMDD_HHMMSS.sqlite.gz > data/database.sqlite
+
+# Start the container
+docker compose up -d
+```
+
+## Import from Google Authenticator
+
+1. Open Google Authenticator → Menu → Transfer accounts → Export
+2. Go to your 2FAuth instance → Add → Import → Google Authenticator
+3. Scan or upload the QR code
 
 ## Links
 

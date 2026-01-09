@@ -85,8 +85,8 @@ echo -e "${RED}━━━ CRITICAL DATA ━━━${NC}"
 migrate_volume "vaultwarden_data" "vaultwarden" "/data" \
     "${HOME_SERVER_PATH}/vaultwarden/data"
 
-# 2FAuth (2FA tokens)
-migrate_volume "2fauth_data" "2fauth" "/srv" \
+# 2FAuth (2FA tokens) - Note: data is stored at /2fauth, NOT /srv
+migrate_volume "2fauth_data" "2fauth" "/2fauth" \
     "${HOME_SERVER_PATH}/2fauth/data"
 
 # ══════════════════════════════════════════════════════════════
