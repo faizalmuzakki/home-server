@@ -44,6 +44,9 @@ traefik/logs/
 *.log
 logs/
 
+# ==== Generated files (from templates) ====
+webhook/hooks.json
+
 # ==== OS ====
 .DS_Store
 Thumbs.db

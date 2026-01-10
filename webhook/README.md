@@ -17,13 +17,29 @@ cp .env.example .env
 # Generate webhook secret
 openssl rand -hex 32
 # Add to .env as WEBHOOK_SECRET
-# (hooks.json reads this automatically via template)
 
-# Make deploy script executable
-chmod +x scripts/deploy.sh
+# Generate hooks.json from template
+./scripts/generate-hooks.sh
+
+# Make scripts executable
+chmod +x scripts/*.sh
 
 # Start webhook
 docker compose up -d
+```
+
+## Configuration
+
+The webhook configuration uses a template system:
+
+1. **`hooks.json.template`** - Template with `${WEBHOOK_SECRET}` placeholder
+2. **`.env`** - Contains the actual secret
+3. **`scripts/generate-hooks.sh`** - Generates `hooks.json` from template
+
+When you update secrets, run:
+```bash
+./scripts/generate-hooks.sh
+docker compose restart webhook
 ```
 
 ## GitHub Setup
@@ -56,4 +72,6 @@ cat ~/Projects/home-server/webhook/deploy.log
 
 - HMAC-SHA256 signature validation
 - Only triggers on `main` branch
-- Secret stored in environment variable
+- Secrets stored in `.env` (gitignored)
+- `hooks.json` is generated and gitignored
+

@@ -3,7 +3,7 @@ services:
     image: almir/webhook:latest
     container_name: webhook
     restart: unless-stopped
-    command: -verbose -hooks=/etc/webhook/hooks.json -hotreload -template
+    command: -verbose -hooks=/etc/webhook/hooks.json -hotreload
     volumes:
       - ./hooks.json:/etc/webhook/hooks.json:ro
       - ./scripts:/scripts:ro

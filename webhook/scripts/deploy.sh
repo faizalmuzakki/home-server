@@ -2,7 +2,7 @@
 set -e
 
 REPO_NAME=$1
-LOG_FILE="/home/solork/Projects/home-server/webhook/deploy.log"
+LOG_FILE="/home-server/webhook/deploy.log"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -10,11 +10,17 @@ log() {
 
 log "=== Starting deployment for $REPO_NAME ==="
 
-cd /home/solork/Projects/home-server
+cd /home-server
 
 # Pull latest changes
 log "Pulling latest changes..."
 git pull origin main
+
+# Regenerate hooks.json from template (in case secret changed)
+if [ -f "webhook/scripts/generate-hooks.sh" ]; then
+    log "Regenerating hooks.json from template..."
+    ./webhook/scripts/generate-hooks.sh
+fi
 
 # Services that need rebuilding (use local Dockerfiles)
 REBUILD_SERVICES="expense-tracker"
@@ -22,7 +28,7 @@ REBUILD_SERVICES="expense-tracker"
 # Function to deploy a service
 deploy_service() {
     local dir=$1
-    cd /home/solork/Projects/home-server/$dir
+    cd /home-server/$dir
     
     if echo "$REBUILD_SERVICES" | grep -qw "$dir"; then
         log "Rebuilding $dir (local build)..."
