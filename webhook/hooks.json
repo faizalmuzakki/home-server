@@ -2,7 +2,7 @@
     {
         "id": "home-server-deploy",
         "execute-command": "/scripts/deploy.sh",
-        "command-working-directory": "/home/solork/Projects/home-server",
+        "command-working-directory": "/home-server",
         "pass-arguments-to-command": [
             {
                 "source": "payload",
@@ -37,7 +37,7 @@
     {
         "id": "expense-tracker-deploy",
         "execute-command": "/scripts/deploy-expense-tracker.sh",
-        "command-working-directory": "/home/solork/Projects/home-server",
+        "command-working-directory": "/home-server",
         "pass-arguments-to-command": [
             {
                 "source": "string",
