@@ -11,8 +11,8 @@ services:
     security_opt:
       - apparmor:unconfined
     environment:
-      - NETDATA_CLAIM_TOKEN=${NETDATA_CLAIM_TOKEN:-}
-      - NETDATA_CLAIM_URL=${NETDATA_CLAIM_URL:-https://app.netdata.cloud}
+      - NETDATA_DISABLE_CLOUD=1  # Skip cloud sign-in prompt
+      - NETDATA_HEALTHCHECK_TARGET=cli
     volumes:
       - ./config:/etc/netdata
       - ./lib:/var/lib/netdata
@@ -25,8 +25,6 @@ services:
       - /etc/os-release:/host/etc/os-release:ro
       - /var/log:/host/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    ports:
-      - "127.0.0.1:19999:19999"  # Localhost only
     networks:
       - traefik-public
     labels:
