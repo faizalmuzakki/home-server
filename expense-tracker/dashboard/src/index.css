@@ -57,6 +57,11 @@
 html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  overflow-x: hidden;
 }
 
 body {
@@ -200,11 +205,13 @@ input::placeholder {
 .stat-card {
   background: var(--color-bg-secondary);
   border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  padding: var(--space-md);
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  min-width: 0; /* Prevent overflow */
+  overflow: hidden;
 }
 
 .stat-card.income {
@@ -227,8 +234,10 @@ input::placeholder {
 }
 
 .stat-value {
-  font-size: var(--font-2xl);
+  font-size: var(--font-xl);
   font-weight: 700;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .stat-value.positive {
@@ -251,8 +260,9 @@ input::placeholder {
   border-radius: var(--radius-md);
   padding: var(--space-md);
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: var(--space-md);
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  gap: var(--space-sm) var(--space-md);
   align-items: center;
   transition: background var(--transition-fast);
 }
@@ -293,9 +303,10 @@ input::placeholder {
 
 .transaction-amount {
   font-weight: 600;
-  font-size: var(--font-lg);
-  text-align: right;
-  white-space: nowrap;
+  font-size: var(--font-md);
+  text-align: left;
+  grid-column: 2;
+  word-break: break-word;
 }
 
 .transaction-amount.income {
@@ -333,8 +344,8 @@ input::placeholder {
 
 .filter-row input,
 .filter-row select {
-  flex: 1;
-  min-width: 140px;
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 /* Tab navigation */
@@ -418,6 +429,7 @@ input::placeholder {
 .category-amount {
   font-weight: 600;
   white-space: nowrap;
+  font-size: var(--font-sm);
 }
 
 /* Empty state */
@@ -490,11 +502,24 @@ input::placeholder {
 }
 
 .modal-footer {
-  padding: var(--space-lg);
+  padding: var(--space-md);
+  padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0));
   border-top: 1px solid var(--color-border);
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-sm);
-  justify-content: flex-end;
+  justify-content: stretch;
+}
+
+.modal-footer .btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.modal-footer .btn-danger {
+  flex: 1 1 100%;
+  order: 3;
+  margin-top: var(--space-xs);
 }
 
 /* Form */
@@ -610,6 +635,47 @@ input::placeholder {
 
 /* Responsive breakpoints */
 
+/* Small phones and up (375px) - improve layout for mid-size phones */
+@media (min-width: 375px) {
+  .transaction-item {
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto;
+  }
+
+  .transaction-amount {
+    grid-column: 3;
+    text-align: right;
+  }
+
+  .filter-row input,
+  .filter-row select {
+    flex: 1 1 45%;
+    min-width: 120px;
+  }
+
+  .stat-value {
+    font-size: var(--font-2xl);
+  }
+
+  .modal-footer {
+    padding: var(--space-lg);
+    padding-bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0));
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  .modal-footer .btn {
+    flex: 0 1 auto;
+  }
+
+  .modal-footer .btn-danger {
+    flex: 0 1 auto;
+    order: 0;
+    margin-top: 0;
+    margin-right: auto;
+  }
+}
+
 /* Tablet and up (640px) */
 @media (min-width: 640px) {
   .container {
@@ -624,6 +690,7 @@ input::placeholder {
   .filter-row select {
     flex: none;
     width: auto;
+    min-width: 140px;
   }
 
   .form-row {
@@ -640,6 +707,36 @@ input::placeholder {
 
   .chart-container {
     height: 250px;
+  }
+
+  .transaction-amount {
+    font-size: var(--font-lg);
+  }
+}
+
+/* Landscape phones - reduce bottom nav height and adjust FAB */
+@media (max-height: 500px) and (orientation: landscape) {
+  .bottom-nav {
+    padding: var(--space-xs) var(--space-md);
+  }
+
+  .nav-item {
+    flex-direction: row;
+    gap: var(--space-sm);
+  }
+
+  .main-content {
+    padding-bottom: calc(50px + env(safe-area-inset-bottom, 0));
+  }
+
+  .fab {
+    bottom: calc(60px + env(safe-area-inset-bottom, 0));
+    width: 48px;
+    height: 48px;
+  }
+
+  .modal {
+    max-height: 95vh;
   }
 }
 
@@ -732,6 +829,14 @@ input::placeholder {
 
   .grid-stats {
     grid-template-columns: repeat(4, 1fr);
+  }
+
+  .stat-card {
+    padding: var(--space-lg);
+  }
+
+  .category-amount {
+    font-size: var(--font-md);
   }
 }
 
