@@ -9,7 +9,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOME_SERVER_DIR="${SCRIPT_DIR}/.."
 EXPENSE_TRACKER_DIR="${HOME_SERVER_DIR}/expense-tracker"
-EXPENSES_FE_DIR="${HOME_SERVER_DIR}/../expenses"
+# Dashboard is now in expense-tracker/dashboard (fallback to external repo for backwards compat)
+EXPENSES_FE_DIR="${EXPENSE_TRACKER_DIR}/dashboard"
+if [ ! -d "$EXPENSES_FE_DIR" ]; then
+    EXPENSES_FE_DIR="${HOME_SERVER_DIR}/../expenses"
+fi
 LOG_FILE="${SCRIPT_DIR}/deploy-expense-tracker.log"
 
 # Colors for output

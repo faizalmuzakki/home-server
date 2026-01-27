@@ -76,13 +76,31 @@ docker compose up -d
 
 ### 3. Deploy Dashboard to Cloudflare Pages
 
+The dashboard is a responsive React application built with Vite.
+
 ```bash
 cd dashboard
+cp .env.example .env
+# Edit .env to set VITE_API_URL to your API endpoint
 npm install
 npm run build
 ```
 
 Then deploy `dist/` folder to Cloudflare Pages.
+
+**Local Development:**
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+The dashboard is fully responsive with:
+- Mobile-first design with touch-friendly UI
+- Bottom navigation for mobile devices
+- Floating action button for quick transaction entry
+- Card-based layouts that adapt to screen size
+- Desktop sidebar with category breakdown
 
 ## Cloudflare Tunnel Setup
 
