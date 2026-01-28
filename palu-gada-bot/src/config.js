@@ -40,6 +40,10 @@ const config = {
 
     // Admin Panel URL (for CORS)
     adminPanelUrl: process.env.ADMIN_PANEL_URL || 'http://localhost:5173',
+
+    // Shell Channel Settings
+    shellChannelId: process.env.SHELL_CHANNEL_ID, // Dedicated channel for shell commands
+    shellAllowedUsers: process.env.SHELL_ALLOWED_USERS?.split(',').filter(Boolean) || [],
 };
 
 /**

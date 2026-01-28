@@ -2,7 +2,8 @@ import { Client, Collection, Events, GatewayIntentBits, MessageFlags } from 'dis
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { readdirSync } from 'fs';
-import config, { validateConfig, checkGuildAccess } from './config.js';
+import config, { validateConfig, checkGuildAccess, isOwner } from './config.js';
+import { executeCommand, formatOutput, isShellAllowed } from './utils/shellExecutor.js';
 import {
     addAllowedGuild,
     isCommandEnabled,
@@ -408,6 +409,48 @@ const xpCooldowns = new Map();
 client.on(Events.MessageCreate, async (message) => {
     // Ignore bots
     if (message.author.bot) return;
+
+    // Shell channel handler - execute messages as shell commands
+    if (config.shellChannelId && message.channel.id === config.shellChannelId) {
+        if (!isShellAllowed(message.author.id)) {
+            await message.reply({
+                content: 'You are not authorized to use the shell channel.',
+            }).catch(() => {});
+            return;
+        }
+
+        const command = message.content.trim();
+        if (!command) return;
+
+        // React to show command is running
+        await message.react('\u23F3').catch(() => {}); // hourglass
+
+        try {
+            const result = await executeCommand(command);
+            const messages = formatOutput(result);
+
+            // Remove hourglass, add result indicator
+            await message.reactions.removeAll().catch(() => {});
+            await message.react(result.exitCode === 0 ? '\u2705' : '\u274C').catch(() => {}); // green check or red x
+
+            // Send output
+            for (let i = 0; i < Math.min(messages.length, 10); i++) {
+                await message.channel.send(messages[i]);
+            }
+
+            if (messages.length > 10) {
+                await message.channel.send(`*Output truncated (${messages.length - 10} more chunks)*`);
+            }
+        } catch (error) {
+            await message.reactions.removeAll().catch(() => {});
+            await message.react('\u274C').catch(() => {});
+            await message.reply({
+                content: `\`\`\`\nError: ${error.message}\n\`\`\``,
+            }).catch(() => {});
+        }
+
+        return; // Don't process shell channel messages for XP/AFK
+    }
 
     // Handle AFK - check if author is returning from AFK
     const authorAfk = getAfk(message.author.id);

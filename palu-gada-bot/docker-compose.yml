@@ -32,6 +32,10 @@ services:
       - ./data:/app/data
       # Optional: persist logs
       - ./logs:/app/logs
+      # Docker socket for container management via shell channel
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount host repo for git operations via shell channel
+      - /home/user/home-server:/host-repo
     # Resource limits
     deploy:
       resources:
