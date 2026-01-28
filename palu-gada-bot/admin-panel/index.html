@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Palu Gada Bot - Admin Panel</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen">
+            <div class="login-container">
+                <h1>Palu Gada Bot</h1>
+                <p>Admin Dashboard</p>
+                <button id="login-btn" class="btn btn-discord">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                    </svg>
+                    Login with Discord
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard" class="screen hidden">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2>Palu Gada Bot</h2>
+                </div>
+                <nav class="sidebar-nav">
+                    <a href="#" class="nav-item active" data-page="overview">
+                        <span class="icon">📊</span> Overview
+                    </a>
+                    <a href="#" class="nav-item" data-page="guilds">
+                        <span class="icon">🏠</span> Servers
+                    </a>
+                    <a href="#" class="nav-item owner-only" data-page="allowlist">
+                        <span class="icon">✅</span> Allowlist
+                    </a>
+                    <a href="#" class="nav-item owner-only" data-page="global-commands">
+                        <span class="icon">⚙️</span> Global Commands
+                    </a>
+                </nav>
+                <div class="sidebar-footer">
+                    <div class="user-info">
+                        <img id="user-avatar" src="" alt="Avatar" class="avatar">
+                        <span id="user-name"></span>
+                    </div>
+                    <button id="logout-btn" class="btn btn-small">Logout</button>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Overview Page -->
+                <div id="page-overview" class="page">
+                    <h1>Dashboard Overview</h1>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-guilds">-</div>
+                            <div class="stat-label">Servers</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-users">-</div>
+                            <div class="stat-label">Users</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-uptime">-</div>
+                            <div class="stat-label">Uptime</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-memory">-</div>
+                            <div class="stat-label">Memory</div>
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <h3>Bot Info</h3>
+                        <div class="bot-info">
+                            <img id="bot-avatar" src="" alt="Bot Avatar" class="avatar large">
+                            <div>
+                                <p><strong>Name:</strong> <span id="bot-name">-</span></p>
+                                <p><strong>Guild Mode:</strong> <span id="bot-mode">-</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Guilds Page -->
+                <div id="page-guilds" class="page hidden">
+                    <h1>Server Management</h1>
+                    <div id="guilds-list" class="guilds-grid">
+                        <!-- Guilds will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Guild Detail Page -->
+                <div id="page-guild-detail" class="page hidden">
+                    <button class="btn btn-back" onclick="showPage('guilds')">&larr; Back to Servers</button>
+                    <div class="guild-header">
+                        <img id="guild-icon" src="" alt="Guild Icon" class="avatar large">
+                        <div>
+                            <h1 id="guild-name">-</h1>
+                            <p id="guild-members">- members</p>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <h2>Commands</h2>
+                        <p class="section-desc">Enable or disable commands for this server.</p>
+                        <div id="commands-list" class="commands-grid">
+                            <!-- Commands will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Allowlist Page (Owner Only) -->
+                <div id="page-allowlist" class="page hidden">
+                    <h1>Server Allowlist</h1>
+                    <p class="section-desc">Manage which servers can use the bot (only applies in allowlist mode).</p>
+                    <div class="add-guild-form">
+                        <input type="text" id="add-guild-id" placeholder="Server ID">
+                        <input type="text" id="add-guild-notes" placeholder="Notes (optional)">
+                        <button id="add-guild-btn" class="btn btn-primary">Add Server</button>
+                    </div>
+                    <div id="allowlist-guilds" class="allowlist-grid">
+                        <!-- Allowed guilds will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Global Commands Page (Owner Only) -->
+                <div id="page-global-commands" class="page hidden">
+                    <h1>Global Command Settings</h1>
+                    <p class="section-desc">Enable or disable commands globally. Disabled commands will not work in any server.</p>
+                    <div class="alert alert-warning">
+                        <strong>Warning:</strong> Disabling a command here will disable it for ALL servers, regardless of per-server settings.
+                    </div>
+                    <div id="global-commands-list" class="commands-grid">
+                        <!-- Global commands will be loaded here -->
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
