@@ -171,6 +171,63 @@ export function initDatabase() {
     db.exec("ALTER TABLE investment_config ADD COLUMN start_date DATE");
   }
 
+  // Step 3.6: Create travel expenses tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS travel_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      icon TEXT,
+      color TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS travel_expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'USD',
+      converted_amount REAL,
+      converted_currency TEXT DEFAULT 'IDR',
+      exchange_rate REAL,
+      description TEXT,
+      vendor TEXT,
+      category_id INTEGER,
+      date DATE NOT NULL,
+      trip_name TEXT,
+      source TEXT DEFAULT 'manual',
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES travel_categories(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_travel_expenses_date ON travel_expenses(date);
+    CREATE INDEX IF NOT EXISTS idx_travel_expenses_currency ON travel_expenses(currency);
+    CREATE INDEX IF NOT EXISTS idx_travel_expenses_trip ON travel_expenses(trip_name);
+    CREATE INDEX IF NOT EXISTS idx_travel_expenses_category ON travel_expenses(category_id);
+  `);
+
+  // Initialize default travel categories if none exist
+  const travelCatCount = db.prepare('SELECT COUNT(*) as count FROM travel_categories').get();
+  if (travelCatCount.count === 0) {
+    const defaultTravelCategories = [
+      { name: 'Accommodation', icon: '🏨', color: '#FF6B6B' },
+      { name: 'Flights', icon: '✈️', color: '#4ECDC4' },
+      { name: 'Local Transport', icon: '🚕', color: '#45B7D1' },
+      { name: 'Food & Dining', icon: '🍽️', color: '#96CEB4' },
+      { name: 'Activities', icon: '🎭', color: '#FFEAA7' },
+      { name: 'Shopping', icon: '🛍️', color: '#DDA0DD' },
+      { name: 'SIM & Internet', icon: '📱', color: '#98D8C8' },
+      { name: 'Insurance', icon: '🛡️', color: '#F7DC6F' },
+      { name: 'Visa & Fees', icon: '📋', color: '#82E0AA' },
+      { name: 'Other', icon: '📦', color: '#AEB6BF' }
+    ];
+
+    const insertTravelCat = db.prepare('INSERT INTO travel_categories (name, icon, color) VALUES (?, ?, ?)');
+    for (const cat of defaultTravelCategories) {
+      insertTravelCat.run(cat.name, cat.icon, cat.color);
+    }
+  }
+
   // Step 4: Insert default categories if none exist
   const categoryCount = db.prepare('SELECT COUNT(*) as count FROM categories').get();
   if (categoryCount.count === 0) {

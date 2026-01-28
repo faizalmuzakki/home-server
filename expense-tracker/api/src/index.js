@@ -13,6 +13,7 @@ import statsRoutes from './routes/stats.js';
 import authRoutes from './routes/auth.js';
 import uploadRoutes from './routes/upload.js';
 import investmentRoutes from './routes/investments.js';
+import travelExpenseRoutes from './routes/travel-expenses.js';
 
 dotenv.config();
 
@@ -97,6 +98,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadLimiter, uploadRoutes);
 app.use('/api/investments', investmentRoutes);
+app.use('/api/travel-expenses', travelExpenseRoutes);
 
 // Health check (excluded from rate limiting for monitoring)
 app.get('/health', (req, res) => {

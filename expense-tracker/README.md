@@ -157,6 +157,17 @@ Send messages to your WhatsApp:
 | GET | `/api/stats/summary` | Get spending summary |
 | GET | `/api/stats/daily` | Get daily totals |
 | GET | `/api/stats/monthly` | Get monthly totals |
+| GET | `/api/travel-expenses` | List travel expenses |
+| POST | `/api/travel-expenses` | Create travel expense |
+| PUT | `/api/travel-expenses/:id` | Update travel expense |
+| DELETE | `/api/travel-expenses/:id` | Delete travel expense |
+| GET | `/api/travel-expenses/exchange-rate` | Get exchange rate |
+| GET | `/api/travel-expenses/categories` | List travel categories |
+| POST | `/api/travel-expenses/categories` | Create travel category |
+| GET | `/api/travel-expenses/trips` | List trips with totals |
+| GET | `/api/travel-expenses/summary` | Travel spending summary |
+
+See [TRAVEL-EXPENSES-API.md](TRAVEL-EXPENSES-API.md) for full travel expenses documentation.
 
 ## Backup
 
