@@ -4,9 +4,9 @@
 
 # Install dependencies if missing (git for diff/pull, su-exec for dropping privileges)
 # Check if dependencies are installed
-if ! command -v git >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1 || ! command -v su-exec >/dev/null 2>&1; then
-    echo "Installing git, curl, and su-exec..."
-    apk add --no-cache git curl su-exec openssh-client >/dev/null 2>&1
+if ! command -v git >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1 || ! command -v su-exec >/dev/null 2>&1 || ! command -v docker >/dev/null 2>&1; then
+    echo "Installing git, curl, su-exec, and docker..."
+    apk add --no-cache git curl su-exec openssh-client docker-cli docker-cli-compose >/dev/null 2>&1
 fi
 
 # Configure git safe directory for both root and webhook user (needed for git commands in mounted volume)

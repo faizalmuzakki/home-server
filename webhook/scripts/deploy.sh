@@ -3,9 +3,9 @@
 # Usage: ./scripts/deploy.sh [repo_name] [--dry-run]
 
 # Install dependencies if missing (git for diff/pull, curl for notifications, envsubst for hooks)
-if ! command -v git >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1 || ! command -v envsubst >/dev/null 2>&1; then
-    echo "Installing git and curl..."
-    apk add --no-cache git curl openssh-client gettext >/dev/null 2>&1
+if ! command -v git >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1 || ! command -v envsubst >/dev/null 2>&1 || ! command -v docker >/dev/null 2>&1; then
+    echo "Installing git, curl, and docker..."
+    apk add --no-cache git curl openssh-client gettext docker-cli docker-cli-compose >/dev/null 2>&1
 fi
 
 # Configure git safe directory to avoid ownership errors
