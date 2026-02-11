@@ -1,0 +1,5 @@
+.env
+node_modules/
+dist/
+api/data/
+whatsapp-bot/auth_info/

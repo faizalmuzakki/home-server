@@ -1,0 +1,122 @@
+services:
+  api:
+    build: ./api
+    container_name: expense-tracker-api
+    restart: unless-stopped
+    # Security hardening
+    # Note: read_only and cap_drop are NOT used here because SQLite and file uploads need full filesystem access
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    environment:
+      - PORT=3000
+      - DB_PATH=/app/data/expenses.db
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DASHBOARD_EMAIL=${DASHBOARD_EMAIL}
+      - DASHBOARD_PIN=${DASHBOARD_PIN}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - NODE_ENV=production
+    volumes:
+      - ./api/data:/app/data:rw
+    ports:
+      - "3000:3000"
+    networks:
+      - expense-network
+      - traefik-public
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  whatsapp-bot:
+    build: ./whatsapp-bot
+    container_name: expense-tracker-whatsapp
+    restart: unless-stopped
+    # Security hardening
+    # Note: read_only is NOT used here because Baileys needs write access to auth_info
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,nosuid,size=50m
+    environment:
+      - API_URL=http://api:3000
+      - ALLOWED_NUMBERS=${ALLOWED_NUMBERS}
+      - DASHBOARD_PIN=${DASHBOARD_PIN}
+      - NODE_ENV=production
+    volumes:
+      - ./whatsapp-bot/auth_info:/app/auth_info:rw
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - expense-network
+    # For first-time QR code scanning, run with:
+    # docker compose up whatsapp-bot (without -d)
+    stdin_open: true
+    tty: true
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: expense-tracker-tunnel
+    restart: unless-stopped
+    # Security hardening
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - api
+    networks:
+      - expense-network
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+# Data is stored in local directories:
+# - ./api/data (database)
+# - ./whatsapp-bot/auth_info (WhatsApp session)
+
+# SECURITY NOTES:
+# - ALLOWED_NUMBERS must be set for the WhatsApp bot to start
+# - ALLOWED_ORIGINS should be set to your frontend domain in production
+# - All containers run with minimal privileges
+# - Resource limits prevent resource exhaustion attacks
+
+networks:
+  expense-network:
+    driver: bridge
+  traefik-public:
+    external: true
+

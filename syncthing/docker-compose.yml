@@ -1,0 +1,32 @@
+services:
+  syncthing:
+    image: lscr.io/linuxserver/syncthing:latest
+    container_name: syncthing
+    restart: unless-stopped
+    hostname: home-server
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Jakarta
+    volumes:
+      - ./config:/config
+      - ${SYNC_PATH:-/data/sync}:/data/sync
+    ports:
+      - "8384:8384"   # Web UI
+      - "22000:22000/tcp" # Sync protocol
+      - "22000:22000/udp" # Sync protocol
+      - "21027:21027/udp" # Discovery
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.syncthing.rule=Host(`sync.${DOMAIN}`)"
+      - "traefik.http.routers.syncthing.entrypoints=websecure"
+      - "traefik.http.routers.syncthing.tls.certresolver=cloudflare"
+      - "traefik.http.services.syncthing.loadbalancer.server.port=8384"
+
+# Data is stored in ./config
+
+networks:
+  traefik-public:
+    external: true

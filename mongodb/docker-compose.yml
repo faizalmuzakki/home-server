@@ -1,0 +1,31 @@
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - ./data/db:/data/db
+      - ./data/configdb:/data/configdb
+      - ${SHARED_DATA_PATH:-/data/shared}:/shared
+    networks:
+      - mongodb_network
+      - traefik-public
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+# Data is stored in ./data/db and ./data/configdb
+
+networks:
+  mongodb_network:
+    driver: bridge
+  traefik-public:
+    external: true

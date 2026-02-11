@@ -1,0 +1,74 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    privileged: true
+    environment:
+      - TZ=${TZ:-Asia/Jakarta}
+    volumes:
+      - ./homeassistant:/config
+      - /run/dbus:/run/dbus:ro
+    ports:
+      - "8123:8123"
+    networks:
+      - traefik-public
+      - homeassistant-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homeassistant.rule=Host(`home.${DOMAIN}`)"
+      - "traefik.http.routers.homeassistant.entrypoints=websecure"
+      - "traefik.http.routers.homeassistant.tls.certresolver=cloudflare"
+      - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
+
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    networks:
+      - homeassistant-network
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    container_name: zigbee2mqtt
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      - TZ=${TZ:-Asia/Jakarta}
+    volumes:
+      - ./zigbee2mqtt:/app/data
+      - /run/udev:/run/udev:ro
+    ports:
+      - "8082:8080"
+    # Uncomment and set your Zigbee adapter device
+    # devices:
+    #   - /dev/ttyUSB0:/dev/ttyACM0
+    networks:
+      - traefik-public
+      - homeassistant-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.zigbee2mqtt.rule=Host(`zigbee.${DOMAIN}`)"
+      - "traefik.http.routers.zigbee2mqtt.entrypoints=websecure"
+      - "traefik.http.routers.zigbee2mqtt.tls.certresolver=cloudflare"
+      - "traefik.http.services.zigbee2mqtt.loadbalancer.server.port=8080"
+
+# Data is stored in:
+# - ./homeassistant (Home Assistant config)
+# - ./mosquitto (MQTT broker)
+# - ./zigbee2mqtt (Zigbee2MQTT)
+
+networks:
+  traefik-public:
+    external: true
+  homeassistant-network:
+    name: homeassistant-network
+    driver: bridge

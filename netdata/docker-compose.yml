@@ -1,0 +1,44 @@
+services:
+  netdata:
+    image: netdata/netdata:latest
+    container_name: netdata
+    hostname: home-server
+    restart: unless-stopped
+    pid: host
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - NETDATA_DISABLE_CLOUD=1  # Skip cloud sign-in prompt
+      - NETDATA_HEALTHCHECK_TARGET=cli
+    volumes:
+      - ./config:/etc/netdata
+      - ./lib:/var/lib/netdata
+      - ./cache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/log:/host/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.netdata.rule=Host(`monitor.${DOMAIN}`)"
+      - "traefik.http.routers.netdata.entrypoints=websecure"
+      - "traefik.http.routers.netdata.tls.certresolver=cloudflare"
+      - "traefik.http.services.netdata.loadbalancer.server.port=19999"
+      # LAN-only access + basic auth
+      - "traefik.http.routers.netdata.middlewares=admin-secure@file,netdata-auth"
+      - "traefik.http.middlewares.netdata-auth.basicauth.users=${NETDATA_AUTH}"
+
+# Data is stored in ./config, ./lib, ./cache
+
+networks:
+  traefik-public:
+    external: true

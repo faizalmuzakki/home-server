@@ -1,0 +1,59 @@
+# Environment files (contain secrets)
+.env
+*.env.local
+
+# Node
+node_modules/
+dist/
+
+# ==== Data directories (bind mounts) ====
+# These contain persistent data and should be backed up separately
+
+# Generic patterns
+**/data/
+**/auth_info/
+**/backup/
+
+# Home automation
+homeassistant/homeassistant/
+homeassistant/mosquitto/
+homeassistant/zigbee2mqtt/
+
+# Media stack configs
+media/jellyfin/
+media/sonarr/
+media/radarr/
+media/prowlarr/
+media/qbittorrent/
+media/bazarr/
+
+# Network & Security
+adguard/work/
+adguard/conf/
+crowdsec/config/
+
+# Monitoring
+netdata/lib/
+netdata/cache/
+netdata/config/
+syncthing/config/
+
+# ==== Certificates & Logs ====
+traefik/certs/acme.json
+traefik/logs/
+*.log
+logs/
+
+# ==== Generated files (from templates) ====
+webhook/hooks.json
+
+# ==== OS ====
+.DS_Store
+Thumbs.db
+
+# ==== IDE ====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

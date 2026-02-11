@@ -1,0 +1,56 @@
+services:
+  palu-gada-bot:
+    build: .
+    container_name: palu-gada-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    # Port exposure (localhost only for direct access)
+    ports:
+      - "127.0.0.1:3003:${API_PORT:-3003}"
+    networks:
+      - traefik-public
+    # Traefik labels for reverse proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.palu-gada-api.rule=Host(`bot-api.${DOMAIN}`)"
+      - "traefik.http.routers.palu-gada-api.entrypoints=websecure"
+      - "traefik.http.routers.palu-gada-api.tls.certresolver=cloudflare"
+      - "traefik.http.routers.palu-gada-api.middlewares=secure-defaults@file"
+      - "traefik.http.services.palu-gada-api.loadbalancer.server.port=${API_PORT:-3003}"
+    volumes:
+      # Persist SQLite database
+      - ./data:/app/data
+      # Optional: persist logs
+      - ./logs:/app/logs
+      # Docker socket for container management via shell channel
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount host repo for git operations via shell channel
+      - /home/user/home-server:/host-repo
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${API_PORT:-3003}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  traefik-public:
+    external: true

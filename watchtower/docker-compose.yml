@@ -1,0 +1,29 @@
+services:
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    environment:
+      # Docker API version compatibility
+      - DOCKER_API_VERSION=1.44
+      # Schedule: Check for updates at 4 AM daily
+      - WATCHTOWER_SCHEDULE=0 0 4 * * *
+      # Don't auto-update, just notify (safer for home server)
+      - WATCHTOWER_MONITOR_ONLY=${WATCHTOWER_MONITOR_ONLY:-true}
+      # Notification settings
+      - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      - WATCHTOWER_NOTIFICATION_URL=${WATCHTOWER_NOTIFICATION_URL:-}
+      # Cleanup old images after update
+      - WATCHTOWER_CLEANUP=true
+      # Include stopped containers
+      - WATCHTOWER_INCLUDE_STOPPED=false
+      # Logging
+      - WATCHTOWER_DEBUG=false
+      - WATCHTOWER_TRACE=false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      # Exclude watchtower from Traefik (no web interface)
+      - "traefik.enable=false"
+
+# No networks needed - Watchtower only needs Docker socket access

@@ -1,0 +1,39 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - DOMAIN=https://vault.${DOMAIN}
+      - SIGNUPS_ALLOWED=${SIGNUPS_ALLOWED:-false}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURITY=${SMTP_SECURITY:-starttls}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - WEBSOCKET_ENABLED=true
+      - LOG_LEVEL=info
+    volumes:
+      - ./data:/data
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      # Main UI
+      - "traefik.http.routers.vaultwarden.rule=Host(`vault.${DOMAIN}`)"
+      - "traefik.http.routers.vaultwarden.entrypoints=websecure"
+      - "traefik.http.routers.vaultwarden.tls.certresolver=cloudflare"
+      - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
+      # Websocket
+      - "traefik.http.routers.vaultwarden-ws.rule=Host(`vault.${DOMAIN}`) && Path(`/notifications/hub`)"
+      - "traefik.http.routers.vaultwarden-ws.entrypoints=websecure"
+      - "traefik.http.routers.vaultwarden-ws.tls.certresolver=cloudflare"
+      - "traefik.http.services.vaultwarden-ws.loadbalancer.server.port=3012"
+
+# Data is stored in ./data (CRITICAL - contains password vault)
+
+networks:
+  traefik-public:
+    external: true

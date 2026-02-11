@@ -1,0 +1,53 @@
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec
+    restart: unless-stopped
+    environment:
+      - GID=1000
+      - COLLECTIONS=crowdsecurity/traefik crowdsecurity/http-cve crowdsecurity/linux
+      - ENROLL_KEY=${CROWDSEC_ENROLL_KEY:-}
+      - ENROLL_INSTANCE_NAME=home-server
+    volumes:
+      - ./data:/var/lib/crowdsec/data
+      - ./config:/etc/crowdsec
+      # Traefik logs for analysis (absolute path to traefik's log directory)
+      - /home/solork/Projects/home-server/traefik/logs:/var/log/traefik:ro
+      # System auth logs
+      - /var/log:/var/log/host:ro
+    networks:
+      - crowdsec-network
+    healthcheck:
+      test: ["CMD", "cscli", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Bouncer to block IPs at Traefik level
+  crowdsec-bouncer:
+    image: fbonalair/traefik-crowdsec-bouncer:latest
+    container_name: crowdsec-bouncer
+    restart: unless-stopped
+    environment:
+      - CROWDSEC_BOUNCER_API_KEY=${CROWDSEC_BOUNCER_API_KEY}
+      - CROWDSEC_AGENT_HOST=crowdsec:8080
+      - GIN_MODE=release
+    networks:
+      - crowdsec-network
+      - traefik-public
+    depends_on:
+      - crowdsec
+    labels:
+      - "traefik.enable=true"
+      # Forward auth middleware for Traefik
+      - "traefik.http.middlewares.crowdsec-bouncer.forwardauth.address=http://crowdsec-bouncer:8080/api/v1/forwardAuth"
+      - "traefik.http.middlewares.crowdsec-bouncer.forwardauth.trustForwardHeader=true"
+      - "traefik.http.services.crowdsec-bouncer.loadbalancer.server.port=8080"
+
+
+
+networks:
+  crowdsec-network:
+    driver: bridge
+  traefik-public:
+    external: true

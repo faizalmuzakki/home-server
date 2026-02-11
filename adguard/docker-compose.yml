@@ -1,0 +1,30 @@
+services:
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "3001:3000/tcp"  # Initial setup UI
+      - "8080:80/tcp"    # Admin panel (after setup)
+      # - "443:443/tcp"  # DNS-over-HTTPS (disabled - Traefik uses 443)
+      - "853:853/tcp"    # DNS-over-TLS
+    volumes:
+      - ./work:/opt/adguardhome/work
+      - ./conf:/opt/adguardhome/conf
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adguard.rule=Host(`adguard.${DOMAIN}`)"
+      - "traefik.http.routers.adguard.entrypoints=websecure"
+      - "traefik.http.routers.adguard.tls.certresolver=cloudflare"
+      - "traefik.http.routers.adguard.middlewares=admin-secure@file"
+      - "traefik.http.services.adguard.loadbalancer.server.port=80"
+
+# Data is stored in ./work and ./conf
+
+networks:
+  traefik-public:
+    external: true
