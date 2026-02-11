@@ -3,7 +3,8 @@
 # Usage: ./scripts/deploy-monorepo.sh [repository.name]
 
 # Install dependencies if missing (git for diff/pull, su-exec for dropping privileges)
-if ! command -v git >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1; then
+# Check if dependencies are installed
+if ! command -v git >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1 || ! command -v su-exec >/dev/null 2>&1; then
     echo "Installing git, curl, and su-exec..."
     apk add --no-cache git curl su-exec openssh-client >/dev/null 2>&1
 fi
@@ -81,9 +82,10 @@ fi
 # Check current HEAD
 OLD_HEAD=$(run_as_user env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git rev-parse HEAD)
 
-# Pull latest changes
+# Pull latest changes (Using fetch + reset --hard to handle forced pushes)
 log "Pulling latest changes..."
-run_as_user env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git pull origin main
+run_as_user env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git fetch origin main
+run_as_user env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git reset --hard origin/main
 
 # Check new HEAD
 NEW_HEAD=$(run_as_user git rev-parse HEAD)
