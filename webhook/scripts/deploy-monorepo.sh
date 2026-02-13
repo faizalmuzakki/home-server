@@ -10,13 +10,13 @@ if ! command -v git >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1 || ! com
 fi
 
 # Configure git safe directory for both root and webhook user (needed for git commands in mounted volume)
-git config --global --add safe.directory /monorepo
+git config --global --add safe.directory /home/solork/Projects/monorepo
 
 set -e
 
 REPO_NAME="${1:-monorepo}"
 LOG_FILE="/home-server/webhook/deploy-monorepo.log"
-MONOREPO_DIR="/monorepo"
+MONOREPO_DIR="/home/solork/Projects/monorepo"
 # User ID to run git commands as (matches host user usually 1000)
 GIT_USER="webhook"
 
@@ -109,7 +109,7 @@ fi
 log "Changed projects: $(echo $CHANGED_DIRS | tr '\n' ' ')"
 
 # Configure safe directory for /monorepo again just in case su-exec needs it
-run_as_user git config --global --add safe.directory /monorepo || true
+run_as_user git config --global --add safe.directory /home/solork/Projects/monorepo || true
 
 # Function to deploy a project
 deploy_project() {

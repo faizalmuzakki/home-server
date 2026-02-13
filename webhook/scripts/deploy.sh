@@ -9,7 +9,7 @@ if ! command -v git >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1 || ! com
 fi
 
 # Configure git safe directory to avoid ownership errors
-git config --global --add safe.directory /home-server
+git config --global --add safe.directory /home/solork/Projects/home-server
 
 set -e
 
@@ -70,7 +70,7 @@ trap cleanup EXIT
 log "=== Starting deployment for $REPO_NAME ==="
 send_notification "Received" "📥 Webhook received for **$REPO_NAME**. Starting deployment..." 3447003
 
-cd /home-server
+cd /home/solork/Projects/home-server
 
 # Check current HEAD before pull
 OLD_HEAD=$(git rev-parse HEAD)
@@ -113,15 +113,15 @@ REBUILD_SERVICES="expense-tracker"
 # Function to deploy a service
 deploy_service() {
     dir=$1
-    if [ ! -d "/home-server/$dir" ]; then
+    if [ ! -d "/home/solork/Projects/home-server/$dir" ]; then
         return
     fi
     # Check if docker-compose exists
-    if [ ! -f "/home-server/$dir/docker-compose.yml" ]; then
+    if [ ! -f "/home/solork/Projects/home-server/$dir/docker-compose.yml" ]; then
         return
     fi
     
-    cd /home-server/$dir
+    cd /home/solork/Projects/home-server/$dir
     
     log "Deploying $dir..."
     
@@ -138,9 +138,9 @@ deploy_service() {
 for dir in $CHANGED_DIRS; do
     # Skip excluded
     if [ "$dir" = "webhook" ]; then
-        if [ -f "/home-server/webhook/scripts/generate-hooks.sh" ]; then
+        if [ -f "/home/solork/Projects/home-server/webhook/scripts/generate-hooks.sh" ]; then
              log "Regenerating hooks..."
-             execute "/home-server/webhook/scripts/generate-hooks.sh"
+             execute "/home/solork/Projects/home-server/webhook/scripts/generate-hooks.sh"
         fi
         continue
     fi

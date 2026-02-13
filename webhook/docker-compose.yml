@@ -9,10 +9,10 @@ services:
       - ./hooks.json:/etc/webhook/hooks.json:ro
       - ./scripts:/scripts:ro
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${HOME_SERVER_PATH:-/home/solork/Projects/home-server}:/home-server
+      - ${HOME_SERVER_PATH:-/home/solork/Projects/home-server}:${HOME_SERVER_PATH:-/home/solork/Projects/home-server}
       - /home/solork/.ssh:/home/webhook/.ssh:ro
       - /home/solork/.ssh:/root/.ssh:ro
-      - ${MONOREPO_PATH:-/home/solork/Projects/monorepo}:/monorepo
+      - ${MONOREPO_PATH:-/home/solork/Projects/monorepo}:${MONOREPO_PATH:-/home/solork/Projects/monorepo}
     environment:
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
