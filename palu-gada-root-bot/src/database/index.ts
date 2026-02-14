@@ -81,7 +81,17 @@ export function initDatabase() {
     )
   `);
 
-  // Economy
+  // Migration for notes: add updated_at if missing
+  try {
+    const tableInfo = _db.prepare("PRAGMA table_info(notes)").all() as any[];
+    const hasUpdatedAt = tableInfo.some(col => col.name === 'updated_at');
+    if (!hasUpdatedAt) {
+      console.log('Migrating notes table: adding updated_at column...');
+      _db.exec("ALTER TABLE notes ADD COLUMN updated_at INTEGER DEFAULT 0");
+    }
+  } catch (error) {
+    console.error('Migration error for notes table:', error);
+  }
   _db.exec(`
     CREATE TABLE IF NOT EXISTS economy (
       user_id TEXT PRIMARY KEY,
