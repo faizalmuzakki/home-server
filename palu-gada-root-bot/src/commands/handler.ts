@@ -1,0 +1,90 @@
+import { ChannelMessageCreatedEvent, MessageType, rootServer, JobScheduleEvent } from "@rootsdk/server-bot";
+import { Command, CommandContext } from "./Command";
+
+import { pingCommand } from "./utility/ping";
+import { summarizeCommand } from "./utility/summarize";
+import { todoCommand } from "./productivity/todo";
+import { remindCommand, handleReminderJob } from "./productivity/remind";
+import { balanceCommand, dailyCommand, levelCommand, addXp } from "./economy";
+import { warnCommand, warningsCommand, kickCommand, banCommand } from "./moderation";
+import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob } from "./fun";
+import { initStarboard } from "../features/starboard";
+
+const commands: Map<string, Command> = new Map();
+const aliases: Map<string, string> = new Map();
+
+export function registerCommand(command: Command) {
+    commands.set(command.name, command);
+    if (command.aliases) {
+        command.aliases.forEach(alias => aliases.set(alias, command.name));
+    }
+}
+
+export async function handleMessage(event: ChannelMessageCreatedEvent) {
+    if (event.messageType === MessageType.System) return;
+
+    // XP System
+    if (event.userId && event.communityId) {
+        const leveledUp = addXp(event.userId, event.communityId);
+        if (leveledUp) {
+            await rootServer.community.channelMessages.create({
+                channelId: event.channelId,
+                content: `🎉 <@${event.userId}> has leveled up!`,
+            });
+        }
+    }
+
+    const content = event.messageContent;
+    if (!content || !content.startsWith("/")) return;
+
+    const args = content.slice(1).trim().split(/ +/);
+    const commandName = args.shift()?.toLowerCase();
+
+    if (!commandName) return;
+
+    const command = commands.get(commandName) || commands.get(aliases.get(commandName) || "");
+
+    if (command) {
+        try {
+            await command.execute({ event, args, server: rootServer });
+        } catch (error) {
+            console.error(`Error executing command ${commandName}:`, error);
+            await rootServer.community.channelMessages.create({
+                channelId: event.channelId,
+                content: `Error executing command: ${error instanceof Error ? error.message : "Unknown error"}`,
+            });
+        }
+    }
+}
+
+export function loadCommands() {
+    registerCommand(pingCommand);
+    registerCommand(summarizeCommand);
+
+    registerCommand(todoCommand);
+    registerCommand(remindCommand);
+
+    registerCommand(balanceCommand);
+    registerCommand(dailyCommand);
+    registerCommand(levelCommand);
+
+    registerCommand(warnCommand);
+    registerCommand(warningsCommand);
+    registerCommand(kickCommand);
+    registerCommand(banCommand);
+
+    registerCommand(birthdayCommand);
+    registerCommand(confessionCommand);
+    registerCommand(giveawayCommand);
+
+    // Subscribe to job events
+    rootServer.jobScheduler.on(JobScheduleEvent.Job, async (job) => {
+        await handleReminderJob(job);
+        await handleGiveawayJob(job);
+    });
+
+    // Initialize Starboard
+    initStarboard();
+
+    console.log(`Loaded ${commands.size} commands.`);
+}

@@ -1,0 +1,18 @@
+import { rootServer } from "@rootsdk/server-bot";
+import { Command, CommandContext } from "../Command";
+
+export const pingCommand: Command = {
+    name: "ping",
+    description: "Replies with Pong! and latency.",
+    execute: async (context: CommandContext) => {
+        const { event } = context;
+        const start = Date.now();
+        // Since event doesn't have a clear timestamp field exposed (it's in the UUID), we'll just check roundtrip time for sending response?
+        // Or just reply Pong.
+
+        await rootServer.community.channelMessages.create({
+            channelId: event.channelId,
+            content: "Pong! 🏓",
+        });
+    }
+};

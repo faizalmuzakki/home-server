@@ -1,0 +1,26 @@
+{
+  "name": "@palu-gada-root-bot/bot",
+  "author": "",
+  "description": "palu-gada-root-bot Bot",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
+    "@rootsdk/server-bot": "*",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.6.2",
+    "dotenv": "^17.3.1"
+  },
+  "devDependencies": {
+    "@rootsdk/dev-tools": "*",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "node clean.js",
+    "bot": "rootsdk start devhost"
+  }
+}
