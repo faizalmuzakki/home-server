@@ -193,3 +193,4 @@ export const banCommand: Command = {
         }
     }
 };
+export * from "./autorole";
