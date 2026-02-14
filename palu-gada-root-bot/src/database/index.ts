@@ -2,11 +2,17 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-// Ensure data directory exists
 const DATA_DIR = path.join(process.cwd(), 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db: any = new Database(path.join(DATA_DIR, 'bot.db'));
+let db: Database.Database;
+
+try {
+  db = new Database(path.join(DATA_DIR, 'bot.db'));
+} catch (error) {
+  console.error('Failed to open database:', error);
+  throw error;
+}
 
 export function initDatabase() {
   // Guild Settings
