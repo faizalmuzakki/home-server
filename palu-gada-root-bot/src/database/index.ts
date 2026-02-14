@@ -76,7 +76,8 @@ export function initDatabase() {
       user_id TEXT NOT NULL,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
     )
   `);
 

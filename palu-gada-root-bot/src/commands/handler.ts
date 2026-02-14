@@ -3,11 +3,16 @@ import { Command, CommandContext } from "./Command";
 
 import { pingCommand } from "./utility/ping";
 import { summarizeCommand } from "./utility/summarize";
+import { askCommand } from "./utility/ask";
+import { mathCommand } from "./utility/math";
+import { defineCommand } from "./utility/define";
+import { urbanCommand } from "./utility/urban";
 import { todoCommand } from "./productivity/todo";
 import { remindCommand, handleReminderJob } from "./productivity/remind";
+import { noteCommand } from "./productivity/note";
 import { balanceCommand, dailyCommand, levelCommand, addXp } from "./economy";
 import { warnCommand, warningsCommand, kickCommand, banCommand } from "./moderation";
-import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob } from "./fun";
+import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob, eightBallCommand, rollCommand, jokeCommand, memeCommand } from "./fun";
 import { initStarboard } from "../features/starboard";
 
 const commands: Map<string, Command> = new Map();
@@ -60,9 +65,14 @@ export async function handleMessage(event: ChannelMessageCreatedEvent) {
 export function loadCommands() {
     registerCommand(pingCommand);
     registerCommand(summarizeCommand);
+    registerCommand(askCommand);
+    registerCommand(mathCommand);
+    registerCommand(defineCommand);
+    registerCommand(urbanCommand);
 
     registerCommand(todoCommand);
     registerCommand(remindCommand);
+    registerCommand(noteCommand);
 
     registerCommand(balanceCommand);
     registerCommand(dailyCommand);
@@ -76,6 +86,10 @@ export function loadCommands() {
     registerCommand(birthdayCommand);
     registerCommand(confessionCommand);
     registerCommand(giveawayCommand);
+    registerCommand(eightBallCommand);
+    registerCommand(rollCommand);
+    registerCommand(jokeCommand);
+    registerCommand(memeCommand);
 
     // Subscribe to job events
     rootServer.jobScheduler.on(JobScheduleEvent.Job, async (job) => {

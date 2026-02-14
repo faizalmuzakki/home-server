@@ -1,6 +1,12 @@
 import { rootServer, JobInterval, JobScheduleEvent, JobData } from "@rootsdk/server-bot";
 import { Command, CommandContext } from "../Command";
 import db from "../../database";
+import { eightBallCommand } from "./8ball";
+import { rollCommand } from "./roll";
+import { jokeCommand } from "./joke";
+import { memeCommand } from "./meme";
+
+export { eightBallCommand, rollCommand, jokeCommand, memeCommand };
 
 function parseTime(timeStr: string): number | null {
     const match = timeStr.match(/^(\d+)([smhd])$/);
