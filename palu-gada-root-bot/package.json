@@ -10,12 +10,12 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
     "@rootsdk/server-bot": "*",
+    "@rootsdk/dev-tools": "*",
     "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^12.6.2",
     "dotenv": "^17.3.1"
   },
   "devDependencies": {
-    "@rootsdk/dev-tools": "*",
     "typescript": "^5.8.2"
   },
   "scripts": {
