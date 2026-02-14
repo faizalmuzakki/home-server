@@ -159,9 +159,15 @@ if [ -n "$CHANGED_DIRS" ]; then
     SHORT_NEW=$(echo $NEW_HEAD | cut -c1-7)
     COMMIT_MSG=$(git log --format='%s' -1 $NEW_HEAD 2>/dev/null || echo 'unknown')
     
-    # Escape commit message for JSON
-    # (actually send_notification handles escaping, so we just pass raw string)
-    MSG="✅ **$REPO_NAME** deployed successfully\n\n**Commit:** \`$SHORT_OLD\` → \`$SHORT_NEW\`\n**Message:** $COMMIT_MSG\n**Services:** $(echo $CHANGED_DIRS | tr '\n' ', ')"
+    # Remove trailing comma and space from services
+    SERVICES_LIST=$(echo $CHANGED_DIRS | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+    
+    # Use real newlines for the message
+    MSG="✅ **$REPO_NAME** deployed successfully
+
+**Commit:** \`$SHORT_OLD\` → \`$SHORT_NEW\`
+**Message:** $COMMIT_MSG
+**Services:** $SERVICES_LIST"
     
     send_notification "Success" "$MSG" 65280
 fi
