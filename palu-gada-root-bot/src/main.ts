@@ -1,6 +1,7 @@
 import { rootServer, RootBotStartState, ChannelMessageEvent } from "@rootsdk/server-bot";
 import { initDatabase } from "./database";
 import { handleMessage, loadCommands } from "./commands/handler";
+import { initAutoroleFeature } from "./features/autorole";
 
 async function onStarting(state: RootBotStartState) {
   console.log("Bot is starting...");
@@ -13,6 +14,9 @@ async function onStarting(state: RootBotStartState) {
 
   // Subscribe to message events
   rootServer.community.channelMessages.on(ChannelMessageEvent.ChannelMessageCreated, handleMessage);
+
+  // Initialize Features
+  initAutoroleFeature();
 
   console.log("Bot started successfully!");
 }

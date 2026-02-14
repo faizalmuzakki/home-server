@@ -11,7 +11,7 @@ import { todoCommand } from "./productivity/todo";
 import { remindCommand, handleReminderJob } from "./productivity/remind";
 import { noteCommand } from "./productivity/note";
 import { balanceCommand, dailyCommand, levelCommand, addXp } from "./economy";
-import { warnCommand, warningsCommand, kickCommand, banCommand } from "./moderation";
+import { warnCommand, warningsCommand, kickCommand, banCommand, autoroleCommand } from "./moderation";
 import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob, eightBallCommand, rollCommand, jokeCommand, memeCommand } from "./fun";
 import { initStarboard } from "../features/starboard";
 
@@ -94,6 +94,7 @@ export function loadCommands() {
     registerCommand(warningsCommand);
     registerCommand(kickCommand);
     registerCommand(banCommand);
+    registerCommand(autoroleCommand);
 
     registerCommand(birthdayCommand);
     registerCommand(confessionCommand);
