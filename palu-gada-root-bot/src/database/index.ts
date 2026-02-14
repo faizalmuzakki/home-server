@@ -4,9 +4,7 @@ import fs from 'fs';
 
 // Ensure data directory exists
 const DATA_DIR = path.join(process.cwd(), 'data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR);
-}
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const db: any = new Database(path.join(DATA_DIR, 'bot.db'));
 
