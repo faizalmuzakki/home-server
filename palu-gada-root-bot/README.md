@@ -98,3 +98,14 @@ The bot supports the following commands:
 - `/kick`: Kick a user from the community.
 - `/ban`: Ban a user from the community.
 - `/autorole`: Configure auto-role for new members (`set`, `enable`, `disable`, `status`).
+
+## How to Invite to Other Communities
+
+To add this bot to another community on the Root platform:
+
+1.  **Get your App ID**: Open your `root-manifest.json` or find it in the [Root Developer Portal](https://dev.rootapp.com).
+2.  **Generate Invite Link**: Use the standard Root app installation URL format:
+    `https://rootapp.com/app/install?id=YOUR_APP_ID` (replace `YOUR_APP_ID` with your actual ID).
+3.  **Authorize**: Open the link in your browser, select the community you'd like to add the bot to, and authorize the installation.
+    - *Note: You must have "Manage Apps" permissions in the target community.*
+4.  **Start the Bot**: Once installed, ensure your bot process is running (via Docker or `npm run bot`). It will automatically detect and attach to the new community.
