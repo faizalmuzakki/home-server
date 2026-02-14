@@ -1,11 +1,12 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
-import { executeCommand, formatOutput, isShellAllowed } from '../utils/shellExecutor.js';
+import { executeCommand, formatOutput } from '../utils/shellExecutor.js';
+import { isCommandAllowed } from '../utils/validation.js';
 
 export default {
     data: new SlashCommandBuilder()
         .setName('shell')
-        .setDescription('Execute a shell command on the server (owner only)')
+        .setDescription('Execute a shell command on the server (owner/admin only)')
         .addStringOption(option =>
             option
                 .setName('command')
@@ -22,10 +23,13 @@ export default {
         ),
 
     async execute(interaction) {
-        // Owner-only check
-        if (!isShellAllowed(interaction.user.id)) {
+        // Shared validation: Check allowed users (default to ALLOWED_DEPLOY_USERS for now, or new env var)
+        // Using ALLOWED_DEPLOY_USERS as the source of truth for admin commands
+        const validation = isCommandAllowed(interaction, 'ALLOWED_DEPLOY_USERS', 'DEPLOY_CHANNEL_ID');
+        
+        if (!validation.allowed) {
             return interaction.reply({
-                content: 'This command is restricted to the bot owner.',
+                content: validation.reason,
                 flags: MessageFlags.Ephemeral,
             });
         }
