@@ -2,21 +2,32 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-fs.mkdirSync(DATA_DIR, { recursive: true });
-
-let db: Database.Database;
-
-try {
-  db = new Database(path.join(DATA_DIR, 'bot.db'));
-} catch (error) {
-  console.error('Failed to open database:', error);
-  throw error;
-}
+let _db: Database.Database;
 
 export function initDatabase() {
+  console.log(`[PID: ${process.pid}] Current working directory:`, process.cwd());
+  const DATA_DIR = path.join(process.cwd(), 'data');
+  console.log(`[PID: ${process.pid}] Target data directory:`, DATA_DIR);
+
+  if (!fs.existsSync(DATA_DIR)) {
+    console.log(`[PID: ${process.pid}] Creating data directory...`);
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+
+  try {
+    const dbPath = path.join(DATA_DIR, 'bot.db');
+    console.log(`[PID: ${process.pid}] Attempting to open database at:`, dbPath);
+    _db = new Database(dbPath, { 
+      verbose: (msg: string) => console.log(`[PID: ${process.pid}] SQL: ${msg}`)
+    });
+  } catch (error) {
+
+    console.error(`[PID: ${process.pid}] Failed to open database:`, error);
+    throw error;
+  }
+
   // Guild Settings
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS guild_settings (
       guild_id TEXT NOT NULL,
       key TEXT NOT NULL,
@@ -26,7 +37,7 @@ export function initDatabase() {
   `);
 
   // User Preferences
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS user_preferences (
       user_id TEXT NOT NULL,
       key TEXT NOT NULL,
@@ -36,7 +47,7 @@ export function initDatabase() {
   `);
 
   // Warnings
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS warnings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
@@ -48,7 +59,7 @@ export function initDatabase() {
   `);
 
   // Todos
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS todos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
@@ -59,7 +70,7 @@ export function initDatabase() {
   `);
 
   // Notes
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
@@ -70,7 +81,7 @@ export function initDatabase() {
   `);
 
   // Economy
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS economy (
       user_id TEXT PRIMARY KEY,
       balance INTEGER DEFAULT 0,
@@ -79,7 +90,7 @@ export function initDatabase() {
   `);
 
   // Levels
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS levels (
       user_id TEXT NOT NULL,
       guild_id TEXT NOT NULL,
@@ -91,7 +102,7 @@ export function initDatabase() {
   `);
 
   // Birthdays
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS birthdays (
       user_id TEXT NOT NULL,
       guild_id TEXT NOT NULL,
@@ -102,7 +113,7 @@ export function initDatabase() {
   `);
 
   // Starboard
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS starboard (
         message_id TEXT PRIMARY KEY,
         guild_id TEXT NOT NULL,
@@ -112,7 +123,7 @@ export function initDatabase() {
   `);
 
   // Giveaways
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS giveaways (
         message_id TEXT PRIMARY KEY,
         guild_id TEXT NOT NULL,
@@ -126,7 +137,7 @@ export function initDatabase() {
   `);
 
   // Giveaway Entries
-  db.exec(`
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS giveaway_entries (
         giveaway_message_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
@@ -136,5 +147,18 @@ export function initDatabase() {
 
   console.log('Database initialized successfully.');
 }
+
+const db: any = new Proxy({} as any, {
+  get(target, prop, receiver) {
+    if (!_db) {
+      throw new Error("Database not initialized! Call initDatabase() first.");
+    }
+    const value = Reflect.get(_db, prop, receiver);
+    if (typeof value === 'function') {
+      return value.bind(_db);
+    }
+    return value;
+  }
+});
 
 export default db;

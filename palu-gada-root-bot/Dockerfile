@@ -39,8 +39,8 @@ COPY --from=builder --chown=botuser:botuser /app/node_modules ./node_modules
 COPY --from=builder --chown=botuser:botuser /app/dist ./dist
 COPY --from=builder --chown=botuser:botuser /app/root-manifest.json ./
 
-# Create data directory with correct permissions
-RUN mkdir -p /app/data && chown -R botuser:botuser /app/data
+# Create data directory and ensure /app is owned by botuser
+RUN mkdir -p /app/data && chown -R botuser:botuser /app
 
 USER botuser
 
