@@ -44,45 +44,39 @@ This starts the bot using `rootsdk start devhost`.
 
 To run the bot in a Docker container (production-ready):
 
-1. **Prepare Data Directory**:
-   Since the bot runs as a non-root user (`botuser`), you need to create the `data` directory on the host and ensure it is writable:
-   ```bash
-   mkdir -p data
-   chmod 777 data
-   ```
-   *(Note: This is necessary because Docker bind mounts can sometimes cause permission issues with non-root users)*
-
-2. **Run Docker Compose**:
+1. **Run Docker Compose**:
    ```bash
    docker compose up -d --build
    ```
 
-This will:
-- Build the Docker image.
-- Start the container in detached mode.
-- Mount the `data` directory for persistent storage (SQLite database).
+The bot uses a named volume `bot-data` for persistent storage of the SQLite database. The `Dockerfile` is configured to grant the non-root `botuser` ownership of the application directory, ensuring the `@rootsdk` framework can create its internal database (`rootsdk.sqlite3`) and files without permission issues.
 
 ## Project Structure
 
 - `src/`: Source code.
-    - `commands/`: Bot command handlers.
-    - `database/`: Database connection and schema (SQLite).
-    - `features/`: distinct features like Starboard.
+    - `commands/`: Bot command handlers organized by category.
+    - `database/`: Database connection and schema (SQLite with lazy initialization).
+    - `features/`: Distinct features like Starboard and Auto-Role.
     - `main.ts`: Entry point.
     - `config.ts`: Configuration loader.
-- `data/`: SQLite database storage (created at runtime).
+- `data/`: SQLite database storage (mounted via Docker volume in production).
 
 ## Usage
 
 The bot supports the following commands:
 
 ### Utility
-- `/ping`: Check bot latency.
-- `/summarize`: Summarize the last hour of chat history in the current channel (requires `ANTHROPIC_API_KEY`).
+- `/ping`: Check bot latency and API status.
+- `/summarize`: Summarize recent chat history (requires AI key).
+- `/ask`: Ask AI a question (requires AI key).
+- `/math`: Evaluate mathematical expressions.
+- `/define`: Get the definition of a word.
+- `/urban`: Search Urban Dictionary.
 
 ### Productivity
 - `/todo`: Manage your personal todo list.
 - `/remind`: Set a reminder.
+- `/note`: Save and manage personal notes.
 
 ### Economy & Levels
 - `/balance`: Check your wallet balance.
@@ -90,6 +84,10 @@ The bot supports the following commands:
 - `/level`: Check your current level and XP.
 
 ### Fun
+- `/8ball`: Ask the magic 8-ball a question.
+- `/roll`: Roll dice (e.g., `/roll 2d6`).
+- `/joke`: Get a random joke (with button reveals for punchlines).
+- `/meme`: Get a random meme from Reddit.
 - `/birthday`: Set or view birthdays.
 - `/confession`: Send an anonymous confession.
 - `/giveaway`: Start a giveaway event.
@@ -99,4 +97,4 @@ The bot supports the following commands:
 - `/warnings`: View warnings for a user.
 - `/kick`: Kick a user from the community.
 - `/ban`: Ban a user from the community.
-
+- `/autorole`: Configure auto-role for new members (`set`, `enable`, `disable`, `status`).
