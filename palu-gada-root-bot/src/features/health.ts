@@ -1,6 +1,6 @@
 import http from 'http';
 
-export function initHealthCheck(port: number = 3050) {
+export function initHealthCheck(port: number = 3051) {
     const server = http.createServer((req, res) => {
         if (req.url === '/health' || req.url === '/') {
             res.writeHead(200, { 'Content-Type': 'application/json' });

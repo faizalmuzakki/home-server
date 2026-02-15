@@ -8,7 +8,7 @@ async function onStarting(state: RootBotStartState) {
   console.log("Bot is starting...");
 
   // Initialize Health Check Server
-  initHealthCheck(3050);
+  initHealthCheck(3051);
 
   // Initialize Database
   initDatabase();
