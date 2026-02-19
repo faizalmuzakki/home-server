@@ -1,4 +1,4 @@
-export const AI_MODEL = 'claude-4-5-haiku-latest';
+export const AI_MODEL = 'claude-haiku-4-5';
 export const AI_MODEL_NAME = 'Claude 4.5 Haiku';
 
 /**
