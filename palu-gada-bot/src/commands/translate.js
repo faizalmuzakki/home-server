@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_MODEL, getAiFooter } from '../config/ai.js';
 
 const anthropic = new Anthropic();
 
@@ -81,7 +82,7 @@ export default {
                 : `Translate the following text from ${formatLang(sourceLang)} to ${formatLang(targetLang)}.\n\nText: ${text}\n\nRespond with only the translation, nothing else.`;
 
             const response = await anthropic.messages.create({
-                model: 'claude-3-5-haiku-latest',
+                model: AI_MODEL,
                 max_tokens: 1000,
                 messages: [
                     {
@@ -125,9 +126,7 @@ export default {
                         inline: false,
                     },
                 ],
-                footer: {
-                    text: 'Powered by Claude AI',
-                },
+                footer: getAiFooter(),
                 timestamp: new Date().toISOString(),
             };
 

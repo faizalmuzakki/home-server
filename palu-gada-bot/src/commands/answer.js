@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_MODEL, getAiFooter } from '../config/ai.js';
 
 const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -172,7 +173,7 @@ Keep the response concise and conversational (1-3 sentences typically). Match th
 
             // Call Claude API
             const response = await anthropic.messages.create({
-                model: 'claude-3-5-haiku-20241022',
+                model: AI_MODEL,
                 max_tokens: 1024,
                 messages: [
                     {
@@ -227,9 +228,7 @@ Keep the response concise and conversational (1-3 sentences typically). Match th
                             inline: true,
                         },
                     ],
-                    footer: {
-                        text: 'AI-generated response based on your conversation style',
-                    },
+                    footer: getAiFooter('AI-generated response based on your conversation style'),
                     timestamp: new Date().toISOString(),
                 }],
             });

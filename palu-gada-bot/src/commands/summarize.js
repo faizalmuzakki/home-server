@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_MODEL, getAiFooter } from '../config/ai.js';
 
 const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -108,7 +109,7 @@ export default {
 
             // Call Claude API
             const response = await anthropic.messages.create({
-                model: 'claude-3-5-haiku-20241022',
+                model: AI_MODEL,
                 max_tokens: 1024,
                 messages: [
                     {
@@ -156,9 +157,7 @@ Summary:`,
                             inline: true,
                         },
                     ],
-                    footer: {
-                        text: 'Powered by Claude 3.5 Haiku',
-                    },
+                    footer: getAiFooter(),
                     timestamp: new Date().toISOString(),
                 }],
             });

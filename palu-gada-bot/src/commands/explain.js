@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_MODEL, getAiFooter } from '../config/ai.js';
 
 const anthropic = new Anthropic();
 
@@ -51,7 +52,7 @@ export default {
 
         try {
             const response = await anthropic.messages.create({
-                model: 'claude-3-5-haiku-latest',
+                model: AI_MODEL,
                 max_tokens: 1500,
                 messages: [
                     {
@@ -77,9 +78,7 @@ export default {
                 title: `📚 ${topic}`,
                 description: explanation.slice(0, 4096),
                 fields: [],
-                footer: {
-                    text: `Level: ${levelLabels[level]} • Powered by Claude AI`,
-                },
+                footer: getAiFooter(`Level: ${levelLabels[level]}`),
                 timestamp: new Date().toISOString(),
             };
 
