@@ -64,6 +64,7 @@ services:
         condition: service_healthy
     networks:
       - expense-network
+      - traefik-public
     ports:
       - "3004:3004"
     healthcheck:
