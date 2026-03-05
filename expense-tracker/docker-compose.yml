@@ -56,6 +56,7 @@ services:
       - ALLOWED_NUMBERS=${ALLOWED_NUMBERS}
       - DASHBOARD_PIN=${DASHBOARD_PIN}
       - NODE_ENV=production
+      - HEALTH_PORT=3004
     volumes:
       - ./whatsapp-bot/auth_info:/app/auth_info:rw
     depends_on:
@@ -63,6 +64,13 @@ services:
         condition: service_healthy
     networks:
       - expense-network
+    ports:
+      - "3004:3004"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     # For first-time QR code scanning, run with:
     # docker compose up whatsapp-bot (without -d)
     stdin_open: true

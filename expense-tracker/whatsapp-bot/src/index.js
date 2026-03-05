@@ -6,6 +6,7 @@ const {
   downloadMediaMessage,
   fetchLatestBaileysVersion
 } = pkg;
+import http from 'http';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import QRCode from 'qrcode';
@@ -14,6 +15,44 @@ import { handleMessage } from './handlers/message.js';
 import fs from 'fs';
 
 dotenv.config();
+
+// ============================================
+// Connection state tracking for health endpoint
+// ============================================
+let botStatus = 'starting'; // starting | connecting | connected | disconnected | logged_out
+let lastStatusChange = new Date().toISOString();
+
+function setStatus(newStatus) {
+  botStatus = newStatus;
+  lastStatusChange = new Date().toISOString();
+  console.log(`📊 Bot status: ${newStatus}`);
+}
+
+// ============================================
+// HTTP Health Server for Uptime Kuma monitoring
+// ============================================
+const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || '3001', 10);
+
+const healthServer = http.createServer((req, res) => {
+  if (req.method === 'GET' && req.url === '/health') {
+    const isHealthy = botStatus === 'connected';
+    const statusCode = isHealthy ? 200 : 503;
+    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: botStatus,
+      healthy: isHealthy,
+      since: lastStatusChange,
+      uptime: process.uptime(),
+    }));
+  } else {
+    res.writeHead(404);
+    res.end('Not Found');
+  }
+});
+
+healthServer.listen(HEALTH_PORT, () => {
+  console.log(`🏥 Health server listening on port ${HEALTH_PORT}`);
+});
 
 // ============================================
 // SECURITY: Require ALLOWED_NUMBERS configuration
@@ -30,15 +69,20 @@ if (ALLOWED_NUMBERS.length === 0) {
   console.error('');
   console.error('Format: country code + number without + sign, comma-separated');
   console.error('');
-  process.exit(1);
+  // Don't exit — health server will report unhealthy status
+  setStatus('config_error');
 }
 
-console.log(`🔐 Security: ${ALLOWED_NUMBERS.length} phone number(s) whitelisted`);
+if (ALLOWED_NUMBERS.length > 0) {
+  console.log(`🔐 Security: ${ALLOWED_NUMBERS.length} phone number(s) whitelisted`);
+}
 
 
 const logger = pino({ level: 'info' });
 
 async function startBot() {
+  setStatus('connecting');
+
   console.log('📂 Loading auth state...');
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
   console.log('✅ Auth state loaded');
@@ -78,9 +122,17 @@ async function startBot() {
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       console.log(`Connection closed. Status: ${statusCode}, Reconnecting: ${shouldReconnect}`);
       if (shouldReconnect) {
+        setStatus('disconnected');
         setTimeout(() => startBot(), 3000);  // Add delay before reconnect
+      } else {
+        // Logged out — stay alive so health server can report status
+        // and Docker doesn't restart in a loop
+        setStatus('logged_out');
+        console.log('⚠️ Bot logged out of WhatsApp. Health endpoint will report unhealthy.');
+        console.log('⚠️ To re-authenticate, remove auth_info and restart the container.');
       }
     } else if (connection === 'open') {
+      setStatus('connected');
       console.log('✅ WhatsApp bot connected!');
     }
   });
@@ -102,4 +154,9 @@ async function startBot() {
 }
 
 console.log('🚀 Starting WhatsApp Expense Tracker Bot...');
-startBot();
+if (ALLOWED_NUMBERS.length > 0) {
+  startBot();
+} else {
+  console.log('⚠️ Bot will not connect until ALLOWED_NUMBERS is configured.');
+  console.log('⚠️ Health endpoint is running — container will stay alive.');
+}

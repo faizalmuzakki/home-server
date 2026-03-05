@@ -179,16 +179,23 @@ cd ~/Projects/home-server/homeassistant && docker compose up -d
 docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 ```
 
-### Current Status (as of Feb 2026)
+### Current Status (as of Feb 24, 2026)
 
 | Group | Status | Containers |
 |-------|--------|------------|
-| **Core Infrastructure** | ✅ Running | traefik, cloudflared, adguard, crowdsec, watchtower, webhook |
-| **Applications** | ✅ Running | vaultwarden, 2fauth, expense-tracker (×3), mongodb, palu-gada-bot |
+| **Core Infrastructure** | ✅ Running | traefik, cloudflared, adguard, crowdsec, crowdsec-bouncer, watchtower, webhook |
+| **Applications** | ✅ Running | vaultwarden, expense-tracker (×3), mongodb, palu-gada-bot, palu-gada-root-bot |
 | **Monitoring** | ✅ Running | uptime-kuma, netdata, dockge, homer |
 | **File Sync** | ✅ Running | syncthing |
 | **Media Stack** | 🛑 Stopped | jellyfin, sonarr, radarr, bazarr, prowlarr, qbittorrent |
 | **Smart Home** | 🛑 Stopped | homeassistant, zigbee2mqtt, mosquitto |
+
+### Incident Log
+
+| Date | Service | Issue | Fix |
+|------|---------|-------|-----|
+| 2026-02-19 | `mongodb` | Crashed with exit 139 (SIGSEGV in WiredTiger storage engine) — stayed down for 5 days | `docker compose up -d` in `mongodb/`; WiredTiger recovered data on restart |
+| 2026-02-24 | `palu-gada-bot` | Unhealthy (9161 failing health checks) — startup DNS failure to `discord.com` left container running but disconnected; API server on port 3050 never started | `docker compose up -d --force-recreate` in monorepo `palu-gada-bot/`; bot logged in as `Solokr#7042` serving 3 guilds |
 
 ## Storage Layout
 
