@@ -6,7 +6,7 @@ const router = Router();
 // Get summary stats
 router.get('/summary', (req, res) => {
   try {
-    const { startDate, endDate, type } = req.query;
+    const { startDate, endDate, type, search, categoryId } = req.query;
 
     let dateFilter = '';
     const params = [];
@@ -18,6 +18,14 @@ router.get('/summary', (req, res) => {
     if (endDate) {
       dateFilter += ' AND DATE(date) <= DATE(?)';
       params.push(endDate);
+    }
+    if (search) {
+      dateFilter += ' AND (description LIKE ? OR vendor LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    if (categoryId) {
+      dateFilter += ' AND category_id = ?';
+      params.push(parseInt(categoryId));
     }
 
     // Get totals by type
@@ -44,7 +52,7 @@ router.get('/summary', (req, res) => {
         COALESCE(SUM(e.amount), 0) as total,
         COUNT(e.id) as count
       FROM categories c
-      LEFT JOIN expenses e ON c.id = e.category_id ${dateFilter ? 'AND' + dateFilter.replace('AND', '') : ''}
+      LEFT JOIN expenses e ON c.id = e.category_id ${dateFilter ? 'AND' + dateFilter.replace('AND', '').replace(/date\)/g, 'e.date)').replace(/description/g, 'e.description').replace(/vendor/g, 'e.vendor').replace(/category_id/g, 'e.category_id') : ''}
     `;
 
     if (type && (type === 'expense' || type === 'income')) {

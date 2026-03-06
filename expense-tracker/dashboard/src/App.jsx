@@ -330,6 +330,8 @@ function App() {
 
   const [filters, setFilters] = useState(() => getCurrentMonthRange())
   const [typeFilter, setTypeFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [categoryId, setCategoryId] = useState('')
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -344,11 +346,24 @@ function App() {
       if (typeFilter !== 'all') {
         params.append('type', typeFilter)
       }
+      if (searchQuery) {
+        params.append('search', searchQuery)
+      }
+      if (categoryId) {
+        params.append('categoryId', categoryId)
+      }
+
+      const statsParams = new URLSearchParams({
+        startDate: filters.startDate,
+        endDate: filters.endDate
+      })
+      if (searchQuery) statsParams.append('search', searchQuery)
+      if (categoryId) statsParams.append('categoryId', categoryId)
 
       const [transRes, catRes, statsRes] = await Promise.all([
         fetch(`${API_URL}/api/expenses?${params}`),
         fetch(`${API_URL}/api/categories`),
-        fetch(`${API_URL}/api/stats/summary?startDate=${filters.startDate}&endDate=${filters.endDate}`)
+        fetch(`${API_URL}/api/stats/summary?${statsParams}`)
       ])
 
       if (!transRes.ok || !catRes.ok || !statsRes.ok) {
@@ -370,7 +385,7 @@ function App() {
     } finally {
       setLoading(false)
     }
-  }, [filters, typeFilter])
+  }, [filters, typeFilter, searchQuery, categoryId])
 
   useEffect(() => {
     fetchData()
@@ -460,6 +475,21 @@ function App() {
           {/* Filters */}
           <div className="filter-bar">
             <div className="filter-row">
+              <input
+                type="text"
+                placeholder="Search description..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              <select
+                value={categoryId}
+                onChange={e => setCategoryId(e.target.value)}
+              >
+                <option value="">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
               <input
                 type="date"
                 value={filters.startDate}

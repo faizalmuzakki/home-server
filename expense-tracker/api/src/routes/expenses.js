@@ -12,7 +12,7 @@ const router = Router();
 // Get all transactions (expenses and income) with optional filters
 router.get('/', listExpenseValidators, (req, res) => {
   try {
-    const { startDate, endDate, categoryId, type, limit = 50, offset = 0 } = req.query;
+    const { startDate, endDate, categoryId, type, search, limit = 50, offset = 0 } = req.query;
 
     let query = `
       SELECT e.*, c.name as category_name, c.icon as category_icon, c.color as category_color, c.type as category_type
@@ -37,6 +37,10 @@ router.get('/', listExpenseValidators, (req, res) => {
     if (type && (type === 'expense' || type === 'income')) {
       query += ' AND e.type = ?';
       params.push(type);
+    }
+    if (search) {
+      query += ' AND (e.description LIKE ? OR e.vendor LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
     }
 
     query += ' ORDER BY e.date DESC, e.created_at DESC LIMIT ? OFFSET ?';
