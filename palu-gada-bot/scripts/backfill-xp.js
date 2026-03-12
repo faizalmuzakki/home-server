@@ -61,7 +61,6 @@ function addXp(guildId, userId, amount, timestampStr) {
     setLevelStmt.run(newLevel, guildId, userId);
 }
 
-const xpCooldowns = new Map();
 let totalXpAdded = 0;
 
 client.once(Events.ClientReady, async (c) => {
