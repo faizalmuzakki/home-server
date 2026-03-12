@@ -12,6 +12,7 @@ import {
     setGuildCommand,
     getGlobalCommands,
     setGlobalCommand,
+    getLeaderboard,
 } from '../../database/models.js';
 
 const router = Router();
@@ -227,6 +228,71 @@ router.get('/:guildId/commands', (req, res) => {
 
     const commands = getGuildCommands(guildId);
     res.json({ commands });
+});
+
+/**
+ * GET /api/guilds/:guildId/leaderboard
+ * Get ranking leaderboard for a guild
+ */
+router.get('/:guildId/leaderboard', async (req, res) => {
+    const { guildId } = req.params;
+    const limit = parseInt(req.query.limit) || 100;
+    const safeLimit = Math.min(Math.max(1, limit), 1000); // Max 1000 per request
+
+    if (!canManageGuild(req.user, guildId)) {
+        return res.status(403).json({ error: 'No permission to manage this guild' });
+    }
+
+    try {
+        const client = getDiscordClient();
+        const guild = client?.guilds.cache.get(guildId);
+        
+        const leaderboardData = getLeaderboard(guildId, safeLimit);
+        
+        // Enhance data with Discord usernames if bot is connected
+        const enhancedLeaderboard = [];
+        
+        for (const user of leaderboardData) {
+            let memberInfo = {
+                user_id: user.user_id,
+                level: user.level,
+                xp: user.xp,
+                messages: user.messages,
+                username: 'Unknown User',
+                avatar: null
+            };
+
+            if (guild) {
+                try {
+                    // Try to fetch from cache first, then API if not found
+                    const member = guild.members.cache.get(user.user_id) || 
+                                 await guild.members.fetch(user.user_id).catch(() => null);
+                    
+                    if (member) {
+                        memberInfo.username = member.user.username;
+                        memberInfo.avatar = member.user.avatarURL();
+                    } else {
+                        // If they left the server, try to fetch just the user
+                        const discordUser = client.users.cache.get(user.user_id) || 
+                                          await client.users.fetch(user.user_id).catch(() => null);
+                        if (discordUser) {
+                            memberInfo.username = discordUser.username;
+                            memberInfo.avatar = discordUser.avatarURL();
+                        }
+                    }
+                } catch (err) {
+                    // Ignore fetch errors, just use fallback
+                }
+            }
+            
+            enhancedLeaderboard.push(memberInfo);
+        }
+
+        res.json({ leaderboard: enhancedLeaderboard });
+    } catch (error) {
+        console.error('[API] Error fetching leaderboard:', error);
+        res.status(500).json({ error: 'Failed to fetch leaderboard' });
+    }
 });
 
 /**

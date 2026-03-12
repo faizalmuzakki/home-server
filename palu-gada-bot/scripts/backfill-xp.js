@@ -14,8 +14,11 @@ if (fs.existsSync(join(__dirname, '../.env'))) {
 }
 
 // Ensure data dir exists (just in case)
-const dataDir = join(__dirname, '../../data');
-if (!fs.existsSync(dataDir)) {
+// When running in container, we are usually in /app, so data is at /app/data
+let dataDir = process.env.DATA_DIR || join(__dirname, '../../data');
+if (!fs.existsSync(dataDir) && fs.existsSync('/app/data')) {
+    dataDir = '/app/data';
+} else if (!fs.existsSync(dataDir)) {
     console.error(`Data directory not found at ${dataDir}`);
     process.exit(1);
 }
@@ -69,15 +72,34 @@ client.once(Events.ClientReady, async (c) => {
          process.exit(1);
     }
 
-    console.log(`Wiping existing XP for guild ${GUILD_ID} to prevent duplicate gains...`);
-    db.prepare('DELETE FROM user_levels WHERE guild_id = ?').run(GUILD_ID);
+    // Initialize progress table
+    db.prepare('CREATE TABLE IF NOT EXISTS backfill_progress (guild_id TEXT, channel_id TEXT, last_message_id TEXT, PRIMARY KEY (guild_id, channel_id))').run();
+    
+    // Check if we already have XP. If not, this is a fresh run and we should probably wipe just in case.
+    const hasXp = db.prepare('SELECT COUNT(*) as count FROM user_levels WHERE guild_id = ?').get(GUILD_ID).count > 0;
+    if (!hasXp) {
+        console.log(`Wiping existing XP for guild ${GUILD_ID} to ensure a clean start...`);
+        db.prepare('DELETE FROM user_levels WHERE guild_id = ?').run(GUILD_ID);
+    } else {
+        console.log(`Continuing backfill for guild ${GUILD_ID}...`);
+    }
 
     const channels = guild.channels.cache.filter(c => c.isTextBased());
     console.log(`Found ${channels.size} text-based channels in ${guild.name}.`);
 
+    const getProgressStmt = db.prepare('SELECT last_message_id FROM backfill_progress WHERE guild_id = ? AND channel_id = ?');
+    const updateProgressStmt = db.prepare('INSERT OR REPLACE INTO backfill_progress (guild_id, channel_id, last_message_id) VALUES (?, ?, ?)');
+
     for (const [channelId, channel] of channels) {
          console.log(`\nProcessing channel: #${channel.name}...`);
-         let lastId = '1'; // Start from beginning of time 
+         
+         const progress = getProgressStmt.get(GUILD_ID, channelId);
+         let lastId = progress ? progress.last_message_id : '1'; 
+         
+         if (progress) {
+             console.log(`  Resuming from message ID: ${lastId}`);
+         }
+
          let messagesProcessedCount = 0;
          let channelXpAdded = 0;
 
@@ -113,8 +135,11 @@ client.once(Events.ClientReady, async (c) => {
                      totalXpAdded += xpGained;
                  }
                  messagesProcessedCount++;
-                 lastId = msg.id;
              }
+             
+             // Always update lastId and persistent progress
+             lastId = sortedMessages[sortedMessages.length - 1].id;
+             updateProgressStmt.run(GUILD_ID, channelId, lastId);
              
              process.stdout.write(`\r  ... fetched ${messagesProcessedCount} messages (XP granted: ${channelXpAdded}) `);
              

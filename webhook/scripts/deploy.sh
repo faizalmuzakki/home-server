@@ -130,7 +130,7 @@ deploy_service() {
          # Gracefully stop the current containers before pulling/recreating.
          # This ensures databases (like SQLite) have time to checkpoint WAL files.
          execute "docker compose stop -t 30"
-         execute "docker compose up -d --remove-orphans"
+         execute "docker compose up -d --build --remove-orphans"
     fi
 }
 
