@@ -42,6 +42,9 @@ function initDatabase() {
             confession_enabled INTEGER DEFAULT 0,
             message_edit_log_enabled INTEGER DEFAULT 0,
             message_delete_log_enabled INTEGER DEFAULT 0,
+            top1_role_id TEXT,
+            top2_role_id TEXT,
+            top3_role_id TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -75,6 +78,30 @@ function initDatabase() {
     try {
         db.exec(`ALTER TABLE guild_settings ADD COLUMN level_enabled INTEGER DEFAULT 1`);
         console.log('[INFO] Added level_enabled column');
+    } catch (e) {
+        // Column already exists, ignore
+    }
+
+    // Add top1_role_id column if it doesn't exist (migration)
+    try {
+        db.exec(`ALTER TABLE guild_settings ADD COLUMN top1_role_id TEXT`);
+        console.log('[INFO] Added top1_role_id column');
+    } catch (e) {
+        // Column already exists, ignore
+    }
+
+    // Add top2_role_id column if it doesn't exist (migration)
+    try {
+        db.exec(`ALTER TABLE guild_settings ADD COLUMN top2_role_id TEXT`);
+        console.log('[INFO] Added top2_role_id column');
+    } catch (e) {
+        // Column already exists, ignore
+    }
+
+    // Add top3_role_id column if it doesn't exist (migration)
+    try {
+        db.exec(`ALTER TABLE guild_settings ADD COLUMN top3_role_id TEXT`);
+        console.log('[INFO] Added top3_role_id column');
     } catch (e) {
         // Column already exists, ignore
     }

@@ -22,6 +22,7 @@ import {
     addAuditLog,
     getReactionRole,
 } from './database/models.js';
+import { updateTopRoles } from './utils/levelRoles.js';
 import { startApiServer, setDiscordClient } from './api/server.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -515,6 +516,9 @@ client.on(Events.MessageCreate, async (message) => {
 
     // Set cooldown
     xpCooldowns.set(key, now + 60000);
+
+    // Update Top 3 ranks if roles are configured
+    updateTopRoles(client, message.guild.id).catch(err => console.error('[ERROR] Top roles update failed:', err));
 
     // Check for level up
     if (result && result.leveledUp) {
