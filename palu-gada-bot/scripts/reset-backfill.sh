@@ -28,11 +28,11 @@ echo "  All backfill processes stopped."
 
 # 2. Reset the guild member exp
 echo "[2/4] Resetting guild member XP in database..."
-node -e "const db = require('better-sqlite3')('/app/data/bot.db'); db.prepare('DELETE FROM user_levels WHERE guild_id = ?').run('$GUILD_ID'); console.log('  XP cleared for guild $GUILD_ID');"
+node --input-type=module -e "import Database from 'better-sqlite3'; const db = new Database('/app/data/bot.db'); db.prepare('DELETE FROM user_levels WHERE guild_id = ?').run('$GUILD_ID'); console.log('  XP cleared for guild $GUILD_ID');"
 
 # 3. Remove message ID channel flag
 echo "[3/4] Removing backfill progress channel flags..."
-node -e "const db = require('better-sqlite3')('/app/data/bot.db'); db.prepare('DELETE FROM backfill_progress WHERE guild_id = ?').run('$GUILD_ID'); console.log('  Progress flags cleared for guild $GUILD_ID');"
+node --input-type=module -e "import Database from 'better-sqlite3'; const db = new Database('/app/data/bot.db'); db.prepare('DELETE FROM backfill_progress WHERE guild_id = ?').run('$GUILD_ID'); console.log('  Progress flags cleared for guild $GUILD_ID');"
 
 # 4. Rerun the exec
 echo "[4/4] Starting fresh backfill run in background..."
