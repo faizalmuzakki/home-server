@@ -145,7 +145,7 @@ async function startBot() {
       if (!msg.message) continue;
 
       try {
-        await handleMessage(sock, msg);
+        await handleMessage(sock, msg, sock.user?.id);
       } catch (error) {
         console.error('Error handling message:', error);
       }

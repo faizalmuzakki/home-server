@@ -1,6 +1,7 @@
 import pkg from '@whiskeysockets/baileys';
 const { downloadMediaMessage } = pkg;
 import { parseText, parseImage, createExpense, getCategories, uploadImage } from '../services/api.js';
+import { isGroupMessage, handleGroupMessage } from './groupQA.js';
 
 const ALLOWED_NUMBERS = process.env.ALLOWED_NUMBERS?.split(',').map(n => n.trim()).filter(n => n) || [];
 console.log('🔐 Allowed numbers configured:', ALLOWED_NUMBERS);
@@ -24,8 +25,14 @@ function hasImage(msg) {
   return !!msg.message?.imageMessage;
 }
 
-export async function handleMessage(sock, msg) {
+export async function handleMessage(sock, msg, botJid) {
   const jid = msg.key.remoteJid;
+
+  // Route group messages to Q&A handler
+  if (isGroupMessage(jid)) {
+    await handleGroupMessage(sock, msg, botJid);
+    return;
+  }
 
   if (!isAllowed(jid)) {
     console.log(`Ignored message from unauthorized number: ${jid}`);

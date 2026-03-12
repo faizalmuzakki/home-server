@@ -55,6 +55,8 @@ services:
       - API_URL=http://api:3000
       - ALLOWED_NUMBERS=${ALLOWED_NUMBERS}
       - DASHBOARD_PIN=${DASHBOARD_PIN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ALLOWED_GROUPS=${ALLOWED_GROUPS}
       - NODE_ENV=production
       - HEALTH_PORT=3004
     volumes:
