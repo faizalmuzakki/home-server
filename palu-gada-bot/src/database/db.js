@@ -367,4 +367,27 @@ function initDatabase() {
 // Initialize on import
 initDatabase();
 
+// Periodically checkpoint the WAL file to the main database file (every 5 minutes)
+// This prevents the WAL file from growing too large and losing data if the container is killed ungracefully.
+setInterval(() => {
+    try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch (e) {
+        console.error('[ERROR] Failed to checkpoint WAL:', e);
+    }
+}, 5 * 60 * 1000);
+
+// Graceful shutdown: close database connection (which also checkpoints WAL)
+const shutdownDb = () => {
+    console.log('[INFO] Closing database connection...');
+    try {
+        db.close();
+    } catch (e) {
+        // Ignore
+    }
+};
+
+process.on('SIGINT', shutdownDb);
+process.on('SIGTERM', shutdownDb);
+
 export default db;
