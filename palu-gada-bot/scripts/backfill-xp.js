@@ -93,6 +93,7 @@ client.once(Events.ClientReady, async (c) => {
     for (const [channelId, channel] of channels) {
          console.log(`\nProcessing channel: #${channel.name}...`);
          
+         const xpCooldowns = new Map();
          const progress = getProgressStmt.get(GUILD_ID, channelId);
          let lastId = progress ? progress.last_message_id : '1'; 
          
