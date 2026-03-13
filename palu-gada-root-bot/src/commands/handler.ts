@@ -10,7 +10,7 @@ import { urbanCommand } from "./utility/urban";
 import { todoCommand } from "./productivity/todo";
 import { remindCommand, handleReminderJob } from "./productivity/remind";
 import { noteCommand } from "./productivity/note";
-import { balanceCommand, dailyCommand, levelCommand, topRolesCommand, addXp } from "./economy";
+import { balanceCommand, dailyCommand, levelCommand, topRolesCommand, leaderboardCommand, addXp } from "./economy";
 import { warnCommand, warningsCommand, kickCommand, banCommand, autoroleCommand } from "./moderation";
 import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob, eightBallCommand, rollCommand, jokeCommand, memeCommand } from "./fun";
 import { initStarboard } from "../features/starboard";
@@ -90,6 +90,7 @@ export function loadCommands() {
     registerCommand(dailyCommand);
     registerCommand(levelCommand);
     registerCommand(topRolesCommand);
+    registerCommand(leaderboardCommand);
 
     registerCommand(warnCommand);
     registerCommand(warningsCommand);

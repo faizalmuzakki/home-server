@@ -122,14 +122,16 @@ const statements = {
     setBalance: db.prepare('UPDATE user_economy SET balance = ? WHERE user_id = ?'),
     updateBank: db.prepare('UPDATE user_economy SET bank = bank + ? WHERE user_id = ?'),
     setLastDaily: db.prepare('UPDATE user_economy SET last_daily = CURRENT_TIMESTAMP WHERE user_id = ?'),
-    getTopBalance: db.prepare('SELECT * FROM user_economy ORDER BY (balance + bank) DESC LIMIT ?'),
+    getTopBalance: db.prepare('SELECT * FROM user_economy ORDER BY (balance + bank) DESC LIMIT ? OFFSET ?'),
+    getEconomyCount: db.prepare('SELECT COUNT(*) as count FROM user_economy'),
 
     // Levels
     getUserLevel: db.prepare('SELECT * FROM user_levels WHERE guild_id = ? AND user_id = ?'),
     createUserLevel: db.prepare('INSERT OR IGNORE INTO user_levels (guild_id, user_id) VALUES (?, ?)'),
     addXp: db.prepare('UPDATE user_levels SET xp = xp + ?, messages = messages + 1, last_xp_gain = CURRENT_TIMESTAMP WHERE guild_id = ? AND user_id = ?'),
     setLevel: db.prepare('UPDATE user_levels SET level = ? WHERE guild_id = ? AND user_id = ?'),
-    getLeaderboard: db.prepare('SELECT * FROM user_levels WHERE guild_id = ? ORDER BY level DESC, xp DESC LIMIT ?'),
+    getLeaderboard: db.prepare('SELECT * FROM user_levels WHERE guild_id = ? ORDER BY level DESC, xp DESC LIMIT ? OFFSET ?'),
+    getLeaderboardCount: db.prepare('SELECT COUNT(*) as count FROM user_levels WHERE guild_id = ?'),
     getUserRank: db.prepare('SELECT COUNT(*) + 1 AS rank FROM user_levels WHERE guild_id = ? AND (level > (SELECT level FROM user_levels WHERE guild_id = ? AND user_id = ?) OR (level = (SELECT level FROM user_levels WHERE guild_id = ? AND user_id = ?) AND xp > (SELECT xp FROM user_levels WHERE guild_id = ? AND user_id = ?)))'),
 
 
@@ -523,8 +525,12 @@ export function canClaimDaily(userId) {
     return now.getTime() - lastDaily.getTime() >= 24 * 60 * 60 * 1000;
 }
 
-export function getTopBalances(limit = 10) {
-    return statements.getTopBalance.all(limit);
+export function getTopBalances(limit = 10, offset = 0) {
+    return statements.getTopBalance.all(limit, offset);
+}
+
+export function getEconomyCount() {
+    return statements.getEconomyCount.get().count;
 }
 
 export function transferBalance(fromUserId, toUserId, amount) {
@@ -571,8 +577,12 @@ export function addXp(guildId, userId, amount) {
     return { leveledUp: false };
 }
 
-export function getLeaderboard(guildId, limit = 10) {
-    return statements.getLeaderboard.all(guildId, limit);
+export function getLeaderboard(guildId, limit = 10, offset = 0) {
+    return statements.getLeaderboard.all(guildId, limit, offset);
+}
+
+export function getLeaderboardCount(guildId) {
+    return statements.getLeaderboardCount.get(guildId).count;
 }
 
 export function getUserRank(guildId, userId) {

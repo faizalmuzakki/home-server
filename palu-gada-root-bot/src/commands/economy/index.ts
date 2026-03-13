@@ -207,3 +207,4 @@ export const levelCommand: Command = {
 };
 
 export * from "./toproles";
+export * from "./leaderboard";
