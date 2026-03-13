@@ -493,6 +493,131 @@ body {
     border: 1px solid var(--danger);
 }
 
+/* Leaderboard */
+.leaderboard-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.leaderboard-select {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.leaderboard-select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.leaderboard-limit-input {
+    width: 90px;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.leaderboard-limit-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.leaderboard-meta {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.leaderboard-table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.leaderboard-table thead {
+    background: var(--bg-card);
+}
+
+.leaderboard-table th {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.leaderboard-row {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+}
+
+.leaderboard-row:last-child {
+    border-bottom: none;
+}
+
+.leaderboard-row:hover {
+    background: var(--bg-card);
+}
+
+.leaderboard-row.leaderboard-top {
+    background: rgba(233, 69, 96, 0.05);
+}
+
+.leaderboard-row.leaderboard-top:hover {
+    background: rgba(233, 69, 96, 0.1);
+}
+
+.leaderboard-table td {
+    padding: 0.65rem 1rem;
+    vertical-align: middle;
+}
+
+.leaderboard-rank {
+    font-size: 1.1rem;
+    width: 60px;
+}
+
+.leaderboard-user {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.leaderboard-user span {
+    font-weight: 500;
+}
+
+.avatar.small {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.leaderboard-id {
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     #dashboard {

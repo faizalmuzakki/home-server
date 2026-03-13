@@ -130,6 +130,8 @@ const statements = {
     addXp: db.prepare('UPDATE user_levels SET xp = xp + ?, messages = messages + 1, last_xp_gain = CURRENT_TIMESTAMP WHERE guild_id = ? AND user_id = ?'),
     setLevel: db.prepare('UPDATE user_levels SET level = ? WHERE guild_id = ? AND user_id = ?'),
     getLeaderboard: db.prepare('SELECT * FROM user_levels WHERE guild_id = ? ORDER BY level DESC, xp DESC LIMIT ?'),
+    getUserRank: db.prepare('SELECT COUNT(*) + 1 AS rank FROM user_levels WHERE guild_id = ? AND (level > (SELECT level FROM user_levels WHERE guild_id = ? AND user_id = ?) OR (level = (SELECT level FROM user_levels WHERE guild_id = ? AND user_id = ?) AND xp > (SELECT xp FROM user_levels WHERE guild_id = ? AND user_id = ?)))'),
+
 
     // Playlists
     createPlaylist: db.prepare('INSERT INTO user_playlists (user_id, name, tracks) VALUES (?, ?, ?)'),
@@ -571,6 +573,11 @@ export function addXp(guildId, userId, amount) {
 
 export function getLeaderboard(guildId, limit = 10) {
     return statements.getLeaderboard.all(guildId, limit);
+}
+
+export function getUserRank(guildId, userId) {
+    const result = statements.getUserRank.get(guildId, guildId, userId, guildId, userId, guildId, userId);
+    return result ? result.rank : null;
 }
 
 /**

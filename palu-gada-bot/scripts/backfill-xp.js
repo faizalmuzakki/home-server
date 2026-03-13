@@ -90,9 +90,8 @@ client.once(Events.ClientReady, async (c) => {
     const getProgressStmt = db.prepare('SELECT last_message_id FROM backfill_progress WHERE guild_id = ? AND channel_id = ?');
     const updateProgressStmt = db.prepare('INSERT OR REPLACE INTO backfill_progress (guild_id, channel_id, last_message_id) VALUES (?, ?, ?)');
 
-    const xpCooldowns = new Map();
-
     for (const [channelId, channel] of channels) {
+        const xpCooldowns = new Map();
          console.log(`\nProcessing channel: #${channel.name}...`);
          
          const progress = getProgressStmt.get(GUILD_ID, channelId);

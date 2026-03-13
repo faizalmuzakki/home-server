@@ -36,6 +36,9 @@
                     <a href="#" class="nav-item" data-page="guilds">
                         <span class="icon">🏠</span> Servers
                     </a>
+                    <a href="#" class="nav-item" data-page="leaderboard">
+                        <span class="icon">🏆</span> Leaderboard
+                    </a>
                     <a href="#" class="nav-item owner-only" data-page="allowlist">
                         <span class="icon">✅</span> Allowlist
                     </a>
@@ -111,6 +114,21 @@
                         <div id="commands-list" class="commands-grid">
                             <!-- Commands will be loaded here -->
                         </div>
+                    </div>
+                </div>
+
+                <!-- Leaderboard Page -->
+                <div id="page-leaderboard" class="page hidden">
+                    <h1>Server Leaderboard</h1>
+                    <div class="leaderboard-controls">
+                        <select id="leaderboard-guild-select" class="leaderboard-select">
+                            <option value="">Select a server...</option>
+                        </select>
+                        <input type="number" id="leaderboard-limit" class="leaderboard-limit-input" value="100" min="1" max="1000" placeholder="Limit">
+                        <button id="leaderboard-load-btn" class="btn btn-primary">Load</button>
+                    </div>
+                    <div id="leaderboard-content">
+                        <p class="section-desc">Select a server and click Load to view the full leaderboard.</p>
                     </div>
                 </div>
 

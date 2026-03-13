@@ -52,6 +52,13 @@ function setupEventListeners() {
 
     // Add guild button
     document.getElementById('add-guild-btn')?.addEventListener('click', addGuildToAllowlist);
+
+    // Leaderboard load button
+    document.getElementById('leaderboard-load-btn')?.addEventListener('click', () => {
+        const guildId = document.getElementById('leaderboard-guild-select').value;
+        const limit = parseInt(document.getElementById('leaderboard-limit').value) || 100;
+        if (guildId) loadLeaderboard(guildId, limit);
+    });
 }
 
 // Auth Functions
@@ -151,6 +158,9 @@ function showDashboard() {
 
     // Load initial page
     showPage('overview');
+
+    // Pre-populate leaderboard guild selector
+    loadLeaderboardPage();
 }
 
 function showPage(page) {
@@ -181,6 +191,9 @@ function showPage(page) {
             break;
         case 'global-commands':
             loadGlobalCommands();
+            break;
+        case 'leaderboard':
+            loadLeaderboardPage();
             break;
     }
 }
@@ -456,6 +469,83 @@ async function toggleGlobalCommand(commandName, enabled) {
 
 // Make global command functions available globally
 window.toggleGlobalCommand = toggleGlobalCommand;
+
+// Leaderboard Page
+async function loadLeaderboardPage() {
+    const select = document.getElementById('leaderboard-guild-select');
+    if (select.options.length > 1) return; // Already populated
+
+    try {
+        const data = await apiRequest('/api/guilds');
+        console.log('[Leaderboard] Guilds loaded:', data.guilds?.length, data.guilds);
+        if (!data.guilds || data.guilds.length === 0) {
+            console.warn('[Leaderboard] No guilds returned from API');
+            return;
+        }
+        data.guilds.forEach(guild => {
+            const opt = document.createElement('option');
+            opt.value = guild.id;
+            opt.textContent = guild.name;
+            select.appendChild(opt);
+        });
+    } catch (error) {
+        console.error('[Leaderboard] Failed to load guilds:', error);
+    }
+}
+
+async function loadLeaderboard(guildId, limit = 100) {
+    const container = document.getElementById('leaderboard-content');
+    container.innerHTML = '<div class="loading">Loading leaderboard...</div>';
+
+    try {
+        const data = await apiRequest(`/api/guilds/${guildId}/leaderboard?limit=${limit}`);
+        const lb = data.leaderboard;
+
+        if (!lb || lb.length === 0) {
+            container.innerHTML = '<p class="section-desc">No XP data found for this server.</p>';
+            return;
+        }
+
+        const medals = ['🥇', '🥈', '🥉'];
+        const rows = lb.map((entry, i) => {
+            const avatar = entry.avatar
+                ? `<img src="${entry.avatar}" class="avatar small" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">`
+                : `<img src="https://cdn.discordapp.com/embed/avatars/0.png" class="avatar small">`;
+            const rank = i < 3 ? medals[i] : `#${i + 1}`;
+            return `
+                <tr class="leaderboard-row ${i < 3 ? 'leaderboard-top' : ''}">
+                    <td class="leaderboard-rank">${rank}</td>
+                    <td class="leaderboard-user">${avatar}<span>${escapeHtml(entry.username)}</span></td>
+                    <td>${entry.level}</td>
+                    <td>${entry.xp.toLocaleString()}</td>
+                    <td>${entry.messages.toLocaleString()}</td>
+                    <td class="leaderboard-id">${entry.user_id}</td>
+                </tr>
+            `;
+        }).join('');
+
+        container.innerHTML = `
+            <div class="leaderboard-meta">Showing ${lb.length} users</div>
+            <div class="leaderboard-table-wrapper">
+                <table class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>User</th>
+                            <th>Level</th>
+                            <th>XP</th>
+                            <th>Messages</th>
+                            <th>User ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        `;
+    } catch (error) {
+        container.innerHTML = `<p>Failed to load leaderboard: ${escapeHtml(error.message)}</p>`;
+    }
+}
 
 // Utility Functions
 function escapeHtml(text) {

@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { getLeaderboard, getTopBalances } from '../database/models.js';
+import { getLeaderboard, getTopBalances, getUserRank } from '../database/models.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -49,12 +49,12 @@ export default {
 
             // Find user's position
             const userEntry = leaderboard.find(e => e.user_id === interaction.user.id);
-            let userPosition = null;
-            if (!userEntry) {
-                // User not in top 10, would need to query their position
-                userPosition = 'Not ranked';
-            } else {
+            let userPosition;
+            if (userEntry) {
                 userPosition = `#${leaderboard.indexOf(userEntry) + 1}`;
+            } else {
+                const rank = getUserRank(interaction.guildId, interaction.user.id);
+                userPosition = rank ? `#${rank}` : 'Not ranked';
             }
 
             const embed = {
