@@ -59,6 +59,7 @@ async function deployCommands() {
         }
 
         console.log('[INFO] Command deployment complete!');
+        process.exit(0);
     } catch (error) {
         console.error('[ERROR] Error deploying commands:', error);
     }

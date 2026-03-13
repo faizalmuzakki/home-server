@@ -375,7 +375,7 @@ setInterval(() => {
     } catch (e) {
         console.error('[ERROR] Failed to checkpoint WAL:', e);
     }
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
 
 // Graceful shutdown: close database connection (which also checkpoints WAL)
 const shutdownDb = () => {
