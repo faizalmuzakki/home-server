@@ -13,11 +13,39 @@ if (!existsSync(dataDir)) {
 }
 
 const dbPath = join(dataDir, 'bot.db');
-const db = new Database(dbPath);
+let db;
 
-// Enable WAL mode for better performance
-db.pragma('journal_mode = WAL');
+if (process.env.DEPLOY_ONLY === 'true') {
+    db = {
+        prepare: () => ({
+            get: () => { },
+            all: () => [],
+            run: () => ({ changes: 0, lastInsertRowid: 0 }),
+            iterate: function* () { },
+        }),
+        exec: () => { },
+        pragma: () => { },
+        close: () => { },
+    };
+} else {
+    db = new Database(dbPath);
 
+    // Enable WAL mode for better performance
+    db.pragma('journal_mode = WAL');
+
+    // Initialize tables
+    initDatabase();
+
+    // Periodically checkpoint the WAL file to the main database file (every 5 minutes)
+    // This prevents the WAL file from growing too large and losing data if the container is killed ungracefully.
+    setInterval(() => {
+        try {
+            db.pragma('wal_checkpoint(TRUNCATE)');
+        } catch (e) {
+            console.error('[ERROR] Failed to checkpoint WAL:', e);
+        }
+    }, 5 * 60 * 1000).unref();
+}
 // Initialize tables
 function initDatabase() {
     // Guild settings table
@@ -364,18 +392,7 @@ function initDatabase() {
     console.log('[INFO] Database initialized');
 }
 
-// Initialize on import
-initDatabase();
-
-// Periodically checkpoint the WAL file to the main database file (every 5 minutes)
-// This prevents the WAL file from growing too large and losing data if the container is killed ungracefully.
-setInterval(() => {
-    try {
-        db.pragma('wal_checkpoint(TRUNCATE)');
-    } catch (e) {
-        console.error('[ERROR] Failed to checkpoint WAL:', e);
-    }
-}, 5 * 60 * 1000).unref();
+// Initialized above in the non-DEPLOY_ONLY block
 
 // Graceful shutdown: close database connection (which also checkpoints WAL)
 const shutdownDb = () => {
@@ -385,6 +402,7 @@ const shutdownDb = () => {
     } catch (e) {
         // Ignore
     }
+    process.exit(0);
 };
 
 process.on('SIGINT', shutdownDb);
