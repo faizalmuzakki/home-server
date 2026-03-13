@@ -83,6 +83,7 @@ client.once(Events.ClientReady, async (c) => {
         console.log(`Continuing backfill for guild ${GUILD_ID}...`);
     }
 
+    await guild.channels.fetch(); // Populate cache with ALL guild channels
     const channels = guild.channels.cache.filter(c => c.isTextBased());
     console.log(`Found ${channels.size} text-based channels in ${guild.name}.`);
 
