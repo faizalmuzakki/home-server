@@ -135,6 +135,8 @@ deploy_project() {
          log "Rebuilding $project..."
          docker compose build --no-cache
          docker compose up -d --force-recreate
+         # Remove dangling images left behind by the rebuild
+         docker image prune -f
     else
          log "Restarting $project..."
          # Try pull if image-based, otherwise just up

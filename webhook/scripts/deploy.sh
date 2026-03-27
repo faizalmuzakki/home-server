@@ -131,6 +131,8 @@ deploy_service() {
          # This ensures databases (like SQLite) have time to checkpoint WAL files.
          execute "docker compose stop -t 30"
          execute "docker compose up -d --build --remove-orphans"
+         # Remove dangling images left behind by the rebuild
+         execute "docker image prune -f"
     fi
 }
 
