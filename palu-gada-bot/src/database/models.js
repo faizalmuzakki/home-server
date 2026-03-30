@@ -5,12 +5,14 @@ const statements = {
     getGuildSettings: db.prepare('SELECT * FROM guild_settings WHERE guild_id = ?'),
     upsertGuildSettings: db.prepare(`
         INSERT INTO guild_settings (guild_id, prefix, dj_role_id, music_channel_id, log_channel_id, volume,
-            welcome_channel_id, welcome_message, welcome_enabled, autorole_id, autorole_enabled,
+            welcome_channel_id, welcome_message, welcome_enabled, welcome_dm_enabled, welcome_dm_message,
+            autorole_id, autorole_enabled,
             log_enabled, starboard_channel_id, starboard_threshold, starboard_enabled,
             confession_channel_id, confession_enabled, message_edit_log_enabled, message_delete_log_enabled,
             top1_role_id, top2_role_id, top3_role_id, birthday_channel_id)
         VALUES (@guild_id, @prefix, @dj_role_id, @music_channel_id, @log_channel_id, @volume,
-            @welcome_channel_id, @welcome_message, @welcome_enabled, @autorole_id, @autorole_enabled,
+            @welcome_channel_id, @welcome_message, @welcome_enabled, @welcome_dm_enabled, @welcome_dm_message,
+            @autorole_id, @autorole_enabled,
             @log_enabled, @starboard_channel_id, @starboard_threshold, @starboard_enabled,
             @confession_channel_id, @confession_enabled, @message_edit_log_enabled, @message_delete_log_enabled,
             @top1_role_id, @top2_role_id, @top3_role_id, @birthday_channel_id)
@@ -23,6 +25,8 @@ const statements = {
             welcome_channel_id = @welcome_channel_id,
             welcome_message = @welcome_message,
             welcome_enabled = @welcome_enabled,
+            welcome_dm_enabled = @welcome_dm_enabled,
+            welcome_dm_message = @welcome_dm_message,
             autorole_id = @autorole_id,
             autorole_enabled = @autorole_enabled,
             log_enabled = @log_enabled,
@@ -225,6 +229,8 @@ export function getGuildSettings(guildId) {
         welcome_enabled: false,
         welcome_channel_id: null,
         welcome_message: null,
+        welcome_dm_enabled: false,
+        welcome_dm_message: null,
         autorole_enabled: false,
         autorole_id: null,
         starboard_enabled: false,
@@ -251,6 +257,8 @@ export function setGuildSettings(settings) {
         welcome_channel_id: null,
         welcome_message: null,
         welcome_enabled: 0,
+        welcome_dm_enabled: 0,
+        welcome_dm_message: null,
         autorole_id: null,
         autorole_enabled: 0,
         log_enabled: 0,
@@ -812,18 +820,27 @@ export function toggleGithubWebhook(id, guildId, enabled) {
 }
 
 /**
- * Autoresponders
+ * Autoresponders — with in-process per-guild cache to avoid hitting the DB on every message.
  */
+const _arCache = new Map(); // guildId → { data: [], expiresAt: number }
+const AR_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export function addAutoresponder(guildId, trigger, response, matchType, createdBy) {
+    _arCache.delete(guildId);
     return statements.addAutoresponder.run(guildId, trigger.toLowerCase(), response, matchType, createdBy);
 }
 
 export function removeAutoresponder(id, guildId) {
+    _arCache.delete(guildId);
     return statements.removeAutoresponder.run(id, guildId);
 }
 
 export function getAutoresponders(guildId) {
-    return statements.getAutoresponders.all(guildId);
+    const cached = _arCache.get(guildId);
+    if (cached && Date.now() < cached.expiresAt) return cached.data;
+    const data = statements.getAutoresponders.all(guildId);
+    _arCache.set(guildId, { data, expiresAt: Date.now() + AR_CACHE_TTL });
+    return data;
 }
 
 /**

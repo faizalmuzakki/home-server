@@ -17,6 +17,12 @@ services:
       - LOG_LEVEL=info
     volumes:
       - ./data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/alive"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - traefik-public
     labels:

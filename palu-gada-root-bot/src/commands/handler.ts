@@ -24,6 +24,14 @@ const aliases: Map<string, string> = new Map();
 const cooldowns = new Map<string, number>();
 const DEFAULT_COOLDOWN_MS = 3_000;
 
+// Prune stale cooldown entries every 10 minutes to prevent unbounded memory growth
+setInterval(() => {
+    const cutoff = Date.now() - DEFAULT_COOLDOWN_MS;
+    for (const [key, ts] of cooldowns) {
+        if (ts < cutoff) cooldowns.delete(key);
+    }
+}, 10 * 60 * 1000).unref();
+
 export function registerCommand(command: Command) {
     commands.set(command.name, command);
     if (command.aliases) {

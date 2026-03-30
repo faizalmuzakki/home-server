@@ -44,10 +44,73 @@ export default {
                 .setName('status')
                 .setDescription('View current welcomer settings')
         )
+        .addSubcommandGroup(group =>
+            group
+                .setName('dm')
+                .setDescription('Configure private DM welcome messages')
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName('enable')
+                        .setDescription('Enable DM welcome messages')
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName('disable')
+                        .setDescription('Disable DM welcome messages')
+                )
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName('message')
+                        .setDescription('Set the DM welcome message')
+                        .addStringOption(option =>
+                            option
+                                .setName('text')
+                                .setDescription('Message to DM. Use {user}, {server}, {membercount}')
+                                .setRequired(true)
+                                .setMaxLength(1800)
+                        )
+                )
+        )
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
     async execute(interaction) {
+        const group = interaction.options.getSubcommandGroup(false);
         const subcommand = interaction.options.getSubcommand();
+
+        if (group === 'dm') {
+            if (subcommand === 'enable') {
+                updateGuildSetting(interaction.guildId, 'welcome_dm_enabled', 1);
+                return interaction.reply({
+                    embeds: [{ color: 0x57F287, description: '✅ DM welcome messages have been **enabled**.' }],
+                    flags: MessageFlags.Ephemeral,
+                });
+            }
+
+            if (subcommand === 'disable') {
+                updateGuildSetting(interaction.guildId, 'welcome_dm_enabled', 0);
+                return interaction.reply({
+                    embeds: [{ color: 0xFEE75C, description: '⚠️ DM welcome messages have been **disabled**.' }],
+                    flags: MessageFlags.Ephemeral,
+                });
+            }
+
+            if (subcommand === 'message') {
+                const text = interaction.options.getString('text');
+                updateGuildSetting(interaction.guildId, 'welcome_dm_message', text);
+                return interaction.reply({
+                    embeds: [{
+                        color: 0x57F287,
+                        title: '✅ DM Welcome Message Set',
+                        fields: [
+                            { name: 'Message', value: text.slice(0, 1024) },
+                            { name: 'Variables', value: '`{user}`, `{username}`, `{server}`, `{membercount}`', inline: true },
+                        ],
+                        footer: { text: 'Run /welcomer dm enable to activate' },
+                    }],
+                    flags: MessageFlags.Ephemeral,
+                });
+            }
+        }
 
         if (subcommand === 'setup') {
             const channel = interaction.options.getChannel('channel');
@@ -202,7 +265,7 @@ export default {
                     title: '📋 Welcomer Status',
                     fields: [
                         {
-                            name: 'Status',
+                            name: 'Channel Status',
                             value: settings.welcome_enabled ? '✅ Enabled' : '❌ Disabled',
                             inline: true,
                         },
@@ -214,6 +277,16 @@ export default {
                         {
                             name: 'Message',
                             value: (settings.welcome_message || 'Default message').slice(0, 1024),
+                            inline: false,
+                        },
+                        {
+                            name: 'DM Welcome',
+                            value: settings.welcome_dm_enabled ? '✅ Enabled' : '❌ Disabled',
+                            inline: true,
+                        },
+                        {
+                            name: 'DM Message',
+                            value: (settings.welcome_dm_message || '*Not set — use `/welcomer dm message`*').slice(0, 512),
                             inline: false,
                         },
                     ],

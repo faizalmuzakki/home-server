@@ -142,6 +142,21 @@ function initDatabase() {
         // Column already exists, ignore
     }
 
+    // Add welcome DM columns if they don't exist (migration)
+    try {
+        db.exec(`ALTER TABLE guild_settings ADD COLUMN welcome_dm_enabled INTEGER DEFAULT 0`);
+        console.log('[INFO] Added welcome_dm_enabled column');
+    } catch (e) {
+        // Column already exists, ignore
+    }
+
+    try {
+        db.exec(`ALTER TABLE guild_settings ADD COLUMN welcome_dm_message TEXT`);
+        console.log('[INFO] Added welcome_dm_message column');
+    } catch (e) {
+        // Column already exists, ignore
+    }
+
     // Allowed guilds table (for whitelist mode)
     db.exec(`
         CREATE TABLE IF NOT EXISTS allowed_guilds (

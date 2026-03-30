@@ -11,7 +11,7 @@ import {
     addXp,
     getStarboardMessage,
     addStarboardMessage,
-    getActiveGiveaways,
+    getExpiredGiveaways,
     getGiveaway,
     getGiveawayEntries,
     endGiveaway,
@@ -280,73 +280,64 @@ async function checkBirthdays(client) {
 
 // Check for ended giveaways
 async function checkEndedGiveaways(client) {
-    const guilds = client.guilds.cache;
+    // Single query for all expired giveaways across all guilds, regardless of bot cache state
+    const expired = getExpiredGiveaways();
 
-    for (const [guildId] of guilds) {
-        const giveaways = getActiveGiveaways(guildId);
+    for (const giveaway of expired) {
+        try {
+            const entries = getGiveawayEntries(giveaway.message_id);
+            endGiveaway(giveaway.message_id);
 
-        for (const giveaway of giveaways) {
-            const endsAt = new Date(giveaway.ends_at);
+            const channel = await client.channels.fetch(giveaway.channel_id);
+            const message = await channel.messages.fetch(giveaway.message_id);
 
-            if (endsAt <= new Date()) {
-                // Giveaway has ended
-                try {
-                    const entries = getGiveawayEntries(giveaway.message_id);
-                    endGiveaway(giveaway.message_id);
+            if (entries.length === 0) {
+                const embed = {
+                    color: 0x747F8D,
+                    title: '🎉 GIVEAWAY ENDED 🎉',
+                    description: `**${giveaway.prize}**\n\nNo winners - no one entered!`,
+                    timestamp: new Date().toISOString(),
+                };
+                await message.edit({ embeds: [embed], components: [] });
+            } else {
+                // Pick winners using Fisher-Yates shuffle for fair selection
+                const winners = [];
+                const shuffled = [...entries];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                const winnerCount = Math.min(giveaway.winner_count, shuffled.length);
 
-                    const channel = await client.channels.fetch(giveaway.channel_id);
-                    const message = await channel.messages.fetch(giveaway.message_id);
-
-                    if (entries.length === 0) {
-                        const embed = {
-                            color: 0x747F8D,
-                            title: '🎉 GIVEAWAY ENDED 🎉',
-                            description: `**${giveaway.prize}**\n\nNo winners - no one entered!`,
-                            timestamp: new Date().toISOString(),
-                        };
-                        await message.edit({ embeds: [embed], components: [] });
-                    } else {
-                        // Pick winners using Fisher-Yates shuffle for fair selection
-                        const winners = [];
-                        const shuffled = [...entries];
-                        // Fisher-Yates shuffle for uniform randomness
-                        for (let i = shuffled.length - 1; i > 0; i--) {
-                            const j = Math.floor(Math.random() * (i + 1));
-                            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-                        }
-                        const winnerCount = Math.min(giveaway.winner_count, shuffled.length);
-
-                        for (let i = 0; i < winnerCount; i++) {
-                            try {
-                                const user = await client.users.fetch(shuffled[i].user_id);
-                                winners.push(user);
-                            } catch {
-                                // User not found
-                            }
-                        }
-
-                        const winnerMentions = winners.map(u => `${u}`).join(', ') || 'Could not determine winners';
-
-                        const embed = {
-                            color: 0x57F287,
-                            title: '🎉 GIVEAWAY ENDED 🎉',
-                            description: `**${giveaway.prize}**\n\n**Winner${winners.length > 1 ? 's' : ''}:** ${winnerMentions}`,
-                            footer: { text: `${entries.length} total entries` },
-                            timestamp: new Date().toISOString(),
-                        };
-
-                        await message.edit({ embeds: [embed], components: [] });
-
-                        if (winners.length > 0) {
-                            await channel.send({
-                                content: `🎉 Congratulations ${winnerMentions}! You won **${giveaway.prize}**!`,
-                            });
-                        }
+                for (let i = 0; i < winnerCount; i++) {
+                    try {
+                        const user = await client.users.fetch(shuffled[i].user_id);
+                        winners.push(user);
+                    } catch {
+                        // User left server or not found
                     }
-                } catch (error) {
-                    console.error('[ERROR] Failed to end giveaway:', error);
+                }
+
+                const winnerMentions = winners.map(u => `${u}`).join(', ') || 'Could not determine winners';
+
+                const embed = {
+                    color: 0x57F287,
+                    title: '🎉 GIVEAWAY ENDED 🎉',
+                    description: `**${giveaway.prize}**\n\n**Winner${winners.length > 1 ? 's' : ''}:** ${winnerMentions}`,
+                    footer: { text: `${entries.length} total entries` },
+                    timestamp: new Date().toISOString(),
+                };
+
+                await message.edit({ embeds: [embed], components: [] });
+
+                if (winners.length > 0) {
+                    await channel.send({
+                        content: `🎉 Congratulations ${winnerMentions}! You won **${giveaway.prize}**!`,
+                    });
                 }
             }
+        } catch (error) {
+            console.error('[ERROR] Failed to end giveaway:', giveaway.id, error);
         }
     }
 }
@@ -496,6 +487,29 @@ client.on(Events.GuildMemberAdd, async (member) => {
             } catch (error) {
                 console.error('[ERROR] Failed to send welcome message:', error);
             }
+        }
+    }
+
+    // Welcome DM
+    if (settings.welcome_dm_enabled && settings.welcome_dm_message) {
+        const dmText = settings.welcome_dm_message
+            .replace(/{user}/gi, `${member}`)
+            .replace(/{username}/gi, member.user.username)
+            .replace(/{server}/gi, member.guild.name)
+            .replace(/{membercount}/gi, member.guild.memberCount.toString());
+
+        try {
+            await member.user.send({
+                embeds: [{
+                    color: 0x5865F2,
+                    title: `👋 Welcome to ${member.guild.name}!`,
+                    description: dmText,
+                    thumbnail: { url: member.guild.iconURL({ dynamic: true, size: 256 }) || '' },
+                    timestamp: new Date().toISOString(),
+                }],
+            });
+        } catch {
+            // User has DMs disabled — silently ignore
         }
     }
 
