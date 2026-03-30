@@ -9,6 +9,8 @@ import { mathCommand } from "./utility/math";
 import { defineCommand } from "./utility/define";
 import { urbanCommand } from "./utility/urban";
 import { helpCommand } from "./utility/help";
+import { animeCommand, mangaCommand } from "./utility/anime";
+import { dramaCommand } from "./utility/drama";
 import { todoCommand } from "./productivity/todo";
 import { remindCommand, handleReminderJob } from "./productivity/remind";
 import { noteCommand } from "./productivity/note";
@@ -124,6 +126,9 @@ export function loadCommands() {
     registerCommand(mathCommand);
     registerCommand(defineCommand);
     registerCommand(urbanCommand);
+    registerCommand(animeCommand);
+    registerCommand(mangaCommand);
+    registerCommand(dramaCommand);
 
     registerCommand(todoCommand);
     registerCommand(remindCommand);
