@@ -39,7 +39,7 @@ export function initDatabase() {
     )
   `);
 
-  // Warnings
+  // Warnings (also stores kick/ban/timeout mod actions)
   _db.exec(`
     CREATE TABLE IF NOT EXISTS warnings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,7 +47,33 @@ export function initDatabase() {
       guild_id TEXT NOT NULL,
       reason TEXT NOT NULL,
       moderator_id TEXT NOT NULL,
-      timestamp INTEGER NOT NULL
+      timestamp INTEGER NOT NULL,
+      action_type TEXT NOT NULL DEFAULT 'warn'
+    )
+  `);
+
+  // Migration: add action_type column if it was created without it
+  try {
+    const warningsInfo = _db.prepare("PRAGMA table_info(warnings)").all() as any[];
+    const hasActionType = warningsInfo.some((col: any) => col.name === 'action_type');
+    if (!hasActionType) {
+      _db.exec("ALTER TABLE warnings ADD COLUMN action_type TEXT NOT NULL DEFAULT 'warn'");
+    }
+  } catch (error) {
+    console.error('Migration error for warnings table:', error);
+  }
+
+  // Timeouts (soft-mute via role)
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS timeouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      guild_id TEXT NOT NULL,
+      moderator_id TEXT NOT NULL,
+      reason TEXT,
+      expires_at INTEGER NOT NULL,
+      active INTEGER DEFAULT 1,
+      created_at INTEGER NOT NULL
     )
   `);
 

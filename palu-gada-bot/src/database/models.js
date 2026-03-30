@@ -182,6 +182,11 @@ const statements = {
     deleteGithubWebhook: db.prepare('DELETE FROM github_webhooks WHERE id = ? AND guild_id = ?'),
     toggleGithubWebhook: db.prepare('UPDATE github_webhooks SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND guild_id = ?'),
 
+    // Autoresponders
+    addAutoresponder: db.prepare('INSERT OR REPLACE INTO autoresponders (guild_id, trigger, response, match_type, created_by) VALUES (?, ?, ?, ?, ?)'),
+    removeAutoresponder: db.prepare('DELETE FROM autoresponders WHERE id = ? AND guild_id = ?'),
+    getAutoresponders: db.prepare('SELECT * FROM autoresponders WHERE guild_id = ? ORDER BY created_at DESC'),
+
     // Thread channels
     addThreadChannel: db.prepare('INSERT OR IGNORE INTO thread_channels (guild_id, channel_id, archive_duration) VALUES (?, ?, ?)'),
     removeThreadChannel: db.prepare('DELETE FROM thread_channels WHERE guild_id = ? AND channel_id = ?'),
@@ -807,6 +812,21 @@ export function toggleGithubWebhook(id, guildId, enabled) {
 }
 
 /**
+ * Autoresponders
+ */
+export function addAutoresponder(guildId, trigger, response, matchType, createdBy) {
+    return statements.addAutoresponder.run(guildId, trigger.toLowerCase(), response, matchType, createdBy);
+}
+
+export function removeAutoresponder(id, guildId) {
+    return statements.removeAutoresponder.run(id, guildId);
+}
+
+export function getAutoresponders(guildId) {
+    return statements.getAutoresponders.all(guildId);
+}
+
+/**
  * Thread Channels
  */
 export function addThreadChannel(guildId, channelId, archiveDuration = 1440) {
@@ -982,6 +1002,9 @@ export default {
     updateGithubWebhook,
     deleteGithubWebhook,
     toggleGithubWebhook,
+    addAutoresponder,
+    removeAutoresponder,
+    getAutoresponders,
     addThreadChannel,
     removeThreadChannel,
     getThreadChannels,

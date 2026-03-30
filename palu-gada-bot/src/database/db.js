@@ -435,6 +435,20 @@ function initDatabase() {
         )
     `);
 
+    // Autoresponder triggers
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS autoresponders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT NOT NULL,
+            trigger TEXT NOT NULL,
+            response TEXT NOT NULL,
+            match_type TEXT NOT NULL DEFAULT 'contains',
+            created_by TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(guild_id, trigger, match_type)
+        )
+    `);
+
     console.log('[INFO] Database initialized');
 }
 

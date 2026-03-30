@@ -15,9 +15,19 @@ services:
     # Localhost only — Traefik handles external routing
     ports:
       - "127.0.0.1:3051:3051"
+    networks:
+      - traefik-public
     volumes:
       # Named volume intentional: no bind-mount path needed, data is opaque SQLite
       - bot-data:/app/data
+    # Expose /health through Traefik so Uptime Kuma can probe via container name
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.root-bot-health.rule=Host(`root-bot.${DOMAIN}`) && Path(`/health`)"
+      - "traefik.http.routers.root-bot-health.entrypoints=websecure"
+      - "traefik.http.routers.root-bot-health.tls.certresolver=cloudflare"
+      - "traefik.http.routers.root-bot-health.middlewares=lan-only@file"
+      - "traefik.http.services.root-bot-health.loadbalancer.server.port=3051"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3051/health"]
       interval: 30s
@@ -31,6 +41,10 @@ services:
         reservations:
           cpus: '0.1'
           memory: 128M
+
+networks:
+  traefik-public:
+    external: true
 
 volumes:
   bot-data:

@@ -26,7 +26,8 @@ services:
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.tls.certresolver=cloudflare"
       - "traefik.http.routers.traefik.service=api@internal"
-      - "traefik.http.routers.traefik.middlewares=auth"
+      # BasicAuth + LAN restriction + security headers
+      - "traefik.http.routers.traefik.middlewares=auth,lan-only@file,secure-headers@file"
       - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
 
 # Logs are stored in ./logs

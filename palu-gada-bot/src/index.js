@@ -27,6 +27,7 @@ import {
     markScheduledMessageSent,
     isThreadChannel,
     getAllStatsChannels,
+    getAutoresponders,
 } from './database/models.js';
 import db from './database/db.js';
 import { getStatValue, formatStatName } from './commands/statschannel.js';
@@ -608,6 +609,25 @@ client.on(Events.MessageCreate, async (message) => {
     // XP/Leveling - only for guild messages
     if (!message.guild) return;
     if (!checkGuildAccess(message.guild.id)) return;
+
+    // Autoresponders
+    {
+        const responders = getAutoresponders(message.guild.id);
+        if (responders.length > 0) {
+            const lowerContent = message.content.toLowerCase();
+            for (const r of responders) {
+                let matched = false;
+                if (r.match_type === 'exact')      matched = lowerContent === r.trigger;
+                else if (r.match_type === 'startswith') matched = lowerContent.startsWith(r.trigger);
+                else                                matched = lowerContent.includes(r.trigger); // contains
+
+                if (matched) {
+                    await message.reply({ content: r.response, allowedMentions: { repliedUser: false } }).catch(() => {});
+                    break; // only fire the first matching trigger
+                }
+            }
+        }
+    }
 
     // Auto-thread: create a thread for every top-level message in configured channels
     if (
