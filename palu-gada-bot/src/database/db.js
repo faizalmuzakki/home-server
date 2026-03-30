@@ -411,6 +411,30 @@ function initDatabase() {
         )
     `);
 
+    // Auto-thread channels table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS thread_channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            archive_duration INTEGER DEFAULT 1440,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(guild_id, channel_id)
+        )
+    `);
+
+    // Server stats voice channels table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS stats_channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            stat_type TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(guild_id, stat_type)
+        )
+    `);
+
     console.log('[INFO] Database initialized');
 }
 

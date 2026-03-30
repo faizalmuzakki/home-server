@@ -182,6 +182,18 @@ const statements = {
     deleteGithubWebhook: db.prepare('DELETE FROM github_webhooks WHERE id = ? AND guild_id = ?'),
     toggleGithubWebhook: db.prepare('UPDATE github_webhooks SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND guild_id = ?'),
 
+    // Thread channels
+    addThreadChannel: db.prepare('INSERT OR IGNORE INTO thread_channels (guild_id, channel_id, archive_duration) VALUES (?, ?, ?)'),
+    removeThreadChannel: db.prepare('DELETE FROM thread_channels WHERE guild_id = ? AND channel_id = ?'),
+    getThreadChannels: db.prepare('SELECT * FROM thread_channels WHERE guild_id = ?'),
+    isThreadChannel: db.prepare('SELECT * FROM thread_channels WHERE guild_id = ? AND channel_id = ?'),
+
+    // Stats channels
+    setStatsChannel: db.prepare('INSERT OR REPLACE INTO stats_channels (guild_id, channel_id, stat_type) VALUES (?, ?, ?)'),
+    removeStatsChannel: db.prepare('DELETE FROM stats_channels WHERE guild_id = ? AND stat_type = ?'),
+    getStatsChannels: db.prepare('SELECT * FROM stats_channels WHERE guild_id = ?'),
+    getAllStatsChannels: db.prepare('SELECT * FROM stats_channels'),
+
     // Scheduled messages
     addScheduledMessage: db.prepare('INSERT INTO scheduled_messages (guild_id, channel_id, user_id, message, send_at) VALUES (?, ?, ?, ?, ?)'),
     getPendingScheduled: db.prepare("SELECT * FROM scheduled_messages WHERE sent = 0 AND send_at <= datetime('now')"),
@@ -795,6 +807,44 @@ export function toggleGithubWebhook(id, guildId, enabled) {
 }
 
 /**
+ * Thread Channels
+ */
+export function addThreadChannel(guildId, channelId, archiveDuration = 1440) {
+    return statements.addThreadChannel.run(guildId, channelId, archiveDuration);
+}
+
+export function removeThreadChannel(guildId, channelId) {
+    return statements.removeThreadChannel.run(guildId, channelId);
+}
+
+export function getThreadChannels(guildId) {
+    return statements.getThreadChannels.all(guildId);
+}
+
+export function isThreadChannel(guildId, channelId) {
+    return statements.isThreadChannel.get(guildId, channelId) !== undefined;
+}
+
+/**
+ * Stats Channels
+ */
+export function setStatsChannel(guildId, channelId, statType) {
+    return statements.setStatsChannel.run(guildId, channelId, statType);
+}
+
+export function removeStatsChannel(guildId, statType) {
+    return statements.removeStatsChannel.run(guildId, statType);
+}
+
+export function getStatsChannels(guildId) {
+    return statements.getStatsChannels.all(guildId);
+}
+
+export function getAllStatsChannels() {
+    return statements.getAllStatsChannels.all();
+}
+
+/**
  * Scheduled Messages
  */
 export function addScheduledMessage(guildId, channelId, userId, message, sendAt) {
@@ -932,6 +982,14 @@ export default {
     updateGithubWebhook,
     deleteGithubWebhook,
     toggleGithubWebhook,
+    addThreadChannel,
+    removeThreadChannel,
+    getThreadChannels,
+    isThreadChannel,
+    setStatsChannel,
+    removeStatsChannel,
+    getStatsChannels,
+    getAllStatsChannels,
     addScheduledMessage,
     getPendingScheduledMessages,
     getUserScheduledMessages,

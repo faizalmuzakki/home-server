@@ -25,7 +25,11 @@ import {
     updateStarboardCount,
     getPendingScheduledMessages,
     markScheduledMessageSent,
+    isThreadChannel,
+    getAllStatsChannels,
 } from './database/models.js';
+import db from './database/db.js';
+import { getStatValue, formatStatName } from './commands/statschannel.js';
 import { updateTopRoles } from './utils/levelRoles.js';
 import { startApiServer, setDiscordClient } from './api/server.js';
 
@@ -165,6 +169,33 @@ client.once(Events.ClientReady, async (readyClient) => {
     // Start giveaway check interval (every 30 seconds)
     setInterval(() => checkEndedGiveaways(client), 30000);
     console.log('[INFO] Giveaway checker started');
+
+    // Stats channel updater — updates voice channel names every 10 minutes
+    async function updateStatsChannels() {
+        try {
+            const rows = getAllStatsChannels();
+            for (const row of rows) {
+                const guild = client.guilds.cache.get(row.guild_id);
+                if (!guild) continue;
+                const channel = guild.channels.cache.get(row.channel_id);
+                if (!channel) continue;
+                try {
+                    const count = await getStatValue(guild, row.stat_type);
+                    const newName = formatStatName(row.stat_type, count);
+                    if (channel.name !== newName) {
+                        await channel.setName(newName);
+                    }
+                } catch {
+                    // No ManageChannels permission or rate-limited — skip
+                }
+            }
+        } catch (e) {
+            console.error('[ERROR] Stats channel updater error:', e);
+        }
+    }
+    setInterval(updateStatsChannels, 10 * 60 * 1000);
+    updateStatsChannels(); // run once immediately on startup
+    console.log('[INFO] Stats channel updater started');
 
     // Birthday announcer — fires at the next UTC midnight, then every 24 h
     const scheduleBirthdayCheck = () => {
@@ -577,6 +608,32 @@ client.on(Events.MessageCreate, async (message) => {
     // XP/Leveling - only for guild messages
     if (!message.guild) return;
     if (!checkGuildAccess(message.guild.id)) return;
+
+    // Auto-thread: create a thread for every top-level message in configured channels
+    if (
+        message.channel.type === ChannelType.GuildText &&
+        !message.hasThread &&
+        isThreadChannel(message.guild.id, message.channel.id)
+    ) {
+        const row = db
+            .prepare('SELECT archive_duration FROM thread_channels WHERE guild_id = ? AND channel_id = ?')
+            .get(message.guild.id, message.channel.id);
+        const archiveDuration = row?.archive_duration ?? 1440;
+
+        const threadName = (message.content || 'Thread')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 90) || 'Thread';
+
+        try {
+            await message.startThread({
+                name: threadName,
+                autoArchiveDuration: archiveDuration,
+            });
+        } catch {
+            // No thread permissions — silently skip
+        }
+    }
 
     // XP cooldown (1 minute per user per guild)
     const key = `${message.guild.id}-${message.author.id}`;

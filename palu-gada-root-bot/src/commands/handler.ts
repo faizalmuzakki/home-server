@@ -13,7 +13,7 @@ import { remindCommand, handleReminderJob } from "./productivity/remind";
 import { noteCommand } from "./productivity/note";
 import { balanceCommand, dailyCommand, levelCommand, topRolesCommand, leaderboardCommand, addXp } from "./economy";
 import { warnCommand, warningsCommand, kickCommand, banCommand, autoroleCommand } from "./moderation";
-import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob, eightBallCommand, rollCommand, jokeCommand, memeCommand } from "./fun";
+import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob, eightBallCommand, rollCommand, jokeCommand, memeCommand, starboardCommand, pollCommand } from "./fun";
 import { initStarboard } from "../features/starboard";
 
 const commands: Map<string, Command> = new Map();
@@ -96,6 +96,8 @@ export function loadCommands() {
     registerCommand(birthdayCommand);
     registerCommand(confessionCommand);
     registerCommand(giveawayCommand);
+    registerCommand(starboardCommand);
+    registerCommand(pollCommand);
     registerCommand(eightBallCommand);
     registerCommand(rollCommand);
     registerCommand(jokeCommand);

@@ -9,6 +9,43 @@ import githubRoutes from './routes/github.js';
 
 const app = express();
 
+// ── In-process rate limiter ─────────────────────────────────────────────────
+// Tracks request timestamps per IP in a rolling window.
+const _rlWindows = new Map();
+
+/**
+ * @param {number} windowMs   - sliding window in ms
+ * @param {number} max        - max requests per window
+ * @param {string} [message]  - response body when limit hit
+ */
+function rateLimit(windowMs, max, message = 'Too many requests, please slow down.') {
+    return (req, res, next) => {
+        const key = req.ip || 'unknown';
+        const now = Date.now();
+        const cutoff = now - windowMs;
+
+        const hits = (_rlWindows.get(key) || []).filter(t => t > cutoff);
+        if (hits.length >= max) {
+            res.setHeader('Retry-After', Math.ceil(windowMs / 1000));
+            return res.status(429).json({ error: message });
+        }
+        hits.push(now);
+        _rlWindows.set(key, hits);
+        next();
+    };
+}
+
+// Prune stale entries every 5 minutes to prevent memory growth
+setInterval(() => {
+    const cutoff = Date.now() - 15 * 60 * 1000;
+    for (const [key, hits] of _rlWindows) {
+        const fresh = hits.filter(t => t > cutoff);
+        if (fresh.length === 0) _rlWindows.delete(key);
+        else _rlWindows.set(key, fresh);
+    }
+}, 5 * 60 * 1000).unref();
+// ────────────────────────────────────────────────────────────────────────────
+
 // GitHub webhook needs raw body for signature verification
 app.use('/api/github/webhook', express.raw({ type: 'application/json' }));
 
@@ -18,6 +55,12 @@ app.use(cors({
     origin: config.adminPanelUrl || '*',
     credentials: true,
 }));
+
+// Global rate limit: 120 req / min per IP
+app.use(rateLimit(60_000, 120));
+
+// Tighter limit on auth endpoints to slow brute-force attempts
+app.use('/api/auth', rateLimit(15 * 60_000, 20, 'Too many auth attempts, try again in 15 minutes.'));
 
 // JWT Authentication middleware
 export function authenticateToken(req, res, next) {
