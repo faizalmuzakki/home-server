@@ -94,8 +94,9 @@ app.use('/api/guilds', authenticateToken, guildsRoutes);
 app.use('/api/stats', authenticateToken, statsRoutes);
 app.use('/api/github', githubRoutes);
 
-// Health check
-app.get('/api/health', (req, res) => {
+// Health check — both paths work so Docker healthcheck, Uptime Kuma, and
+// direct curl calls all hit the same handler without needing auth.
+app.get(['/health', '/api/health'], (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
