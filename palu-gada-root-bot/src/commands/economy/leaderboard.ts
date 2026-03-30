@@ -51,8 +51,8 @@ export const leaderboardCommand: Command = {
                 content: `🏆 **Leaderboard (Levels)**\n\n${entries}\n\nPage **${page}** of **${totalPages}**\nUse \`/leaderboard levels <page>\` to see more.`,
             });
         } else {
-            const rows = db.prepare("SELECT user_id, balance FROM economy ORDER BY balance DESC LIMIT ? OFFSET ?").all(limit, offset) as any[];
-            const totalCountRow = db.prepare("SELECT COUNT(*) as count FROM economy").get() as { count: number };
+            const rows = db.prepare("SELECT user_id, balance FROM economy WHERE guild_id = ? ORDER BY balance DESC LIMIT ? OFFSET ?").all(guildId, limit, offset) as any[];
+            const totalCountRow = db.prepare("SELECT COUNT(*) as count FROM economy WHERE guild_id = ?").get(guildId) as { count: number };
             const totalCount = totalCountRow?.count || 0;
             const totalPages = Math.ceil(totalCount / limit) || 1;
 

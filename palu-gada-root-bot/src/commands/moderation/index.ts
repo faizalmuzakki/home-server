@@ -2,6 +2,12 @@ import { rootServer } from "@rootsdk/server-bot";
 import { Command, CommandContext } from "../Command";
 import db from "../../database";
 
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
+
+function isAdmin(userId: string): boolean {
+    return !!ADMIN_USER_ID && userId === ADMIN_USER_ID;
+}
+
 function extractUserId(arg: string): string | null {
     if (!arg) return null;
     // Basic UUID regex or length check
@@ -20,6 +26,13 @@ export const warnCommand: Command = {
     category: "Moderation",
     execute: async (context: CommandContext) => {
         const { event, args } = context;
+        if (!isAdmin(event.userId)) {
+            await rootServer.community.channelMessages.create({
+                channelId: event.channelId,
+                content: "⛔ You don't have permission to use this command.",
+            });
+            return;
+        }
         if (args.length < 2) {
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
@@ -105,6 +118,13 @@ export const kickCommand: Command = {
     category: "Moderation",
     execute: async (context: CommandContext) => {
         const { event, args } = context;
+        if (!isAdmin(event.userId)) {
+            await rootServer.community.channelMessages.create({
+                channelId: event.channelId,
+                content: "⛔ You don't have permission to use this command.",
+            });
+            return;
+        }
         if (args.length < 1) {
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
@@ -154,6 +174,13 @@ export const banCommand: Command = {
     category: "Moderation",
     execute: async (context: CommandContext) => {
         const { event, args } = context;
+        if (!isAdmin(event.userId)) {
+            await rootServer.community.channelMessages.create({
+                channelId: event.channelId,
+                content: "⛔ You don't have permission to use this command.",
+            });
+            return;
+        }
         if (args.length < 1) {
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,

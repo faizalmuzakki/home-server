@@ -45,28 +45,19 @@ export async function handleMessage(event: ChannelMessageCreatedEvent) {
     }
 
     const content = event.messageContent;
-    console.log(`[DEBUG] Received event:`, JSON.stringify(event, null, 2));
-    
-    if (!content || !content.startsWith("/")) {
-        console.log(`[DEBUG] Message is not a command.`);
-        return;
-    }
+
+    if (!content || !content.startsWith("/")) return;
 
     const args = content.slice(1).trim().split(/ +/);
     const commandName = args.shift()?.toLowerCase();
-    console.log(`[DEBUG] Parsed command name: "${commandName}"`);
 
     if (!commandName) return;
 
     const command = commands.get(commandName) || commands.get(aliases.get(commandName) || "");
-    console.log(`[DEBUG] Command found: ${!!command}`);
 
     if (command) {
         try {
-            console.log(`[DEBUG] Executing command: ${commandName}`);
-            const result = await command.execute({ event, args, server: rootServer });
-            console.log(`[DEBUG] Command ${commandName} execution result:`, JSON.stringify(result, null, 2));
-            console.log(`[DEBUG] Command ${commandName} executed successfully.`);
+            await command.execute({ event, args, server: rootServer });
         } catch (error) {
             console.error(`Error executing command ${commandName}:`, error);
             await rootServer.community.channelMessages.create({
@@ -74,8 +65,6 @@ export async function handleMessage(event: ChannelMessageCreatedEvent) {
                 content: `Error executing command: ${error instanceof Error ? error.message : "Unknown error"}`,
             });
         }
-    } else {
-        console.log(`[DEBUG] Command "${commandName}" not found in registered commands.`);
     }
 }
 

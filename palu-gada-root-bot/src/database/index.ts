@@ -5,24 +5,17 @@ import fs from 'fs';
 let _db: Database.Database;
 
 export function initDatabase() {
-  console.log(`[PID: ${process.pid}] Current working directory:`, process.cwd());
   const DATA_DIR = path.join(process.cwd(), 'data');
-  console.log(`[PID: ${process.pid}] Target data directory:`, DATA_DIR);
 
   if (!fs.existsSync(DATA_DIR)) {
-    console.log(`[PID: ${process.pid}] Creating data directory...`);
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 
   try {
     const dbPath = path.join(DATA_DIR, 'bot.db');
-    console.log(`[PID: ${process.pid}] Attempting to open database at:`, dbPath);
-    _db = new Database(dbPath, { 
-      verbose: (msg: string) => console.log(`[PID: ${process.pid}] SQL: ${msg}`)
-    });
+    _db = new Database(dbPath);
   } catch (error) {
-
-    console.error(`[PID: ${process.pid}] Failed to open database:`, error);
+    console.error('Failed to open database:', error);
     throw error;
   }
 
@@ -94,11 +87,35 @@ export function initDatabase() {
   }
   _db.exec(`
     CREATE TABLE IF NOT EXISTS economy (
-      user_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      guild_id TEXT NOT NULL DEFAULT 'default',
       balance INTEGER DEFAULT 0,
-      last_daily INTEGER DEFAULT 0
+      last_daily INTEGER DEFAULT 0,
+      PRIMARY KEY (user_id, guild_id)
     )
   `);
+
+  // Migration: rebuild economy table with guild_id primary key if it was created without it
+  try {
+    const economyInfo = _db.prepare("PRAGMA table_info(economy)").all() as any[];
+    const hasGuildId = economyInfo.some((col: any) => col.name === 'guild_id');
+    if (!hasGuildId) {
+      _db.exec("ALTER TABLE economy RENAME TO economy_old");
+      _db.exec(`
+        CREATE TABLE economy (
+          user_id TEXT NOT NULL,
+          guild_id TEXT NOT NULL DEFAULT 'default',
+          balance INTEGER DEFAULT 0,
+          last_daily INTEGER DEFAULT 0,
+          PRIMARY KEY (user_id, guild_id)
+        )
+      `);
+      _db.exec("INSERT INTO economy (user_id, guild_id, balance, last_daily) SELECT user_id, 'default', balance, last_daily FROM economy_old");
+      _db.exec("DROP TABLE economy_old");
+    }
+  } catch (error) {
+    console.error('Migration error for economy table:', error);
+  }
 
   // Levels
   _db.exec(`
@@ -129,9 +146,25 @@ export function initDatabase() {
         message_id TEXT PRIMARY KEY,
         guild_id TEXT NOT NULL,
         channel_id TEXT NOT NULL,
-        star_count INTEGER DEFAULT 0
+        star_count INTEGER DEFAULT 0,
+        starboard_message_id TEXT,
+        posted INTEGER DEFAULT 0
     )
   `);
+
+  // Migration: add starboard_message_id and posted columns if missing
+  try {
+    const starboardInfo = _db.prepare("PRAGMA table_info(starboard)").all() as any[];
+    const cols = starboardInfo.map((c: any) => c.name);
+    if (!cols.includes('starboard_message_id')) {
+      _db.exec("ALTER TABLE starboard ADD COLUMN starboard_message_id TEXT");
+    }
+    if (!cols.includes('posted')) {
+      _db.exec("ALTER TABLE starboard ADD COLUMN posted INTEGER DEFAULT 0");
+    }
+  } catch (error) {
+    console.error('Migration error for starboard table:', error);
+  }
 
   // Giveaways
   _db.exec(`

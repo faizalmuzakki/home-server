@@ -1,7 +1,11 @@
 import { Command, CommandContext } from "../Command";
 import db from "../../database";
 
-const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "";
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
+
+function isAdmin(userId: string): boolean {
+    return !!ADMIN_USER_ID && userId === ADMIN_USER_ID;
+}
 
 export const topRolesCommand: Command = {
     name: "toproles",
@@ -13,7 +17,7 @@ export const topRolesCommand: Command = {
         const subcommand = args[0]?.toLowerCase();
 
         if (subcommand === 'set') {
-            if (ADMIN_USER_ID && event.userId !== ADMIN_USER_ID) {
+            if (!isAdmin(event.userId)) {
                 await server.community.channelMessages.create({
                     channelId: event.channelId,
                     content: "⛔ You don't have permission to configure top roles.",
@@ -43,7 +47,7 @@ export const topRolesCommand: Command = {
             });
 
         } else if (subcommand === 'clear') {
-            if (ADMIN_USER_ID && event.userId !== ADMIN_USER_ID) {
+            if (!isAdmin(event.userId)) {
                 await server.community.channelMessages.create({
                     channelId: event.channelId,
                     content: "⛔ You don't have permission to clear top roles.",

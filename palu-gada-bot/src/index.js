@@ -1,4 +1,4 @@
-import { Client, Collection, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
+import { Client, Collection, Events, GatewayIntentBits, MessageFlags, ChannelType } from 'discord.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { readdirSync } from 'fs';
@@ -22,6 +22,9 @@ import {
     addAuditLog,
     getReactionRole,
     getTodayBirthdays,
+    updateStarboardCount,
+    getPendingScheduledMessages,
+    markScheduledMessageSent,
 } from './database/models.js';
 import { updateTopRoles } from './utils/levelRoles.js';
 import { startApiServer, setDiscordClient } from './api/server.js';
@@ -137,6 +140,27 @@ client.once(Events.ClientReady, async (readyClient) => {
     }, 30000);
 
     console.log('[INFO] Reminder checker started');
+
+    // Start scheduled message dispatcher (runs every 30 seconds)
+    setInterval(async () => {
+        try {
+            const pending = getPendingScheduledMessages();
+            for (const msg of pending) {
+                try {
+                    const channel = await client.channels.fetch(msg.channel_id).catch(() => null);
+                    if (channel?.isTextBased()) {
+                        await channel.send(msg.message);
+                    }
+                    markScheduledMessageSent(msg.id);
+                } catch (e) {
+                    console.error(`[ERROR] Failed to deliver scheduled message ${msg.id}:`, e);
+                }
+            }
+        } catch (e) {
+            console.error('[ERROR] Scheduled message dispatcher error:', e);
+        }
+    }, 30000);
+    console.log('[INFO] Scheduled message dispatcher started');
 
     // Start giveaway check interval (every 30 seconds)
     setInterval(() => checkEndedGiveaways(client), 30000);
@@ -793,17 +817,30 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     const threshold = settings.starboard_threshold || 3;
     if (reaction.count < threshold) return;
 
-    // Check if already on starboard
-    const existing = getStarboardMessage(reaction.message.guild.id, reaction.message.id);
-    if (existing) return;
-
     const starboardChannel = reaction.message.guild.channels.cache.get(settings.starboard_channel_id);
     if (!starboardChannel) return;
 
-    // Don't star messages from the starboard channel
+    // Don't star messages from the starboard channel itself
     if (reaction.message.channel.id === starboardChannel.id) return;
 
-    // Create starboard embed
+    // Check if already on starboard
+    const existing = getStarboardMessage(reaction.message.guild.id, reaction.message.id);
+
+    if (existing) {
+        // Update the star count on the existing starboard post
+        updateStarboardCount(reaction.message.guild.id, reaction.message.id, reaction.count);
+        try {
+            const starMsg = await starboardChannel.messages.fetch(existing.starboard_message_id);
+            const updatedEmbed = { ...starMsg.embeds[0].data, footer: { text: `⭐ ${reaction.count} | ${reaction.message.channel.name}` } };
+            await starMsg.edit({ embeds: [updatedEmbed] });
+        } catch {
+            // Starboard message may have been deleted — ignore
+        }
+        await handleReactionRoleAdd(reaction, user);
+        return;
+    }
+
+    // Build starboard embed
     const embed = {
         color: 0xFFAC33,
         author: {
@@ -824,7 +861,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         timestamp: reaction.message.createdAt.toISOString(),
     };
 
-    // Add image if present
+    // Include image if present
     const attachment = reaction.message.attachments.first();
     if (attachment && attachment.contentType?.startsWith('image/')) {
         embed.image = { url: attachment.url };
@@ -924,7 +961,7 @@ setInterval(async () => {
 
         // Get all voice channels with members
         for (const [, channel] of guild.channels.cache) {
-            if (channel.type !== 2) continue; // 2 = GuildVoice
+            if (channel.type !== ChannelType.GuildVoice) continue;
 
             // Get non-bot members in the voice channel
             const members = channel.members.filter(m => !m.user.bot);

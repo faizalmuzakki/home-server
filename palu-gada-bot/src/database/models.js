@@ -182,6 +182,13 @@ const statements = {
     deleteGithubWebhook: db.prepare('DELETE FROM github_webhooks WHERE id = ? AND guild_id = ?'),
     toggleGithubWebhook: db.prepare('UPDATE github_webhooks SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND guild_id = ?'),
 
+    // Scheduled messages
+    addScheduledMessage: db.prepare('INSERT INTO scheduled_messages (guild_id, channel_id, user_id, message, send_at) VALUES (?, ?, ?, ?, ?)'),
+    getPendingScheduled: db.prepare("SELECT * FROM scheduled_messages WHERE sent = 0 AND send_at <= datetime('now')"),
+    getUserScheduled: db.prepare("SELECT * FROM scheduled_messages WHERE user_id = ? AND guild_id = ? AND sent = 0 ORDER BY send_at ASC"),
+    markScheduledSent: db.prepare('UPDATE scheduled_messages SET sent = 1 WHERE id = ?'),
+    deleteScheduled: db.prepare('DELETE FROM scheduled_messages WHERE id = ? AND user_id = ?'),
+
     // Reaction roles
     addReactionRole: db.prepare('INSERT OR REPLACE INTO reaction_roles (guild_id, channel_id, message_id, emoji, role_id) VALUES (?, ?, ?, ?, ?)'),
     getReactionRole: db.prepare('SELECT * FROM reaction_roles WHERE guild_id = ? AND message_id = ? AND emoji = ?'),
@@ -788,6 +795,29 @@ export function toggleGithubWebhook(id, guildId, enabled) {
 }
 
 /**
+ * Scheduled Messages
+ */
+export function addScheduledMessage(guildId, channelId, userId, message, sendAt) {
+    return statements.addScheduledMessage.run(guildId, channelId, userId, message, sendAt);
+}
+
+export function getPendingScheduledMessages() {
+    return statements.getPendingScheduled.all();
+}
+
+export function getUserScheduledMessages(userId, guildId) {
+    return statements.getUserScheduled.all(userId, guildId);
+}
+
+export function markScheduledMessageSent(id) {
+    return statements.markScheduledSent.run(id);
+}
+
+export function deleteScheduledMessage(id, userId) {
+    return statements.deleteScheduled.run(id, userId);
+}
+
+/**
  * Reaction Roles
  */
 export function addReactionRole(guildId, channelId, messageId, emoji, roleId) {
@@ -902,6 +932,11 @@ export default {
     updateGithubWebhook,
     deleteGithubWebhook,
     toggleGithubWebhook,
+    addScheduledMessage,
+    getPendingScheduledMessages,
+    getUserScheduledMessages,
+    markScheduledMessageSent,
+    deleteScheduledMessage,
     addReactionRole,
     getReactionRole,
     getReactionRolesByMessage,

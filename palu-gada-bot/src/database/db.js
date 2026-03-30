@@ -397,6 +397,20 @@ function initDatabase() {
         )
     `);
 
+    // Scheduled messages table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS scheduled_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            message TEXT NOT NULL,
+            send_at DATETIME NOT NULL,
+            sent INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     console.log('[INFO] Database initialized');
 }
 

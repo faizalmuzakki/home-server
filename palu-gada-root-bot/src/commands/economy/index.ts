@@ -126,8 +126,9 @@ export const balanceCommand: Command = {
     execute: async (context: CommandContext) => {
         const { event } = context;
         const userId = event.userId;
+        const guildId = event.communityId || "default";
 
-        const row = db.prepare("SELECT balance FROM economy WHERE user_id = ?").get(userId) as any;
+        const row = db.prepare("SELECT balance FROM economy WHERE user_id = ? AND guild_id = ?").get(userId, guildId) as any;
         const balance = row ? row.balance : 0;
 
         await rootServer.community.channelMessages.create({
@@ -144,10 +145,11 @@ export const dailyCommand: Command = {
     execute: async (context: CommandContext) => {
         const { event } = context;
         const userId = event.userId;
+        const guildId = event.communityId || "default";
         const REWARD = 200;
 
         const now = Date.now();
-        const row = db.prepare("SELECT last_daily, balance FROM economy WHERE user_id = ?").get(userId) as any;
+        const row = db.prepare("SELECT last_daily, balance FROM economy WHERE user_id = ? AND guild_id = ?").get(userId, guildId) as any;
 
         if (row) {
             const lastDaily = row.last_daily;
@@ -165,11 +167,11 @@ export const dailyCommand: Command = {
                 return;
             }
 
-            db.prepare("UPDATE economy SET balance = balance + ?, last_daily = ? WHERE user_id = ?")
-                .run(REWARD, now, userId);
+            db.prepare("UPDATE economy SET balance = balance + ?, last_daily = ? WHERE user_id = ? AND guild_id = ?")
+                .run(REWARD, now, userId, guildId);
         } else {
-            db.prepare("INSERT INTO economy (user_id, balance, last_daily) VALUES (?, ?, ?)")
-                .run(userId, REWARD, now);
+            db.prepare("INSERT INTO economy (user_id, guild_id, balance, last_daily) VALUES (?, ?, ?, ?)")
+                .run(userId, guildId, REWARD, now);
         }
 
         await rootServer.community.channelMessages.create({
