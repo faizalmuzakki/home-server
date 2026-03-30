@@ -15,7 +15,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - DASHBOARD_EMAIL=${DASHBOARD_EMAIL}
       - DASHBOARD_PIN=${DASHBOARD_PIN}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - NODE_ENV=production
     volumes:
       - ./api/data:/app/data:rw

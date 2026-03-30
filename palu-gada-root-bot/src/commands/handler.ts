@@ -7,6 +7,7 @@ import { askCommand } from "./utility/ask";
 import { mathCommand } from "./utility/math";
 import { defineCommand } from "./utility/define";
 import { urbanCommand } from "./utility/urban";
+import { helpCommand } from "./utility/help";
 import { todoCommand } from "./productivity/todo";
 import { remindCommand, handleReminderJob } from "./productivity/remind";
 import { noteCommand } from "./productivity/note";
@@ -23,6 +24,10 @@ export function registerCommand(command: Command) {
     if (command.aliases) {
         command.aliases.forEach(alias => aliases.set(alias, command.name));
     }
+}
+
+export function getCommands(): Map<string, Command> {
+    return commands;
 }
 
 export async function handleMessage(event: ChannelMessageCreatedEvent) {
@@ -76,6 +81,7 @@ export async function handleMessage(event: ChannelMessageCreatedEvent) {
 
 export function loadCommands() {
     registerCommand(pingCommand);
+    registerCommand(helpCommand);
     registerCommand(summarizeCommand);
     registerCommand(askCommand);
     registerCommand(mathCommand);

@@ -25,7 +25,7 @@ function parseTime(timeStr: string): number | null {
 export const birthdayCommand: Command = {
     name: "birthday",
     description: "Manage birthdays",
-    usage: "/birthday <set/get> [day] [month]",
+    usage: "/birthday <set/get/setup> [args]",
     category: "Fun",
     execute: async (context: CommandContext) => {
         const { event, args } = context;
@@ -40,7 +40,7 @@ export const birthdayCommand: Command = {
             if (!day || !month || day < 1 || day > 31 || month < 1 || month > 12) {
                 await rootServer.community.channelMessages.create({
                     channelId: event.channelId,
-                    content: "Usage: /birthday set <day> <month> (e.g. /birthday set 15 8)",
+                    content: "Usage: `/birthday set <day> <month>` (e.g. `/birthday set 15 8`)",
                 });
                 return;
             }
@@ -50,13 +50,13 @@ export const birthdayCommand: Command = {
 
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
-                content: `✅ Birthday set to **${day}/${month}**!`,
+                content: `✅ Birthday set to **${day}/${month}**! 🎂`,
             });
         } else if (subcommand === "get") {
-            const targetId = args[1] || userId; // Extract UUID if mentioned? Simple fallback for now
-            // TODO: Proper UUID extraction if needed
+            const targetId = args[1] || userId;
 
-            const row = db.prepare("SELECT day, month FROM birthdays WHERE user_id = ? AND guild_id = ?").get(targetId, guildId) as any;
+            const row = db.prepare("SELECT day, month FROM birthdays WHERE user_id = ? AND guild_id = ?")
+                .get(targetId, guildId) as any;
 
             if (row) {
                 await rootServer.community.channelMessages.create({
@@ -69,10 +69,28 @@ export const birthdayCommand: Command = {
                     content: `<@${targetId}> hasn't set their birthday yet.`,
                 });
             }
+        } else if (subcommand === "setup") {
+            // /birthday setup <channel_id>
+            const channelId = args[1];
+            if (!channelId) {
+                await rootServer.community.channelMessages.create({
+                    channelId: event.channelId,
+                    content: "Usage: `/birthday setup <channel_id>` — sets the channel for daily birthday announcements.",
+                });
+                return;
+            }
+
+            db.prepare("INSERT OR REPLACE INTO guild_settings (guild_id, key, value) VALUES (?, ?, ?)")
+                .run(guildId, "birthday_channel_id", channelId);
+
+            await rootServer.community.channelMessages.create({
+                channelId: event.channelId,
+                content: `✅ Birthday announcements will be posted to <${channelId}>.`,
+            });
         } else {
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
-                content: "Usage: /birthday <set/get> [args]",
+                content: "Usage: `/birthday set <day> <month>` · `/birthday get [@user]` · `/birthday setup <channel_id>`",
             });
         }
     }
@@ -80,34 +98,62 @@ export const birthdayCommand: Command = {
 
 export const confessionCommand: Command = {
     name: "confession",
-    description: "Send an anonymous confession",
-    usage: "/confession <message>",
+    description: "Send an anonymous confession (or set up the confessions channel)",
+    usage: "/confession <message> | /confession setup <channel_id>",
     category: "Fun",
     execute: async (context: CommandContext) => {
         const { event, args } = context;
-        const message = args.join(" ");
+        const guildId = event.communityId || "default";
 
-        if (!message) {
+        // /confession setup <channel_id>
+        if (args[0]?.toLowerCase() === "setup") {
+            const channelId = args[1];
+            if (!channelId) {
+                await rootServer.community.channelMessages.create({
+                    channelId: event.channelId,
+                    content: "Usage: `/confession setup <channel_id>`\nPaste the ID of the channel where confessions should be posted.",
+                });
+                return;
+            }
+
+            db.prepare("INSERT OR REPLACE INTO guild_settings (guild_id, key, value) VALUES (?, ?, ?)")
+                .run(guildId, "confession_channel_id", channelId);
+
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
-                content: "Usage: /confession <message>",
+                content: `✅ Confessions will now be posted to <${channelId}>.`,
             });
             return;
         }
 
-        // Try to delete original message to keep anonymity
+        const message = args.join(" ");
+        if (!message) {
+            await rootServer.community.channelMessages.create({
+                channelId: event.channelId,
+                content: "Usage: `/confession <message>`",
+            });
+            return;
+        }
+
+        // Look up the configured confessions channel; fall back to current channel
+        const setting = db.prepare(
+            "SELECT value FROM guild_settings WHERE guild_id = ? AND key = 'confession_channel_id'"
+        ).get(guildId) as any;
+        const targetChannelId: string = setting?.value ?? event.channelId;
+
+        // Delete the invoker's message to preserve anonymity
         try {
             await rootServer.community.channelMessages.delete({
                 channelId: event.channelId,
-                id: event.id
+                id: event.id,
             });
-        } catch (e) {
-            // Ignore if can't delete
+        } catch {
+            // Ignore — bot may lack delete permission
         }
 
         await rootServer.community.channelMessages.create({
-            channelId: event.channelId,
-            content: `🤐 **Confession:**\n\n"${message}"`,
+            channelId: targetChannelId,
+            content: `🤐 **Anonymous Confession:**\n\n"${message}"`,
         });
     }
 };

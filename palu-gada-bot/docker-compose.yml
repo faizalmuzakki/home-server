@@ -35,7 +35,7 @@ services:
       # Docker socket for container management via shell channel
       - /var/run/docker.sock:/var/run/docker.sock
       # Mount host repo for git operations via shell channel
-      - /home/user/home-server:/host-repo
+      - /home/solork/Projects/home-server:/host-repo
     # Resource limits
     deploy:
       resources:

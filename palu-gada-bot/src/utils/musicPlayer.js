@@ -349,3 +349,16 @@ export function toggleLoop(queue) {
     queue.loop = !queue.loop;
     return queue.loop;
 }
+
+/**
+ * Seek to a specific position in the current song by rebuilding the audio resource.
+ * play-dl supports a `seek` option on stream() that starts the stream at the given offset.
+ */
+export async function seekSong(queue, seconds) {
+    const song = queue.songs[0];
+    if (!song || !queue.player) return;
+
+    const stream = await play.stream(song.url, { seek: seconds });
+    const resource = createAudioResource(stream.stream, { inputType: stream.type });
+    queue.player.play(resource);
+}

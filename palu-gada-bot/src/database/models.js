@@ -8,12 +8,12 @@ const statements = {
             welcome_channel_id, welcome_message, welcome_enabled, autorole_id, autorole_enabled,
             log_enabled, starboard_channel_id, starboard_threshold, starboard_enabled,
             confession_channel_id, confession_enabled, message_edit_log_enabled, message_delete_log_enabled,
-            top1_role_id, top2_role_id, top3_role_id)
+            top1_role_id, top2_role_id, top3_role_id, birthday_channel_id)
         VALUES (@guild_id, @prefix, @dj_role_id, @music_channel_id, @log_channel_id, @volume,
             @welcome_channel_id, @welcome_message, @welcome_enabled, @autorole_id, @autorole_enabled,
             @log_enabled, @starboard_channel_id, @starboard_threshold, @starboard_enabled,
             @confession_channel_id, @confession_enabled, @message_edit_log_enabled, @message_delete_log_enabled,
-            @top1_role_id, @top2_role_id, @top3_role_id)
+            @top1_role_id, @top2_role_id, @top3_role_id, @birthday_channel_id)
         ON CONFLICT(guild_id) DO UPDATE SET
             prefix = @prefix,
             dj_role_id = @dj_role_id,
@@ -36,6 +36,7 @@ const statements = {
             top1_role_id = @top1_role_id,
             top2_role_id = @top2_role_id,
             top3_role_id = @top3_role_id,
+            birthday_channel_id = @birthday_channel_id,
             updated_at = CURRENT_TIMESTAMP
     `),
 
@@ -212,6 +213,7 @@ export function getGuildSettings(guildId) {
         top1_role_id: null,
         top2_role_id: null,
         top3_role_id: null,
+        birthday_channel_id: null,
     };
 }
 
@@ -238,6 +240,7 @@ export function setGuildSettings(settings) {
         top1_role_id: null,
         top2_role_id: null,
         top3_role_id: null,
+        birthday_channel_id: null,
     };
 
     // Merge with defaults

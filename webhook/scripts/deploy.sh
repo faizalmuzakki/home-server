@@ -95,8 +95,8 @@ OLD_HEAD=$(git rev-parse HEAD)
 
 # Pull latest changes
 log "Pulling latest changes from origin/main..."
-execute "env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git fetch origin main"
-execute "env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git reset --hard origin/main"
+execute "env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' git fetch origin main"
+execute "env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' git reset --hard origin/main"
 
 # Check new HEAD
 NEW_HEAD=$(git rev-parse HEAD)

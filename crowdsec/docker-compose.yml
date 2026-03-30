@@ -11,8 +11,8 @@ services:
     volumes:
       - ./data:/var/lib/crowdsec/data
       - ./config:/etc/crowdsec
-      # Traefik logs for analysis (absolute path to traefik's log directory)
-      - /home/solork/Projects/home-server/traefik/logs:/var/log/traefik:ro
+      # Traefik logs for analysis
+      - ${HOME_SERVER_PATH:-/home/solork/Projects/home-server}/traefik/logs:/var/log/traefik:ro
       # System auth logs
       - /var/log:/var/log/host:ro
     networks:

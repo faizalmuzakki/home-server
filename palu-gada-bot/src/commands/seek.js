@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import { getQueue } from '../utils/musicPlayer.js';
+import { getQueue, seekSong } from '../utils/musicPlayer.js';
 
 function parseTime(timeStr) {
     // Parse formats: "1:30", "90", "1:30:00", "1h30m", "90s"
@@ -114,16 +114,23 @@ export default {
         // to modify the play.js to support seeking
 
         // For now, we'll indicate that this feature requires additional implementation
-        await interaction.reply({
-            embeds: [{
-                color: 0x5865F2,
-                description: `⏩ Seeking to **${formatTime(position)}** in **${currentSong.title}**\n\n*Note: Full seek functionality requires stream recreation. This may cause a brief audio interruption.*`,
-            }],
-        });
+        await interaction.deferReply();
 
-        // TODO: Implement actual seeking by:
-        // 1. Get the stream URL with seek parameter
-        // 2. Create new AudioResource with the seek position
-        // 3. Replace the current resource in the player
+        try {
+            await seekSong(queue, position);
+
+            await interaction.editReply({
+                embeds: [{
+                    color: 0x5865F2,
+                    title: '⏩ Seeked',
+                    description: `Jumped to **${formatTime(position)}** in **${currentSong.title}**`,
+                }],
+            });
+        } catch (error) {
+            console.error('[ERROR] Seek failed:', error);
+            await interaction.editReply({
+                content: `Failed to seek: ${error.message}`,
+            });
+        }
     },
 };

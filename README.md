@@ -13,7 +13,7 @@ Personal home server running on Docker.
 Run the setup script on a fresh server installation:
 
 ```bash
-git clone git@github.com:your-username/home-server.git
+git clone git@github.com:solork/home-server.git
 cd home-server
 sudo ./scripts/setup-server.sh
 ```
@@ -102,6 +102,8 @@ sudo apt install -y git curl wget htop vim jq tmux
 | [2FAuth](./2fauth/) | - | Self-hosted TOTP authenticator | `2fauth/` |
 | [Syncthing](./syncthing/) | 8384 | File synchronization | `syncthing/` |
 | [Home Assistant](./homeassistant/) | 8123 | Home automation | `homeassistant/` |
+| [Palu Gada Bot](./palu-gada-bot/) | 3003 | Discord bot + API | `palu-gada-bot/` |
+| [Palu Gada Root Bot](./palu-gada-root-bot/) | 3051 | Discord bot (root server) | `palu-gada-root-bot/` |
 
 ### Media Stack
 
@@ -338,20 +340,20 @@ If using a domain with Cloudflare:
 
 | Subdomain | Service |
 |-----------|---------|
-| `traefik.domain.com` | Traefik Dashboard |
-| `dockge.domain.com` | Dockge |
-| `vault.domain.com` | Vaultwarden |
-| `auth.domain.com` | 2FAuth |
-| `apps.domain.com` | Homer Dashboard |
-| `status.domain.com` | Uptime Kuma |
-| `monitor.domain.com` | Netdata |
-| `webhook.domain.com` | GitHub Webhook |
-| `home.domain.com` | Home Assistant |
-| `sync.domain.com` | Syncthing |
-| `jellyfin.domain.com` | Jellyfin |
-| `adguard.domain.com` | AdGuard Home |
-| `sonarr.domain.com` | Sonarr |
-| `radarr.domain.com` | Radarr |
+| `traefik.solork.dev` | Traefik Dashboard |
+| `dockge.solork.dev` | Dockge |
+| `vault.solork.dev` | Vaultwarden |
+| `auth.solork.dev` | 2FAuth |
+| `apps.solork.dev` | Homer Dashboard |
+| `status.solork.dev` | Uptime Kuma |
+| `monitor.solork.dev` | Netdata |
+| `webhook.solork.dev` | GitHub Webhook |
+| `home.solork.dev` | Home Assistant |
+| `sync.solork.dev` | Syncthing |
+| `jellyfin.solork.dev` | Jellyfin |
+| `adguard.solork.dev` | AdGuard Home |
+| `sonarr.solork.dev` | Sonarr |
+| `radarr.solork.dev` | Radarr |
 
 ## Maintenance
 
@@ -393,13 +395,13 @@ Internet
     ▼
 ┌─────────────┐
 │  Router     │ ◄── Set DNS to server IP for AdGuard
-│ 192.168.x.1 │
+│ 192.168.1.1 │
 └─────┬───────┘
       │
       ▼
 ┌─────────────────┐
 │  Home Server    │
-│  192.168.x.100  │
+│  192.168.1.201  │
 ├─────────────────┤
 │ :80/:443 Traefik│
 │ :53     AdGuard │
@@ -494,14 +496,14 @@ For each repository, configure a webhook in **GitHub → Repo → Settings → W
 
 | Setting | Value |
 |---------|-------|
-| **Payload URL** | `https://webhook.your-domain.com/hooks/<hook-id>` |
+| **Payload URL** | `https://webhook.solork.dev/hooks/<hook-id>` |
 | **Content type** | ⚠️ Must be `application/json` (NOT form-urlencoded) |
 | **Secret** | Same as `WEBHOOK_SECRET` in `webhook/.env` |
 | **Events** | Just the push event |
 
 Example URLs:
-- Home Server: `https://webhook.your-domain.com/hooks/home-server-deploy`
-- Monorepo: `https://webhook.your-domain.com/hooks/monorepo-deploy`
+- Home Server: `https://webhook.solork.dev/hooks/home-server-deploy`
+- Monorepo: `https://webhook.solork.dev/hooks/monorepo-deploy`
 
 ### Smart Deploy (Change Detection)
 
@@ -617,8 +619,8 @@ brew install cloudflared
 # 2. Add to ~/.ssh/config
 cat >> ~/.ssh/config << 'EOF'
 Host home-server
-    HostName ssh.your-domain.com
-    User your-username
+    HostName ssh.solork.dev
+    User solork
     ProxyCommand cloudflared access ssh --hostname %h
 EOF
 
@@ -632,7 +634,7 @@ Add SSH hostname in [Cloudflare Zero Trust](https://one.dash.cloudflare.com/):
 1. **Networks** → **Tunnels** → Your tunnel → **Public Hostname**
 2. Add hostname:
    - **Subdomain**: `ssh`
-   - **Domain**: `your-domain.com`
+   - **Domain**: `solork.dev`
    - **Type**: `SSH`
    - **URL**: `host.docker.internal:22`
 
@@ -640,7 +642,7 @@ Add SSH hostname in [Cloudflare Zero Trust](https://one.dash.cloudflare.com/):
 
 Require email authentication before SSH access:
 1. **Access** → **Applications** → **Add Application** → **Self-hosted**
-2. **Name**: `SSH Access`, **Domain**: `ssh.your-domain.com`
+2. **Name**: `SSH Access`, **Domain**: `ssh.solork.dev`
 3. Add policy: Allow your email with One-time PIN
 
 ### Middleware Options
@@ -664,6 +666,7 @@ To enable remote access for a service: change middleware from `admin-secure@file
 | `scripts/harden-ssh.sh` | Disable password auth, enforce SSH keys only |
 | `scripts/backup-encrypted.sh` | Encrypted backups with age encryption |
 | `migrate-volumes.sh` | Migrate from Docker named volumes to bind mounts |
+| `traefik/logrotate.conf` | Traefik log rotation (daily, 14-day retention). Install: `sudo cp traefik/logrotate.conf /etc/logrotate.d/traefik` |
 
 ### Sync Atlas Database
 

@@ -134,6 +134,14 @@ function initDatabase() {
         // Column already exists, ignore
     }
 
+    // Add birthday_channel_id column if it doesn't exist (migration)
+    try {
+        db.exec(`ALTER TABLE guild_settings ADD COLUMN birthday_channel_id TEXT`);
+        console.log('[INFO] Added birthday_channel_id column');
+    } catch (e) {
+        // Column already exists, ignore
+    }
+
     // Allowed guilds table (for whitelist mode)
     db.exec(`
         CREATE TABLE IF NOT EXISTS allowed_guilds (

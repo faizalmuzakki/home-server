@@ -7,10 +7,22 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Localhost only — Traefik handles external routing
     ports:
-      - "3051:3051"
+      - "127.0.0.1:3051:3051"
     volumes:
+      # Named volume intentional: no bind-mount path needed, data is opaque SQLite
       - bot-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3051/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:

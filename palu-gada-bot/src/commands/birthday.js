@@ -1,5 +1,5 @@
-import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
-import { setBirthday, getBirthday, removeBirthday, getUpcomingBirthdays, getTodayBirthdays } from '../database/models.js';
+import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType } from 'discord.js';
+import { setBirthday, getBirthday, removeBirthday, getUpcomingBirthdays, getTodayBirthdays, updateGuildSetting } from '../database/models.js';
 
 const MONTHS = [
     { name: 'January', value: 1 },
@@ -65,10 +65,42 @@ export default {
             subcommand
                 .setName('today')
                 .setDescription('View today\'s birthdays')
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('setup')
+                .setDescription('Set the channel where birthday announcements are posted')
+                .addChannelOption(option =>
+                    option
+                        .setName('channel')
+                        .setDescription('Channel for birthday announcements')
+                        .addChannelTypes(ChannelType.GuildText)
+                        .setRequired(true)
+                )
         ),
 
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
+
+        if (subcommand === 'setup') {
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+                return interaction.reply({
+                    content: 'You need **Manage Server** permission to set up birthday announcements.',
+                    flags: MessageFlags.Ephemeral,
+                });
+            }
+
+            const channel = interaction.options.getChannel('channel');
+            updateGuildSetting(interaction.guildId, 'birthday_channel_id', channel.id);
+
+            return interaction.reply({
+                embeds: [{
+                    color: 0x57F287,
+                    title: '✅ Birthday Channel Set',
+                    description: `Birthday announcements will be posted in ${channel}.\n\nMembers can use \`/birthday set\` to register their birthday.`,
+                }],
+            });
+        }
 
         if (subcommand === 'set') {
             const month = interaction.options.getInteger('month');
