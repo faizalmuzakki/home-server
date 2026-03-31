@@ -34,9 +34,13 @@ export default {
 
             if (!searchRes.ok) throw new Error(`Kuryana search error: ${searchRes.status}`);
             const searchJson = await searchRes.json();
-            const results = searchJson.results;
+            // Kuryana returns results as { dramas: [...], people: [...] }, not a flat array
+            const results = [
+                ...(searchJson.results?.dramas ?? []),
+                ...(searchJson.results?.people ?? []),
+            ];
 
-            if (!results?.length) {
+            if (!results.length) {
                 return interaction.editReply({ content: `No results found on MyDramaList for **${query}**.` });
             }
 
@@ -66,7 +70,7 @@ export default {
             const synopsis = (data.synopsis || data.description || 'No synopsis available.')
                 .trim()
                 .slice(0, 400);
-            const image = data.poster || data.image || top.image || '';
+            const image = data.poster || data.image || top.thumb || top.image || '';
             const genres = Array.isArray(data.genres)
                 ? data.genres.map(g => (typeof g === 'string' ? g : g.name)).join(', ')
                 : '';

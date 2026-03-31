@@ -29,9 +29,13 @@ export const dramaCommand: Command = {
             );
             if (!searchRes.ok) throw new Error(`Kuryana search error ${searchRes.status}`);
             const searchJson = await searchRes.json() as any;
-            const results = searchJson.results;
+            // Kuryana returns results as { dramas: [...], people: [...] }, not a flat array
+            const results = [
+                ...(searchJson.results?.dramas ?? []),
+                ...(searchJson.results?.people ?? []),
+            ];
 
-            if (!results?.length) {
+            if (!results.length) {
                 await rootServer.community.channelMessages.create({
                     channelId: event.channelId,
                     content: `No results found on MyDramaList for **${query}**.`,
