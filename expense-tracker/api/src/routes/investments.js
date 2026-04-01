@@ -124,6 +124,10 @@ router.get('/summary', (req, res) => {
       activePortfolioTotal: activeTotal,
       monthlyBudget: config?.monthly_budget || 5000000,
       startDate: config?.start_date || null,
+      goldHoldings: {
+        currentValue: holdingMap.gold?.current_value || 0,
+        currentGrams: holdingMap.gold?.current_grams || 0
+      },
       buckets,
       portfolioBreakdown,
       activeAllocation,
@@ -219,7 +223,7 @@ router.get('/contribution-plan', (req, res) => {
 router.put('/holdings/:type', (req, res) => {
   try {
     const { type } = req.params;
-    const { current_value, name, platform } = req.body;
+    const { current_value, current_grams, name, platform } = req.body;
 
     const existing = db.prepare('SELECT * FROM investment_holdings WHERE type = ?').get(type);
 
@@ -227,16 +231,17 @@ router.put('/holdings/:type', (req, res) => {
       db.prepare(`
         UPDATE investment_holdings 
         SET current_value = COALESCE(?, current_value), 
+            current_grams = COALESCE(?, current_grams),
             name = COALESCE(?, name), 
             platform = COALESCE(?, platform),
             updated_at = CURRENT_TIMESTAMP
         WHERE type = ?
-      `).run(current_value, name, platform, type);
+      `).run(current_value, current_grams, name, platform, type);
     } else {
       db.prepare(`
-        INSERT INTO investment_holdings (type, name, platform, current_value) 
-        VALUES (?, ?, ?, ?)
-      `).run(type, name || type, platform || '', current_value || 0);
+        INSERT INTO investment_holdings (type, name, platform, current_value, current_grams) 
+        VALUES (?, ?, ?, ?, ?)
+      `).run(type, name || type, platform || '', current_value || 0, current_grams || 0);
     }
 
     res.json({ success: true });

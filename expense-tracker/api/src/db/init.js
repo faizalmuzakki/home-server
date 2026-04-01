@@ -65,6 +65,7 @@ export function initDatabase() {
       name TEXT NOT NULL,
       platform TEXT,
       current_value REAL DEFAULT 0,
+      current_grams REAL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -102,6 +103,9 @@ export function initDatabase() {
   if (!holdingsInfo.some(col => col.name === 'allocation_group')) {
     db.exec("ALTER TABLE investment_holdings ADD COLUMN allocation_group TEXT");
   }
+  if (!holdingsInfo.some(col => col.name === 'current_grams')) {
+    db.exec("ALTER TABLE investment_holdings ADD COLUMN current_grams REAL DEFAULT 0");
+  }
 
   // Initialize default investment holdings if none exist
   const holdingsCount = db.prepare('SELECT COUNT(*) as count FROM investment_holdings').get();
@@ -112,12 +116,12 @@ export function initDatabase() {
       { type: 'pension_fund', name: 'Pension Fund', platform: 'Robo-Advisor Agresif', current_value: 30100000, allocation_group: 'indonesian' },
       { type: 'indonesian_equity', name: 'Indonesian Equity', platform: 'Bibit Reksa Dana Saham', current_value: 10500000, allocation_group: 'indonesian' },
       { type: 'international_equity', name: 'International Equity', platform: 'Gotrade', current_value: 47000000, allocation_group: 'international' },
-      { type: 'gold', name: 'Gold', platform: 'Bibit/Pluang', current_value: 0, allocation_group: 'gold' }
+      { type: 'gold', name: 'Gold', platform: 'Bibit/Pluang', current_value: 0, current_grams: 0, allocation_group: 'gold' }
     ];
 
-    const insertHolding = db.prepare('INSERT INTO investment_holdings (type, name, platform, current_value, allocation_group) VALUES (?, ?, ?, ?, ?)');
+    const insertHolding = db.prepare('INSERT INTO investment_holdings (type, name, platform, current_value, current_grams, allocation_group) VALUES (?, ?, ?, ?, ?, ?)');
     for (const h of defaultHoldings) {
-      insertHolding.run(h.type, h.name, h.platform, h.current_value, h.allocation_group);
+      insertHolding.run(h.type, h.name, h.platform, h.current_value, h.current_grams || 0, h.allocation_group);
     }
   } else {
     // Migration: Update existing holdings with allocation_group if not set
