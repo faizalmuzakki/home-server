@@ -1,253 +1,160 @@
-import pkg from '@whiskeysockets/baileys';
-const { downloadMediaMessage } = pkg;
-import { parseText, parseImage, createExpense, getCategories, uploadImage } from '../services/api.js';
-import { isGroupMessage, handleGroupMessage } from './groupQA.js';
+import { getDb } from '../database.js';
+import { commands, getCommand } from '../commands/index.js';
+import { handleGroupMessage } from './groupQA.js';
+import { handleImageTransaction, handleTextTransaction } from './expense.js';
+import {
+  getChatId,
+  getMentionedJids,
+  getSenderId,
+  getText,
+  hasImage,
+  isGroupMessage,
+  normalizeJid,
+  reply
+} from '../utils/message.js';
 
-const ALLOWED_NUMBERS = process.env.ALLOWED_NUMBERS?.split(',').map(n => n.trim()).filter(n => n) || [];
-console.log('🔐 Allowed numbers configured:', ALLOWED_NUMBERS);
+const ALLOWED_NUMBERS = process.env.ALLOWED_NUMBERS?.split(',').map((number) => number.trim()).filter(Boolean) || [];
 
 function isAllowed(jid) {
   if (ALLOWED_NUMBERS.length === 0) return true;
-  const number = jid.split('@')[0];
-  const allowed = ALLOWED_NUMBERS.includes(number);
-  console.log(`🔍 Checking ${number} against allowed list: ${allowed}`);
-  return allowed;
+  return ALLOWED_NUMBERS.includes(normalizeJid(jid).split('@')[0]);
 }
 
-function extractText(msg) {
-  return msg.message?.conversation ||
-    msg.message?.extendedTextMessage?.text ||
-    msg.message?.imageMessage?.caption ||
-    '';
+function parseCommand(text) {
+  if (!text.startsWith('/')) return null;
+  const [command, ...args] = text.slice(1).trim().split(/\s+/);
+  return {
+    name: command.toLowerCase(),
+    args,
+    argText: text.slice(1 + command.length).trim()
+  };
 }
 
-function hasImage(msg) {
-  return !!msg.message?.imageMessage;
+function isBotMentioned(msg, botJid) {
+  const botNumber = normalizeJid(botJid)?.split('@')[0];
+  return getMentionedJids(msg).some((jid) => normalizeJid(jid)?.split('@')[0] === botNumber);
+}
+
+async function isAdmin(sock, jid, senderId) {
+  if (!jid?.endsWith('@g.us')) return true;
+  try {
+    const metadata = await sock.groupMetadata(jid);
+    const participant = metadata.participants.find((entry) => normalizeJid(entry.id) === normalizeJid(senderId));
+    return !!participant?.admin;
+  } catch (error) {
+    console.error('Admin lookup error:', error);
+    return false;
+  }
+}
+
+function logMessage(chatId, senderId, text) {
+  if (!text) return;
+  getDb().prepare(
+    'INSERT INTO message_history (chat_id, user_id, message_text, created_at) VALUES (?, ?, ?, ?)'
+  ).run(chatId, senderId, text, Date.now());
+}
+
+async function handleAfkSideEffects(sock, msg, jid, senderId, text) {
+  if (!isGroupMessage(jid)) return;
+  const db = getDb();
+  const existing = db.prepare('SELECT message, since FROM afk_status WHERE user_id = ?').get(senderId);
+  if (existing) {
+    db.prepare('DELETE FROM afk_status WHERE user_id = ?').run(senderId);
+    await reply(sock, jid, `Welcome back. Your AFK status was cleared after ${Math.floor((Date.now() - existing.since) / 60000)} minute(s).`, msg);
+  }
+
+  if (!text) return;
+  const mentioned = getMentionedJids(msg);
+  for (const userId of mentioned) {
+    const afk = db.prepare('SELECT message, since FROM afk_status WHERE user_id = ?').get(userId);
+    if (afk) {
+      await reply(sock, jid, `${userId} is AFK: ${afk.message}`, msg);
+    }
+  }
+}
+
+async function handleAutoresponder(sock, jid, text, msg) {
+  if (!text || text.startsWith('/')) return false;
+  const rows = getDb().prepare(
+    'SELECT trigger_text, response_text, match_type FROM autoresponders WHERE chat_id = ? ORDER BY created_at DESC'
+  ).all(jid);
+  const lowerText = text.toLowerCase();
+  for (const row of rows) {
+    const matched = row.match_type === 'exact'
+      ? lowerText === row.trigger_text
+      : row.match_type === 'startswith'
+        ? lowerText.startsWith(row.trigger_text)
+        : lowerText.includes(row.trigger_text);
+    if (matched) {
+      await reply(sock, jid, row.response_text, msg);
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function handleMessage(sock, msg, botJid) {
-  const jid = msg.key.remoteJid;
+  const jid = getChatId(msg);
+  const senderId = getSenderId(msg);
+  const text = getText(msg).trim();
+  const isGroup = isGroupMessage(jid);
 
-  // Route group messages to Q&A handler
-  if (isGroupMessage(jid)) {
+  if (!jid || (!isGroup && !isAllowed(senderId))) {
+    console.log(`Ignored message from unauthorized number: ${senderId}`);
+    return;
+  }
+
+  logMessage(jid, senderId, text);
+  await handleAfkSideEffects(sock, msg, jid, senderId, text);
+
+  const parsed = parseCommand(text);
+
+  if (parsed) {
+    const command = getCommand(parsed.name);
+    if (!command) {
+      return reply(sock, jid, `Unknown command. Use /help.\nAvailable commands: ${commands.map((entry) => `/${entry.name}`).join(', ')}`, msg);
+    }
+
+    let _isAdminPromise;
+    const getIsAdmin = () => {
+      if (_isAdminPromise === undefined) _isAdminPromise = isAdmin(sock, jid, senderId);
+      return _isAdminPromise;
+    };
+
+    try {
+      await command.execute({
+        sock,
+        msg,
+        jid,
+        senderId,
+        text,
+        args: [...parsed.args],
+        argText: parsed.argText,
+        isGroup,
+        getIsAdmin
+      });
+    } catch (error) {
+      console.error(`Command /${parsed.name} failed:`, error);
+      await reply(sock, jid, `Command failed: ${error.message}`, msg);
+    }
+    return;
+  }
+
+  if (isGroup && isBotMentioned(msg, botJid)) {
     await handleGroupMessage(sock, msg, botJid);
     return;
   }
 
-  if (!isAllowed(jid)) {
-    console.log(`Ignored message from unauthorized number: ${jid}`);
+  if (await handleAutoresponder(sock, jid, text, msg)) {
     return;
   }
 
-  const text = extractText(msg).trim();
-
-  // Handle commands
-  if (text.toLowerCase() === '/help') {
-    await sendHelp(sock, jid);
-    return;
-  }
-
-  if (text.toLowerCase() === '/categories') {
-    await sendCategories(sock, jid);
-    return;
-  }
-
-  if (text.toLowerCase() === '/pin') {
-    await sendPin(sock, jid);
-    return;
-  }
-
-  // Handle image (receipt or income proof)
   if (hasImage(msg)) {
-    await handleImageTransaction(sock, msg, jid, text);
+    if (!isGroup) await handleImageTransaction(sock, msg, jid, text);
     return;
   }
 
-  // Handle text transaction
-  if (text) {
-    await handleTextTransaction(sock, jid, text);
-    return;
+  if (!isGroup && text) {
+    await handleTextTransaction(sock, jid, text, msg);
   }
-}
-
-async function handleTextTransaction(sock, jid, text) {
-  await sock.sendMessage(jid, { text: '🔍 Analyzing...' });
-
-  try {
-    const parsed = await parseText(text);
-
-    if (parsed.error) {
-      await sock.sendMessage(jid, {
-        text: `❌ Couldn't parse: ${parsed.error}\n\nTry:\n• "50k lunch at warung" (expense)\n• "Received 5m salary" (income)`
-      });
-      return;
-    }
-
-    const isIncome = parsed.type === 'income';
-
-    const transaction = await createExpense({
-      amount: parsed.amount,
-      description: parsed.description,
-      vendor: parsed.vendor,
-      category_id: parsed.category_id,
-      date: parsed.date,
-      type: parsed.type || 'expense',
-      source: 'whatsapp',
-      raw_text: text
-    });
-
-    const emoji = isIncome ? '💵' : '✅';
-    const label = isIncome ? 'Income Recorded!' : 'Expense Recorded!';
-    const vendorLabel = isIncome ? 'From' : 'Vendor';
-
-    // Calculate approximate cost (Claude Sonnet 4 pricing)
-    const inputCost = (parsed.usage?.input_tokens || 0) * 0.000003;
-    const outputCost = (parsed.usage?.output_tokens || 0) * 0.000015;
-    const totalCost = (inputCost + outputCost).toFixed(6);
-
-    await sock.sendMessage(jid, {
-      text: `${emoji} *${label}*\n\n` +
-        `💰 Amount: ${formatCurrency(transaction.amount)}\n` +
-        `📝 Description: ${transaction.description || '-'}\n` +
-        `🏪 ${vendorLabel}: ${transaction.vendor || '-'}\n` +
-        `📅 Date: ${transaction.date}\n` +
-        `🏷️ Category ID: ${transaction.category_id}\n\n` +
-        `_Tokens: ${parsed.usage?.input_tokens || 0}/${parsed.usage?.output_tokens || 0} (~$${totalCost})_`
-    });
-  } catch (error) {
-    console.error('Text transaction error:', error);
-    await sock.sendMessage(jid, { text: `❌ Error: ${error.message}` });
-  }
-}
-
-async function handleImageTransaction(sock, msg, jid, caption) {
-  await sock.sendMessage(jid, { text: '🔍 Analyzing image...' });
-
-  try {
-    const buffer = await downloadMediaMessage(msg, 'buffer', {});
-    const base64 = buffer.toString('base64');
-
-    // Parse the image first
-    const parsed = await parseImage(base64);
-
-    if (parsed.error) {
-      await sock.sendMessage(jid, {
-        text: `❌ Couldn't parse: ${parsed.error}`
-      });
-      return;
-    }
-
-    // Save the image
-    let imageUrl = null;
-    try {
-      const timestamp = Date.now();
-      const filename = `receipt_${timestamp}.jpg`;
-      const uploadResult = await uploadImage(base64, filename);
-      imageUrl = uploadResult.image_url;
-      console.log('📸 Image saved:', imageUrl);
-    } catch (uploadError) {
-      console.error('Failed to save image:', uploadError);
-      // Continue without image - it's not critical
-    }
-
-    const isIncome = parsed.type === 'income';
-
-    const transaction = await createExpense({
-      amount: parsed.amount,
-      description: parsed.description,
-      vendor: parsed.vendor,
-      category_id: parsed.category_id,
-      date: parsed.date,
-      type: parsed.type || 'expense',
-      source: 'whatsapp_image',
-      image_url: imageUrl, // Save the image URL
-      raw_text: caption || null
-    });
-
-    let itemsList = '';
-    if (parsed.items && parsed.items.length > 0) {
-      itemsList = `\n📋 Items: ${parsed.items.slice(0, 5).join(', ')}`;
-    }
-
-    // Calculate approximate cost (Claude Sonnet 4 pricing)
-    const inputCost = (parsed.usage?.input_tokens || 0) * 0.000003;
-    const outputCost = (parsed.usage?.output_tokens || 0) * 0.000015;
-    const totalCost = (inputCost + outputCost).toFixed(6);
-
-    const emoji = isIncome ? '💵' : '✅';
-    const label = isIncome ? 'Income Recorded!' : 'Receipt Recorded!';
-    const vendorLabel = isIncome ? 'From' : 'Vendor';
-
-    let imageNote = '';
-    if (imageUrl) {
-      imageNote = `\n📸 Image: Saved`;
-    }
-
-    await sock.sendMessage(jid, {
-      text: `${emoji} *${label}*\n\n` +
-        `💰 Amount: ${formatCurrency(transaction.amount)}\n` +
-        `🏪 ${vendorLabel}: ${transaction.vendor || '-'}\n` +
-        `📝 Description: ${transaction.description || '-'}\n` +
-        `📅 Date: ${transaction.date}` +
-        itemsList +
-        imageNote +
-        `\n\n_Confidence: ${Math.round((parsed.confidence || 0) * 100)}% | Tokens: ${parsed.usage?.input_tokens || 0}/${parsed.usage?.output_tokens || 0} (~$${totalCost})_`
-    });
-  } catch (error) {
-    console.error('Image transaction error:', error);
-    await sock.sendMessage(jid, { text: `❌ Error: ${error.message}` });
-  }
-}
-
-async function sendHelp(sock, jid) {
-  await sock.sendMessage(jid, {
-    text: `📊 *Finance Tracker Bot*\n\n` +
-      `*Track Expenses:*\n` +
-      `• "50k lunch at warung"\n` +
-      `• "Grab 25000"\n` +
-      `• Send receipt photo\n\n` +
-      `*Track Income:*\n` +
-      `• "Received 5m salary"\n` +
-      `• "Got paid 2.5m freelance"\n` +
-      `• "Dapat transfer 500k dari client"\n` +
-      `• Send transfer screenshot\n\n` +
-      `*Commands:*\n` +
-      `/help - Show this message\n` +
-      `/categories - List categories\n` +
-      `/pin - Get dashboard PIN`
-  });
-}
-
-async function sendCategories(sock, jid) {
-  try {
-    const categories = await getCategories();
-    const expenseCategories = categories.filter(c => c.type !== 'income');
-    const incomeCategories = categories.filter(c => c.type === 'income');
-
-    const expenseList = expenseCategories.map(c => `${c.icon} ${c.name}`).join('\n');
-    const incomeList = incomeCategories.map(c => `${c.icon} ${c.name}`).join('\n');
-
-    await sock.sendMessage(jid, {
-      text: `📂 *Expense Categories:*\n${expenseList}\n\n💵 *Income Categories:*\n${incomeList}`
-    });
-  } catch (error) {
-    await sock.sendMessage(jid, { text: `❌ Error fetching categories` });
-  }
-}
-
-async function sendPin(sock, jid) {
-  const pin = process.env.DASHBOARD_PIN || '123456';
-  await sock.sendMessage(jid, {
-    text: `🔐 *Dashboard PIN*\n\n` +
-      `Your PIN: *${pin}*\n\n` +
-      `Use this to login at:\nhttps://expenses.solork.dev`
-  });
-}
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0
-  }).format(amount);
 }

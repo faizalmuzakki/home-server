@@ -1,4 +1,5 @@
 import { askQuestion } from '../services/ai.js';
+import { isGroupMessage, normalizeJid } from '../utils/message.js';
 
 const ALLOWED_GROUPS = process.env.ALLOWED_GROUPS?.split(',').map(g => g.trim()).filter(g => g) || [];
 
@@ -8,10 +9,6 @@ if (ALLOWED_GROUPS.length > 0) {
   console.log('ℹ️ No ALLOWED_GROUPS configured — group Q&A is disabled');
 }
 
-export function isGroupMessage(jid) {
-  return jid?.endsWith('@g.us');
-}
-
 function isAllowedGroup(jid) {
   if (ALLOWED_GROUPS.length === 0) return false;
   return ALLOWED_GROUPS.includes(jid);
@@ -19,12 +16,8 @@ function isAllowedGroup(jid) {
 
 function isBotMentioned(msg, botJid) {
   const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-  // Bot JID can be in format "628xxx:NN@s.whatsapp.net" — normalize by stripping the :NN suffix
-  const botNumber = botJid?.split('@')[0]?.split(':')[0];
-  return mentionedJids.some(jid => {
-    const mentionedNumber = jid?.split('@')[0]?.split(':')[0];
-    return mentionedNumber === botNumber;
-  });
+  const botNumber = normalizeJid(botJid)?.split('@')[0];
+  return mentionedJids.some((jid) => normalizeJid(jid)?.split('@')[0] === botNumber);
 }
 
 function extractQuestion(msg, botJid) {
@@ -33,7 +26,7 @@ function extractQuestion(msg, botJid) {
     '';
 
   // Remove @mention from the text
-  const botNumber = botJid?.split('@')[0]?.split(':')[0];
+  const botNumber = normalizeJid(botJid)?.split('@')[0];
   // WhatsApp mentions look like @628xxx in the text
   const cleaned = text.replace(new RegExp(`@${botNumber}\\b`, 'g'), '').trim();
   return cleaned;

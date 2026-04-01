@@ -12,7 +12,7 @@ import qrcode from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import dotenv from 'dotenv';
 import { handleMessage } from './handlers/message.js';
-import fs from 'fs';
+import { initDatabase, getDb } from './database.js';
 
 dotenv.config();
 
@@ -79,9 +79,96 @@ if (ALLOWED_NUMBERS.length > 0) {
 
 
 const logger = pino({ level: 'info' });
+let schedulersStarted = false;
+
+function renderTemplate(template, values) {
+  return template
+    .replaceAll('{user}', values.user || '')
+    .replaceAll('{group}', values.group || '')
+    .replaceAll('{membercount}', values.membercount || '')
+    .replaceAll('{date}', values.date || '');
+}
+
+function startSchedulers(sock) {
+  if (schedulersStarted) return;
+  schedulersStarted = true;
+  const db = getDb();
+
+  setInterval(async () => {
+    try {
+      const polls = db.prepare('SELECT * FROM polls WHERE closed = 0 AND closes_at IS NOT NULL AND closes_at <= ?').all(Date.now());
+      for (const poll of polls) {
+        const options = JSON.parse(poll.options_json || '[]');
+        const votes = Object.values(JSON.parse(poll.votes_json || '{}'));
+        const lines = options.map((option, index) => `${index + 1}. ${option} - ${votes.filter((vote) => vote === index).length} vote(s)`);
+        db.prepare('UPDATE polls SET closed = 1 WHERE id = ?').run(poll.id);
+        await sock.sendMessage(poll.chat_id, { text: `Poll #${poll.id} closed\n${poll.question}\n${lines.join('\n')}` });
+      }
+
+      const giveaways = db.prepare('SELECT * FROM giveaways WHERE closed = 0 AND closes_at <= ?').all(Date.now());
+      for (const giveaway of giveaways) {
+        const participants = JSON.parse(giveaway.participants_json || '[]');
+        let winners = [];
+        if (participants.length > 0) {
+          const shuffled = [...participants];
+          for (let i = shuffled.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          winners = shuffled.slice(0, Math.min(giveaway.winner_count, shuffled.length));
+        }
+        db.prepare('UPDATE giveaways SET closed = 1, winners_json = ? WHERE id = ?').run(JSON.stringify(winners), giveaway.id);
+        await sock.sendMessage(giveaway.chat_id, { text: winners.length ? `Giveaway #${giveaway.id} ended\nPrize: ${giveaway.prize}\nWinner(s):\n${winners.join('\n')}` : `Giveaway #${giveaway.id} ended with no entries.` });
+      }
+
+      const triviaGames = db.prepare('SELECT * FROM trivia_games WHERE revealed = 0 AND closes_at <= ?').all(Date.now());
+      for (const trivia of triviaGames) {
+        db.prepare('UPDATE trivia_games SET revealed = 1 WHERE id = ?').run(trivia.id);
+        await sock.sendMessage(trivia.chat_id, { text: `Trivia #${trivia.id} answer:\n${trivia.correct_answer}` });
+      }
+    } catch (error) {
+      console.error('Scheduler tick error:', error);
+    }
+  }, 15_000);
+
+  setInterval(async () => {
+    try {
+      const today = new Date();
+      const key = today.toISOString().slice(0, 10);
+      const alreadySent = db.prepare('SELECT id FROM audit_logs WHERE action = ? AND details = ? LIMIT 1').get('birthday_announcement', key);
+      if (alreadySent) return;
+
+      const rows = db.prepare(`
+        SELECT b.chat_id, b.user_id, b.day, b.month, gs.value AS enabled
+        FROM birthdays b
+        LEFT JOIN group_settings gs ON gs.chat_id = b.chat_id AND gs.key = 'birthday_announcements'
+        WHERE b.day = ? AND b.month = ?
+      `).all(today.getDate(), today.getMonth() + 1);
+
+      const grouped = new Map();
+      for (const row of rows) {
+        if (row.enabled === '0') continue;
+        if (!grouped.has(row.chat_id)) grouped.set(row.chat_id, []);
+        grouped.get(row.chat_id).push(row.user_id);
+      }
+
+      for (const [chatId, users] of grouped.entries()) {
+        await sock.sendMessage(chatId, { text: `Today's birthdays:\n${users.join('\n')}\n\nHappy birthday!` });
+      }
+
+      if (grouped.size > 0) {
+        db.prepare('INSERT INTO audit_logs (chat_id, action, actor_id, target_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .run('system', 'birthday_announcement', 'system', null, key, Date.now());
+      }
+    } catch (error) {
+      console.error('Birthday scheduler error:', error);
+    }
+  }, 60 * 60 * 1000);
+}
 
 async function startBot() {
   setStatus('connecting');
+  initDatabase();
 
   console.log('📂 Loading auth state...');
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
@@ -151,6 +238,30 @@ async function startBot() {
       }
     }
   });
+
+  sock.ev.on('group-participants.update', async (update) => {
+    try {
+      if (update.action !== 'add') return;
+      const db = getDb();
+      const enabled = db.prepare('SELECT value FROM group_settings WHERE chat_id = ? AND key = ?').get(update.id, 'welcome_enabled');
+      if (enabled?.value !== '1') return;
+      const template = db.prepare('SELECT value FROM group_settings WHERE chat_id = ? AND key = ?').get(update.id, 'welcome_message');
+      const metadata = await sock.groupMetadata(update.id);
+      for (const participant of update.participants) {
+        const text = renderTemplate(template?.value || 'Welcome, {user}.', {
+          user: participant,
+          group: metadata.subject,
+          membercount: String(metadata.participants.length),
+          date: new Date().toLocaleDateString()
+        });
+        await sock.sendMessage(update.id, { text });
+      }
+    } catch (error) {
+      console.error('Welcomer error:', error);
+    }
+  });
+
+  startSchedulers(sock);
 }
 
 console.log('🚀 Starting WhatsApp Expense Tracker Bot...');
