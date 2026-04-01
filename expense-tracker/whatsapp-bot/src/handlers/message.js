@@ -134,11 +134,15 @@ export async function handleMessage(sock, msg, botJid) {
         getIsAdmin
       });
     } catch (error) {
-      console.error(`Command /${parsed.name} failed:`, error);
-      try {
-        await reply(sock, jid, `Command failed: ${error.message}`, msg);
-      } catch {
-        // reply itself failed (e.g. not-acceptable / session not ready); error already logged above
+      if (error?.data === 406) {
+        console.warn(`Command /${parsed.name}: session not ready (406), message not delivered`);
+      } else {
+        console.error(`Command /${parsed.name} failed:`, error);
+        try {
+          await reply(sock, jid, `Command failed: ${error.message}`, msg);
+        } catch {
+          // reply itself failed; original error already logged above
+        }
       }
     }
     return;

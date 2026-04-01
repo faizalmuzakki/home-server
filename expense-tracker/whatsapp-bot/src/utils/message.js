@@ -110,9 +110,14 @@ export async function reply(sock, jid, text, quoted) {
   try {
     return await sock.sendMessage(jid, { text }, quoted ? { quoted } : undefined);
   } catch (error) {
-    if (quoted && error?.data === 406) {
-      return sock.sendMessage(jid, { text });
+    if (error?.data !== 406) throw error;
+    if (!quoted) return; // already plain, session error — give up silently
+    // retry without the quoted reference in case that was the issue
+    try {
+      return await sock.sendMessage(jid, { text });
+    } catch (retryError) {
+      if (retryError?.data === 406) return; // still a session error — give up silently
+      throw retryError;
     }
-    throw error;
   }
 }
