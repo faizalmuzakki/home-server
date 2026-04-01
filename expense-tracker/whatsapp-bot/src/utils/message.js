@@ -106,17 +106,29 @@ export function parseDateTime(input) {
   return null;
 }
 
+export function isSessionError(error) {
+  // 406 not-acceptable: WA server refused session establishment for a device
+  // SessionError / "No sessions": local Signal session not yet established (e.g. after auth wipe)
+  return error?.data === 406 || error?.message === 'No sessions';
+}
+
 export async function reply(sock, jid, text, quoted) {
   try {
     return await sock.sendMessage(jid, { text }, quoted ? { quoted } : undefined);
   } catch (error) {
-    if (error?.data !== 406) throw error;
-    if (!quoted) return; // already plain, session error — give up silently
-    // retry without the quoted reference in case that was the issue
+    if (!isSessionError(error)) throw error;
+    if (!quoted) {
+      console.warn(`[reply] session not ready → ${jid} (plain send, message dropped)`);
+      return;
+    }
+    // retry without the quoted reference — stale quoted key may be contributing
     try {
       return await sock.sendMessage(jid, { text });
     } catch (retryError) {
-      if (retryError?.data === 406) return; // still a session error — give up silently
+      if (isSessionError(retryError)) {
+        console.warn(`[reply] session not ready → ${jid} (retry without quote also failed, message dropped)`);
+        return;
+      }
       throw retryError;
     }
   }

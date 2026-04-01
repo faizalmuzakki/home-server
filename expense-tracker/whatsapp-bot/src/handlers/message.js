@@ -9,6 +9,7 @@ import {
   getText,
   hasImage,
   isGroupMessage,
+  isSessionError,
   normalizeJid,
   reply
 } from '../utils/message.js';
@@ -134,8 +135,8 @@ export async function handleMessage(sock, msg, botJid) {
         getIsAdmin
       });
     } catch (error) {
-      if (error?.data === 406) {
-        console.warn(`Command /${parsed.name}: session not ready (406), message not delivered`);
+      if (isSessionError(error)) {
+        console.warn(`Command /${parsed.name}: session not ready, message not delivered`);
       } else {
         console.error(`Command /${parsed.name} failed:`, error);
         try {
