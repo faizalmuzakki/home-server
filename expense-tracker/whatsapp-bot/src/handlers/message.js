@@ -135,7 +135,11 @@ export async function handleMessage(sock, msg, botJid) {
       });
     } catch (error) {
       console.error(`Command /${parsed.name} failed:`, error);
-      await reply(sock, jid, `Command failed: ${error.message}`, msg);
+      try {
+        await reply(sock, jid, `Command failed: ${error.message}`, msg);
+      } catch {
+        // reply itself failed (e.g. not-acceptable / session not ready); error already logged above
+      }
     }
     return;
   }

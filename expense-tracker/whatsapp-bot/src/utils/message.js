@@ -107,5 +107,12 @@ export function parseDateTime(input) {
 }
 
 export async function reply(sock, jid, text, quoted) {
-  return sock.sendMessage(jid, { text }, quoted ? { quoted } : undefined);
+  try {
+    return await sock.sendMessage(jid, { text }, quoted ? { quoted } : undefined);
+  } catch (error) {
+    if (quoted && error?.data === 406) {
+      return sock.sendMessage(jid, { text });
+    }
+    throw error;
+  }
 }
