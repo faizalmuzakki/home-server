@@ -1,9 +1,13 @@
-import { rootServer, RootBotStartState, ChannelMessageEvent } from "@rootsdk/server-bot";
+import { rootServer, RootBotStartState, ChannelMessageEvent, ChannelGuid } from "@rootsdk/server-bot";
 import { initDatabase } from "./database";
 import db from "./database";
 import { handleMessage, loadCommands } from "./commands/handler";
 import { initAutoroleFeature } from "./features/autorole";
 import { initHealthCheck } from "./features/health";
+import { initWelcomerFeature } from "./features/welcomer";
+import { initLogsFeature } from "./features/logs";
+import { initStatsChannelFeature } from "./features/statschannel";
+import { initReactionRoleFeature } from "./features/reactionrole";
 
 async function checkBirthdays() {
     const now = new Date();
@@ -23,7 +27,7 @@ async function checkBirthdays() {
 
         try {
             await rootServer.community.channelMessages.create({
-                channelId: setting.value,
+                channelId: setting.value as unknown as ChannelGuid,
                 content: `🎂 Happy Birthday <@${entry.user_id}>! 🎉 Wishing you an amazing day!`,
             });
         } catch (e) {
@@ -64,6 +68,10 @@ async function onStarting(state: RootBotStartState) {
 
   // Initialize Features
   initAutoroleFeature();
+  initWelcomerFeature();
+  initLogsFeature();
+  initStatsChannelFeature();
+  initReactionRoleFeature();
 
   // Birthday announcer — fires at UTC midnight daily
   scheduleBirthdayCheck();

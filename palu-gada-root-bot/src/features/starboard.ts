@@ -1,4 +1,4 @@
-import { rootServer, ChannelMessageReactionCreatedEvent, ChannelMessageEvent } from "@rootsdk/server-bot";
+import { rootServer, ChannelMessageReactionCreatedEvent, ChannelMessageEvent, ChannelGuid } from "@rootsdk/server-bot";
 import db from "../database";
 
 const STAR_THRESHOLD = parseInt(process.env.STARBOARD_THRESHOLD || "3", 10);
@@ -39,8 +39,8 @@ export function initStarboard() {
             if (row.starboard_message_id) {
                 try {
                     const originalMsg = await rootServer.community.channelMessages.get({ channelId, id: messageId });
-                    await rootServer.community.channelMessages.update({
-                        channelId: starboardChannelId,
+                    await rootServer.community.channelMessages.edit({
+                        channelId: starboardChannelId as unknown as ChannelGuid,
                         id: row.starboard_message_id,
                         content: `⭐ **${count}** | <@${originalMsg.userId}> in <#${channelId}>\n\n${originalMsg.messageContent}`,
                     });
@@ -58,7 +58,7 @@ export function initStarboard() {
         try {
             const msg = await rootServer.community.channelMessages.get({ channelId, id: messageId });
             const created = await rootServer.community.channelMessages.create({
-                channelId: starboardChannelId,
+                channelId: starboardChannelId as unknown as ChannelGuid,
                 content: `⭐ **${count}** | <@${msg.userId}> in <#${channelId}>\n\n${msg.messageContent}`,
             });
             db.prepare("UPDATE starboard SET posted = 1, starboard_message_id = ? WHERE message_id = ?")

@@ -5,7 +5,7 @@ import db from "../../database";
 export const noteCommand: Command = {
     name: "note",
     description: "Manage your personal notes",
-    usage: "/note <add/list/view/delete> [args]",
+    usage: "/note <add/list/view/edit/delete> [args]",
     category: "Productivity",
     execute: async (context: CommandContext) => {
         const { event, args } = context;
@@ -15,7 +15,7 @@ export const noteCommand: Command = {
         if (!subcommand) {
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
-                content: "Usage: /note <add/list/view/delete> [args]\nExample: /note add My Title | My content",
+                content: "Usage: /note <add/list/view/edit/delete> [args]\nExample: /note add My Title | My content",
             });
             return;
         }
@@ -61,6 +61,14 @@ export const noteCommand: Command = {
 
             } else if (subcommand === "view") {
                 const id = parseInt(args[1]);
+                if (Number.isNaN(id)) {
+                    await rootServer.community.channelMessages.create({
+                        channelId: event.channelId,
+                        content: "Please provide a valid note ID.",
+                    });
+                    return;
+                }
+
                 const note = db.prepare("SELECT * FROM notes WHERE id = ? AND user_id = ?").get(id, userId) as any;
                 if (!note) {
                     await rootServer.community.channelMessages.create({
@@ -75,8 +83,56 @@ export const noteCommand: Command = {
                     content: `📝 **${note.title}**\n\n${note.content}`,
                 });
 
+            } else if (subcommand === "edit") {
+                const id = parseInt(args[1], 10);
+                if (Number.isNaN(id)) {
+                    await rootServer.community.channelMessages.create({
+                        channelId: event.channelId,
+                        content: "Please provide a valid note ID.",
+                    });
+                    return;
+                }
+
+                const existing = db.prepare("SELECT * FROM notes WHERE id = ? AND user_id = ?").get(id, userId) as any;
+                if (!existing) {
+                    await rootServer.community.channelMessages.create({
+                        channelId: event.channelId,
+                        content: "Note not found.",
+                    });
+                    return;
+                }
+
+                const fullText = args.slice(2).join(" ");
+                const parts = fullText.split("|").map(p => p.trim());
+                const nextTitle = parts[0] || existing.title;
+                const nextContent = parts.length > 1 ? parts.slice(1).join(" | ") : existing.content;
+
+                if (!fullText.trim()) {
+                    await rootServer.community.channelMessages.create({
+                        channelId: event.channelId,
+                        content: "Usage: `/note edit <id> <title> | <content>`\nYou can keep the current title by starting with `|`.",
+                    });
+                    return;
+                }
+
+                db.prepare("UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+                    .run(nextTitle, nextContent, Date.now(), id, userId);
+
+                await rootServer.community.channelMessages.create({
+                    channelId: event.channelId,
+                    content: `✅ Note #${id} updated.`,
+                });
+
             } else if (subcommand === "delete") {
                 const id = parseInt(args[1]);
+                if (Number.isNaN(id)) {
+                    await rootServer.community.channelMessages.create({
+                        channelId: event.channelId,
+                        content: "Please provide a valid note ID.",
+                    });
+                    return;
+                }
+
                 const result = db.prepare("DELETE FROM notes WHERE id = ? AND user_id = ?").run(id, userId);
                 if (result.changes > 0) {
                     await rootServer.community.channelMessages.create({

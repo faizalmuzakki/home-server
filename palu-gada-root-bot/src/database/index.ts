@@ -100,6 +100,15 @@ export function initDatabase() {
     )
   `);
 
+  // AFK statuses
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS afk_status (
+      user_id TEXT PRIMARY KEY,
+      message TEXT NOT NULL,
+      since INTEGER NOT NULL
+    )
+  `);
+
   // Migration for notes: add updated_at if missing
   try {
     const tableInfo = _db.prepare("PRAGMA table_info(notes)").all() as any[];
@@ -212,6 +221,64 @@ export function initDatabase() {
         giveaway_message_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
         PRIMARY KEY (giveaway_message_id, user_id)
+    )
+  `);
+
+  // Audit logs
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      user_id TEXT,
+      target_id TEXT,
+      details TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // Autoresponders
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS autoresponders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      trigger TEXT NOT NULL,
+      response TEXT NOT NULL,
+      match_type TEXT NOT NULL DEFAULT 'contains',
+      created_by TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // Auto-thread channel adaptations
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS thread_channels (
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      archive_duration INTEGER DEFAULT 1440,
+      PRIMARY KEY (guild_id, channel_id)
+    )
+  `);
+
+  // Stats channels
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS stats_channels (
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      stat_type TEXT NOT NULL,
+      PRIMARY KEY (guild_id, stat_type)
+    )
+  `);
+
+  // Reaction roles
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS reaction_roles (
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      emoji TEXT NOT NULL,
+      role_id TEXT NOT NULL,
+      PRIMARY KEY (guild_id, message_id, emoji)
     )
   `);
 

@@ -80,15 +80,26 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 ### Utility Commands
 | Command | Description |
 |---------|-------------|
+| `/ask <question>` | Ask Claude AI a direct question |
 | `/urban <term>` | Look up a word on Urban Dictionary |
 | `/summarize [hours] [channel]` | Summarize chat history using Claude AI |
 | `/answer [hours]` | Reply to a question, AI answers on your behalf based on your conversation style |
+| `/tldr <text>` | Get a short summary of pasted text or a URL hint |
+| `/explain <topic>` | Get an explanation of a topic at different depth levels |
+| `/translate <text>` | Translate text between languages |
+| `/recap [hours]` | Generate an AI recap of recent server activity |
 | `/weather <location>` | Get weather information for a location |
 | `/qrcode <text>` | Generate a QR code |
 | `/shorten <url>` | Shorten a URL using is.gd |
 | `/math <expression>` | Evaluate a math expression |
 | `/define <word>` | Get dictionary definition of a word |
 | `/emoji <emoji>` | Get information about an emoji |
+| `/userinfo [user]` | Get information about a user |
+| `/serverinfo` | Get information about the server |
+| `/avatar [user]` | Get a user's avatar |
+| `/anime <query>` | Search anime info |
+| `/drama <query>` | Search drama info |
+| `/ping` | Check bot responsiveness |
 
 ### Productivity Commands
 | Command | Description |
@@ -98,6 +109,7 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 | `/todo <subcommand>` | Manage your todo list (add/list/complete/delete/clear) |
 | `/note <subcommand>` | Manage your notes (add/list/view/edit/delete) |
 | `/afk [message]` | Set your AFK status |
+| `/countdown <datetime>` | Calculate the time until a target date/time |
 
 ### Moderation Commands
 | Command | Description |
@@ -105,6 +117,8 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 | `/warn <user> <reason>` | Warn a user |
 | `/warnings <user>` | View warnings for a user |
 | `/clearwarnings <user>` | Clear all warnings for a user |
+| `/kick <user> [reason]` | Kick a user |
+| `/ban <user> [reason]` | Ban a user |
 | `/slowmode <duration>` | Set channel slowmode (0s, 5s, 10s, 30s, 1m, 5m, 10m, 1h) |
 | `/lockdown <action>` | Lock or unlock a channel/server |
 | `/logs <subcommand>` | Configure server logging |
@@ -114,7 +128,13 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 |---------|-------------|
 | `/welcomer <subcommand>` | Configure welcome messages (setup/message/toggle/status) |
 | `/autorole <subcommand>` | Configure auto-role (setup/toggle/status) |
-| `/toggle <command> <enabled>` | Enable/disable a command in this server |
+| `/autoresponder <subcommand>` | Configure automatic keyword replies |
+| `/autothread <subcommand>` | Configure automatic thread creation in channels |
+| `/statschannel <subcommand>` | Configure live stats channel updates |
+| `/levelchannel <subcommand>` | Configure where level-up notices are sent |
+| `/reactionrole <subcommand>` | Configure reaction-based role assignment |
+| `/github <subcommand>` | Configure GitHub webhook notifications |
+| `/github-bulk <subcommand>` | Bulk manage GitHub webhook setup |
 
 ### Economy & Leveling Commands
 | Command | Description |
@@ -123,6 +143,7 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 | `/leaderboard [type]` | View server levels or global economy rankings |
 | `/daily` | Claim your daily coins |
 | `/balance [subcommand]` | View/manage your balance (view/deposit/withdraw/transfer) |
+| `/toproles <subcommand>` | Configure top-rank role rewards |
 
 ### Fun & Social Commands
 | Command | Description |
@@ -132,6 +153,12 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 | `/giveaway <subcommand>` | Manage giveaways (start/end/reroll/list) |
 | `/confession send <message>` | Send an anonymous confession |
 | `/confession setup <channel>` | Set up confession channel (admin) |
+| `/poll <question>` | Create a yes/no or multi-option poll |
+| `/trivia [category] [difficulty]` | Start a trivia game |
+| `/meme` | Fetch a random meme |
+| `/joke` | Fetch a random joke |
+| `/roll [dice]` | Roll dice |
+| `/8ball <question>` | Ask the magic 8-ball |
 
 ## Prerequisites
 

@@ -12,6 +12,9 @@ function logModAction(userId: string, guildId: string, moderatorId: string, reas
     db.prepare(
         "INSERT INTO warnings (user_id, guild_id, reason, moderator_id, timestamp, action_type) VALUES (?, ?, ?, ?, ?, ?)"
     ).run(userId, guildId, reason, moderatorId, Date.now(), actionType);
+    db.prepare(
+        "INSERT INTO audit_logs (guild_id, action, user_id, target_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(guildId, actionType, moderatorId, userId, reason, Date.now());
 }
 
 function extractUserId(arg: string): string | null {
@@ -332,6 +335,10 @@ export const untimeoutCommand: Command = {
             });
             return;
         }
+
+        db.prepare(
+            "INSERT INTO audit_logs (guild_id, action, user_id, target_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+        ).run(guildId, "untimeout", event.userId, targetId, "Timeout removed", Date.now());
 
         await rootServer.community.channelMessages.create({
             channelId: event.channelId,
