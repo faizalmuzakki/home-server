@@ -29,10 +29,11 @@ services:
       - "traefik.http.routers.root-bot-health.middlewares=lan-only@file"
       - "traefik.http.services.root-bot-health.loadbalancer.server.port=3051"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3051/health"]
+      test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://localhost:3051/health\", (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(\"error\", () => process.exit(1))'"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
     deploy:
       resources:
         limits:

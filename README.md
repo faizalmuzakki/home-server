@@ -198,6 +198,7 @@ docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 |------|---------|-------|-----|
 | 2026-02-19 | `mongodb` | Crashed with exit 139 (SIGSEGV in WiredTiger storage engine) — stayed down for 5 days | `docker compose up -d` in `mongodb/`; WiredTiger recovered data on restart |
 | 2026-02-24 | `palu-gada-bot` | Unhealthy (9161 failing health checks) — startup DNS failure to `discord.com` left container running but disconnected; API server on port 3050 never started | `docker compose up -d --force-recreate` in monorepo `palu-gada-bot/`; bot logged in as `Solokr#7042` serving 3 guilds |
+| 2026-04-04 | `palu-gada-bot`, `palu-gada-root-bot` | Both unhealthy: (1) `palu-gada-bot` hit `EAI_AGAIN` DNS failure on `discord.com` at startup — bot process kept running but never fired `ClientReady`, so API server on port 3050 never started → 4748 consecutive failing health checks. (2) `palu-gada-root-bot` healthcheck used `wget` which is not installed in `node:22-slim` → health state was always `null`. | Restarted `palu-gada-bot` via SSH (`docker compose restart`) — bot came up healthy immediately. Permanent fix: added `dns: [8.8.8.8, 8.8.4.4]` to `palu-gada-bot` compose to prevent DNS startup failures; increased `start_period` to 60s; fixed `palu-gada-root-bot` healthcheck to use `node` one-liner instead of `wget`; added `start_period: 30s`. Deployed via git push. |
 
 ## Storage Layout
 
