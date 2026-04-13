@@ -2,13 +2,14 @@
 # Encrypted Backup Restore Script
 #
 # Usage:
-#   ./restore-backup.sh list                        — list available backups
-#   ./restore-backup.sh volume <file.tar.gz.age>    — restore a Docker volume
-#   ./restore-backup.sh compose <file.tar.gz.age>   — restore a compose config
+#   ./restore-backup.sh list                          — list available backups
+#   ./restore-backup.sh extract <file.age> [dest]     — decrypt & extract a tarball
+#   ./restore-backup.sh mongo   <file.archive.age>    — restore a mongodump archive
+#   ./restore-backup.sh show    <file.age>            — decrypt to stdout / list contents
 #
 # Prerequisites: age  (sudo apt install age)
 
-set -e
+set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -17,182 +18,92 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 BACKUP_BASE="/data/backups"
-AGE_KEY="${HOME}/.config/age/key.txt"
-
-# ── helpers ──────────────────────────────────────────────────────────────────
+AGE_KEY="${AGE_KEY:-/etc/home-server/age.key}"
 
 require_age() {
-    if ! command -v age &>/dev/null; then
-        echo -e "${RED}Error: 'age' is not installed${NC}"
-        echo "Install with: sudo apt install age"
-        exit 1
-    fi
+    command -v age >/dev/null || { echo -e "${RED}'age' not installed (sudo apt install age)${NC}"; exit 1; }
 }
 
 require_key() {
-    if [ ! -f "$AGE_KEY" ]; then
-        echo -e "${RED}Error: Age key not found at $AGE_KEY${NC}"
-        echo "The key was generated when backups were first created."
-        echo "Restore the key file before attempting to decrypt backups."
-        exit 1
-    fi
+    [ -f "$AGE_KEY" ] || { echo -e "${RED}Key not found at $AGE_KEY${NC}"; exit 1; }
 }
-
-decrypt_to_tmp() {
-    local src=$1
-    local tmp
-    tmp=$(mktemp /tmp/restore-XXXXXX.tar.gz)
-    age -d -i "$AGE_KEY" "$src" > "$tmp"
-    echo "$tmp"
-}
-
-# ── subcommands ───────────────────────────────────────────────────────────────
 
 cmd_list() {
-    if [ ! -d "$BACKUP_BASE" ]; then
-        echo -e "${YELLOW}No backups found at $BACKUP_BASE${NC}"
-        exit 0
-    fi
-
+    [ -d "$BACKUP_BASE" ] || { echo -e "${YELLOW}No backups at $BACKUP_BASE${NC}"; exit 0; }
     echo -e "${CYAN}Available backups:${NC}"
     echo ""
-
-    for date_dir in "$BACKUP_BASE"/*/; do
-        [ -d "$date_dir" ] || continue
-        local date_label
-        date_label=$(basename "$date_dir")
-        local size
-        size=$(du -sh "$date_dir" 2>/dev/null | cut -f1)
-        echo -e "  ${GREEN}${date_label}${NC}  (${size})"
-
-        for f in "$date_dir"*.age; do
+    for d in "$BACKUP_BASE"/*/; do
+        [ -d "$d" ] || continue
+        local label size
+        label=$(basename "$d")
+        size=$(du -sh "$d" 2>/dev/null | cut -f1)
+        echo -e "  ${GREEN}${label}${NC}  (${size})"
+        for f in "$d"*.age; do
             [ -f "$f" ] || continue
-            local fname
-            fname=$(basename "$f")
-            local fsize
-            fsize=$(du -h "$f" | cut -f1)
-            echo "    └─ $fname  ($fsize)"
+            echo "    └─ $(basename "$f")  ($(du -h "$f" | cut -f1))"
         done
         echo ""
     done
 }
 
-cmd_volume() {
-    local archive=$1
-
-    require_age
-    require_key
-
-    if [ ! -f "$archive" ]; then
-        echo -e "${RED}Error: File not found: $archive${NC}"
-        exit 1
-    fi
-
-    # Derive volume name from filename: <vol>.tar.gz.age
-    local basename
-    basename=$(basename "$archive" .tar.gz.age)
-
-    echo -e "${YELLOW}Restoring volume '${basename}' from:${NC}"
-    echo "  $archive"
-    echo ""
-
-    # Warn if volume exists
-    if docker volume inspect "$basename" &>/dev/null; then
-        echo -e "${RED}Warning: Volume '${basename}' already exists.${NC}"
-        read -r -p "Overwrite existing data? [y/N] " confirm
-        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-            echo "Aborted."
-            exit 0
-        fi
-    else
-        docker volume create "$basename" > /dev/null
-    fi
-
-    echo -n "Decrypting... "
-    local tmp
-    tmp=$(decrypt_to_tmp "$archive")
-    echo -e "${GREEN}✓${NC}"
-
-    echo -n "Restoring... "
-    docker run --rm \
-        -v "${basename}:/data" \
-        -v "$(dirname "$tmp"):/backup:ro" \
-        alpine sh -c "cd /data && tar xzf /backup/$(basename "$tmp")"
-    rm -f "$tmp"
-    echo -e "${GREEN}✓${NC}"
-
-    echo ""
-    echo -e "${GREEN}Volume '${basename}' restored successfully.${NC}"
+cmd_extract() {
+    local archive=$1 dest=${2:-.}
+    require_age; require_key
+    [ -f "$archive" ] || { echo -e "${RED}Not found: $archive${NC}"; exit 1; }
+    [ -d "$dest" ] || { echo -e "${RED}Dest dir does not exist: $dest${NC}"; exit 1; }
+    echo -e "${YELLOW}Extracting ${archive} → ${dest}${NC}"
+    age -d -i "$AGE_KEY" "$archive" | tar xzf - -C "$dest"
+    echo -e "${GREEN}✓ done${NC}"
 }
 
-cmd_compose() {
+cmd_mongo() {
     local archive=$1
+    require_age; require_key
+    [ -f "$archive" ] || { echo -e "${RED}Not found: $archive${NC}"; exit 1; }
+    docker ps --format '{{.Names}}' | grep -q '^mongodb$' \
+        || { echo -e "${RED}mongodb container not running${NC}"; exit 1; }
+    echo -e "${YELLOW}WARNING: mongorestore will drop collections it replaces.${NC}"
+    read -r -p "Continue? [y/N] " c
+    [[ "$c" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
 
-    require_age
-    require_key
+    local repo_dir
+    repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    # shellcheck disable=SC1091
+    set -a; source "${repo_dir}/mongodb/.env"; set +a
 
-    if [ ! -f "$archive" ]; then
-        echo -e "${RED}Error: File not found: $archive${NC}"
-        exit 1
-    fi
-
-    echo -e "${YELLOW}Restoring compose config from:${NC}"
-    echo "  $archive"
-    echo ""
-
-    read -r -p "Restore to directory [current dir]: " dest_dir
-    dest_dir="${dest_dir:-.}"
-
-    if [ ! -d "$dest_dir" ]; then
-        echo -e "${RED}Error: Directory does not exist: $dest_dir${NC}"
-        exit 1
-    fi
-
-    echo -n "Decrypting... "
-    local tmp
-    tmp=$(decrypt_to_tmp "$archive")
-    echo -e "${GREEN}✓${NC}"
-
-    echo -n "Extracting to ${dest_dir}... "
-    tar xzf "$tmp" -C "$dest_dir"
-    rm -f "$tmp"
-    echo -e "${GREEN}✓${NC}"
-
-    echo ""
-    echo -e "${GREEN}Compose config restored to ${dest_dir}.${NC}"
-    echo -e "${YELLOW}Note: Review and update .env values before starting services.${NC}"
+    age -d -i "$AGE_KEY" "$archive" \
+      | docker exec -i mongodb mongorestore \
+          --username "$MONGO_ROOT_USERNAME" \
+          --password "$MONGO_ROOT_PASSWORD" \
+          --authenticationDatabase admin \
+          --archive --gzip --drop
+    echo -e "${GREEN}✓ mongo restored${NC}"
 }
 
-# ── main ──────────────────────────────────────────────────────────────────────
+cmd_show() {
+    local archive=$1
+    require_age; require_key
+    [ -f "$archive" ] || { echo -e "${RED}Not found: $archive${NC}"; exit 1; }
+    age -d -i "$AGE_KEY" "$archive" | tar tzf -
+}
 
 ACTION=${1:-help}
-
 case "$ACTION" in
-    list)
-        cmd_list
-        ;;
-    volume)
-        if [ -z "$2" ]; then
-            echo "Usage: $0 volume <path/to/volume.tar.gz.age>"
-            exit 1
-        fi
-        cmd_volume "$2"
-        ;;
-    compose)
-        if [ -z "$2" ]; then
-            echo "Usage: $0 compose <path/to/compose-service.tar.gz.age>"
-            exit 1
-        fi
-        cmd_compose "$2"
-        ;;
+    list)    cmd_list ;;
+    extract) [ -z "${2:-}" ] && { echo "Usage: $0 extract <file.age> [dest]"; exit 1; }; cmd_extract "$2" "${3:-.}" ;;
+    mongo)   [ -z "${2:-}" ] && { echo "Usage: $0 mongo <file.archive.age>";   exit 1; }; cmd_mongo   "$2" ;;
+    show)    [ -z "${2:-}" ] && { echo "Usage: $0 show <file.age>";            exit 1; }; cmd_show    "$2" ;;
     *)
-        echo "Encrypted Backup Restore"
-        echo ""
-        echo "Usage:"
-        echo "  $0 list                           List available backups"
-        echo "  $0 volume  <file.tar.gz.age>      Restore a Docker volume"
-        echo "  $0 compose <file.tar.gz.age>      Restore a compose config"
-        echo ""
-        echo "Key: $AGE_KEY"
+        cat <<EOF
+Encrypted Backup Restore
+
+Usage:
+  $0 list                            List available backups
+  $0 show    <file.age>              List contents of an encrypted tarball
+  $0 extract <file.age> [dest]       Decrypt & extract to dest (default: .)
+  $0 mongo   <mongodb-dump.archive.age>  Restore a MongoDB archive
+
+Key: $AGE_KEY
+EOF
         ;;
 esac
