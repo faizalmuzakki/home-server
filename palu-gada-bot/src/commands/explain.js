@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODEL, getAiFooter } from '../config/ai.js';
+import { AI_MODEL_SMART, getAiFooter } from '../config/ai.js';
 
 const anthropic = new Anthropic();
 
@@ -52,7 +52,7 @@ export default {
 
         try {
             const response = await anthropic.messages.create({
-                model: AI_MODEL,
+                model: AI_MODEL_SMART,
                 max_tokens: 1500,
                 messages: [
                     {
@@ -78,7 +78,7 @@ export default {
                 title: `📚 ${topic}`,
                 description: explanation.slice(0, 4096),
                 fields: [],
-                footer: getAiFooter(`Level: ${levelLabels[level]}`),
+                footer: getAiFooter(`Level: ${levelLabels[level]}`, { smart: true }),
                 timestamp: new Date().toISOString(),
             };
 
