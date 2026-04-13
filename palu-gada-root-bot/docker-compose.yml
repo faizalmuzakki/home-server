@@ -7,6 +7,8 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      # Use the socket proxy (shared with palu-gada-bot) for /server command
+      - DOCKER_HOST=tcp://palu-gada-socket-proxy:2375
     # Security hardening
     security_opt:
       - no-new-privileges:true
@@ -17,6 +19,7 @@ services:
       - "127.0.0.1:3051:3051"
     networks:
       - traefik-public
+      - socket-proxy
     volumes:
       # Named volume intentional: no bind-mount path needed, data is opaque SQLite
       - bot-data:/app/data
@@ -45,6 +48,9 @@ services:
 
 networks:
   traefik-public:
+    external: true
+  socket-proxy:
+    name: palu-gada-socket-proxy
     external: true
 
 volumes:

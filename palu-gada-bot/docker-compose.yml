@@ -95,4 +95,5 @@ networks:
   traefik-public:
     external: true
   socket-proxy:
-    internal: true
+    name: palu-gada-socket-proxy
+    external: true

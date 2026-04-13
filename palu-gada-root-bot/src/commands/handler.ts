@@ -37,6 +37,7 @@ import { autothreadCommand } from "./automation/autothread";
 import { reactionroleCommand } from "./automation/reactionrole";
 import { balanceCommand, dailyCommand, levelCommand, topRolesCommand, leaderboardCommand, addXp } from "./economy";
 import { warnCommand, warningsCommand, kickCommand, banCommand, autoroleCommand, timeoutCommand, untimeoutCommand, modlogCommand } from "./moderation";
+import { serverCommand } from "./moderation/server";
 import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob, eightBallCommand, rollCommand, jokeCommand, memeCommand, starboardCommand, pollCommand } from "./fun";
 import { handlePollJob } from "./fun/poll";
 import { triviaCommand, handleTriviaJob } from "./fun/trivia";
@@ -207,6 +208,7 @@ export function loadCommands() {
     registerCommand(untimeoutCommand);
     registerCommand(modlogCommand);
     registerCommand(autoroleCommand);
+    registerCommand(serverCommand);
 
     registerCommand(birthdayCommand);
     registerCommand(confessionCommand);
