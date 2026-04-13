@@ -1,7 +1,6 @@
 import { rootServer } from "@rootsdk/server-bot";
-import Anthropic from "@anthropic-ai/sdk";
 import { Command, CommandContext } from "../Command";
-import { CONFIG } from "../../config";
+import { askAI, AIKeyMissingError } from "../../lib/ai";
 
 const LEVELS: Record<string, string> = {
     eli5: "Explain this like I'm 5. Use very simple words and concrete examples.",
@@ -30,37 +29,28 @@ export const explainCommand: Command = {
             return;
         }
 
-        if (!CONFIG.ANTHROPIC_API_KEY) {
-            await rootServer.community.channelMessages.create({
-                channelId: event.channelId,
-                content: "Anthropic API key is not configured.",
-            });
-            return;
-        }
-
-        const anthropic = new Anthropic({ apiKey: CONFIG.ANTHROPIC_API_KEY });
-
         try {
-            const response = await anthropic.messages.create({
-                model: "claude-3-5-haiku-20241022",
-                max_tokens: 1200,
+            const text = await askAI(`${LEVELS[level]}\n\nTopic: ${topic}`, {
+                maxTokens: 1200,
                 system: "You are an expert educator. Structure explanations clearly with markdown.",
-                messages: [{
-                    role: "user",
-                    content: `${LEVELS[level]}\n\nTopic: ${topic}`,
-                }],
             });
-
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
-                content: `**${topic}** (${level})\n${(response.content[0] as any).text}`,
+                content: `**${topic}** (${level})\n${text}`,
             });
         } catch (error) {
+            if (error instanceof AIKeyMissingError) {
+                await rootServer.community.channelMessages.create({
+                    channelId: event.channelId,
+                    content: "Anthropic API key is not configured.",
+                });
+                return;
+            }
             console.error("Explain command error:", error);
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
                 content: "Failed to explain that topic.",
             });
         }
-    }
+    },
 };

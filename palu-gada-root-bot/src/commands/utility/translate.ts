@@ -1,7 +1,6 @@
 import { rootServer } from "@rootsdk/server-bot";
-import Anthropic from "@anthropic-ai/sdk";
 import { Command, CommandContext } from "../Command";
-import { CONFIG } from "../../config";
+import { askAI, AIKeyMissingError } from "../../lib/ai";
 
 function formatLang(lang: string): string {
     return lang.replace(/_/g, " ").replace(/\b\w/g, char => char.toUpperCase());
@@ -28,29 +27,16 @@ export const translateCommand: Command = {
             return;
         }
 
-        if (!CONFIG.ANTHROPIC_API_KEY) {
-            await rootServer.community.channelMessages.create({
-                channelId: event.channelId,
-                content: "Anthropic API key is not configured.",
-            });
-            return;
-        }
-
-        const anthropic = new Anthropic({ apiKey: CONFIG.ANTHROPIC_API_KEY });
-
         try {
             const prompt = sourceLang === "auto"
                 ? `Translate this text to ${formatLang(targetLang)}. First detect the source language.\n\nText: ${text}\n\nRespond in this format:\nDetected language: [language]\nTranslation: [translated text]`
                 : `Translate this text from ${formatLang(sourceLang)} to ${formatLang(targetLang)}.\n\nText: ${text}\n\nRespond with only the translation.`;
 
-            const response = await anthropic.messages.create({
-                model: "claude-3-5-haiku-20241022",
-                max_tokens: 800,
+            const result = await askAI(prompt, {
+                maxTokens: 800,
                 system: "You are a professional translator. Preserve meaning and tone.",
-                messages: [{ role: "user", content: prompt }],
             });
 
-            const result = (response.content[0] as any).text as string;
             const detected = sourceLang === "auto"
                 ? result.match(/Detected language:\s*(.+)/i)?.[1]?.trim() || "Unknown"
                 : formatLang(sourceLang);
@@ -63,11 +49,18 @@ export const translateCommand: Command = {
                 content: `**Translation**\nFrom: ${detected}\nTo: ${formatLang(targetLang)}\n\n${translation}`,
             });
         } catch (error) {
+            if (error instanceof AIKeyMissingError) {
+                await rootServer.community.channelMessages.create({
+                    channelId: event.channelId,
+                    content: "Anthropic API key is not configured.",
+                });
+                return;
+            }
             console.error("Translate command error:", error);
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
                 content: "Failed to translate text.",
             });
         }
-    }
+    },
 };

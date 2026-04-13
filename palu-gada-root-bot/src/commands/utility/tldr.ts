@@ -1,7 +1,6 @@
 import { rootServer } from "@rootsdk/server-bot";
-import Anthropic from "@anthropic-ai/sdk";
 import { Command, CommandContext } from "../Command";
-import { CONFIG } from "../../config";
+import { askAI, AIKeyMissingError } from "../../lib/ai";
 
 const STYLE_INSTRUCTIONS: Record<string, string> = {
     bullets: "Summarize in 3-5 bullet points.",
@@ -29,37 +28,31 @@ export const tldrCommand: Command = {
             return;
         }
 
-        if (!CONFIG.ANTHROPIC_API_KEY) {
-            await rootServer.community.channelMessages.create({
-                channelId: event.channelId,
-                content: "Anthropic API key is not configured.",
-            });
-            return;
-        }
-
-        const anthropic = new Anthropic({ apiKey: CONFIG.ANTHROPIC_API_KEY });
-
         try {
-            const response = await anthropic.messages.create({
-                model: "claude-3-5-haiku-20241022",
-                max_tokens: 500,
-                system: "You are excellent at concise summarization. Use markdown when helpful.",
-                messages: [{
-                    role: "user",
-                    content: `${STYLE_INSTRUCTIONS[style]}\n\nSummarize this content:\n${input}`,
-                }],
-            });
-
+            const text = await askAI(
+                `${STYLE_INSTRUCTIONS[style]}\n\nSummarize this content:\n${input}`,
+                {
+                    maxTokens: 500,
+                    system: "You are excellent at concise summarization. Use markdown when helpful.",
+                },
+            );
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
-                content: `**TL;DR** (${style})\n${(response.content[0] as any).text}`,
+                content: `**TL;DR** (${style})\n${text}`,
             });
         } catch (error) {
+            if (error instanceof AIKeyMissingError) {
+                await rootServer.community.channelMessages.create({
+                    channelId: event.channelId,
+                    content: "Anthropic API key is not configured.",
+                });
+                return;
+            }
             console.error("TLDR command error:", error);
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
                 content: "Failed to generate a TL;DR summary.",
             });
         }
-    }
+    },
 };

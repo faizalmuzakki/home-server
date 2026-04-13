@@ -1,7 +1,6 @@
 import { ChannelMessageListRequest, MessageDirectionTake, rootServer } from "@rootsdk/server-bot";
-import Anthropic from "@anthropic-ai/sdk";
 import { Command, CommandContext } from "../Command";
-import { CONFIG } from "../../config";
+import { askAI, AIKeyMissingError } from "../../lib/ai";
 
 export const recapCommand: Command = {
     name: "recap",
@@ -11,16 +10,6 @@ export const recapCommand: Command = {
     execute: async (context: CommandContext) => {
         const { event, args } = context;
         const hours = Math.max(1, Math.min(72, parseInt(args[0] || "24", 10) || 24));
-
-        if (!CONFIG.ANTHROPIC_API_KEY) {
-            await rootServer.community.channelMessages.create({
-                channelId: event.channelId,
-                content: "Anthropic API key is not configured.",
-            });
-            return;
-        }
-
-        const anthropic = new Anthropic({ apiKey: CONFIG.ANTHROPIC_API_KEY });
 
         try {
             const request: ChannelMessageListRequest = {
@@ -43,25 +32,28 @@ export const recapCommand: Command = {
             response.referenceMaps?.users?.forEach(user => userMap.set(user.userId, user.name));
             const chatLog = messages.map(msg => `[${userMap.get(msg.userId) || msg.userId}]: ${msg.messageContent}`).join("\n");
 
-            const aiResponse = await anthropic.messages.create({
-                model: "claude-3-5-haiku-20241022",
-                max_tokens: 1400,
-                messages: [{
-                    role: "user",
-                    content: `Write a friendly recap of the last ${hours} hour(s) of chat in this channel. Mention main topics, important questions, decisions, and notable action items. Use markdown bullet points when useful.\n\nChat log:\n---\n${chatLog}\n---`,
-                }],
-            });
+            const text = await askAI(
+                `Write a friendly recap of the last ${hours} hour(s) of chat in this channel. Mention main topics, important questions, decisions, and notable action items. Use markdown bullet points when useful.\n\nChat log:\n---\n${chatLog}\n---`,
+                { maxTokens: 1400 },
+            );
 
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
-                content: `**Channel Recap (Last ${hours}h)**\n${(aiResponse.content[0] as any).text}`,
+                content: `**Channel Recap (Last ${hours}h)**\n${text}`,
             });
         } catch (error) {
+            if (error instanceof AIKeyMissingError) {
+                await rootServer.community.channelMessages.create({
+                    channelId: event.channelId,
+                    content: "Anthropic API key is not configured.",
+                });
+                return;
+            }
             console.error("Recap command error:", error);
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
                 content: "Failed to generate a recap.",
             });
         }
-    }
+    },
 };

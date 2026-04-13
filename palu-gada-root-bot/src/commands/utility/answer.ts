@@ -1,7 +1,6 @@
 import { ChannelMessageListRequest, MessageDirectionTake, rootServer } from "@rootsdk/server-bot";
-import Anthropic from "@anthropic-ai/sdk";
 import { Command, CommandContext } from "../Command";
-import { CONFIG } from "../../config";
+import { askAI, AIKeyMissingError } from "../../lib/ai";
 
 export const answerCommand: Command = {
     name: "answer",
@@ -11,16 +10,6 @@ export const answerCommand: Command = {
     execute: async (context: CommandContext) => {
         const { event, args } = context;
         const hours = Math.max(1, Math.min(6, parseInt(args[0] || "2", 10) || 2));
-
-        if (!CONFIG.ANTHROPIC_API_KEY) {
-            await rootServer.community.channelMessages.create({
-                channelId: event.channelId,
-                content: "Anthropic API key is not configured.",
-            });
-            return;
-        }
-
-        const anthropic = new Anthropic({ apiKey: CONFIG.ANTHROPIC_API_KEY });
 
         try {
             const request: ChannelMessageListRequest = {
@@ -48,12 +37,8 @@ export const answerCommand: Command = {
                 return `[${authorName}${marker}]: ${msg.messageContent}`;
             }).join("\n");
 
-            const aiResponse = await anthropic.messages.create({
-                model: "claude-3-5-haiku-20241022",
-                max_tokens: 700,
-                messages: [{
-                    role: "user",
-                    content: `You are helping ${targetName} answer in chat. Study their tone and style from the recent conversation, identify the most recent thing they should respond to, and write a concise reply as them.
+            const text = await askAI(
+                `You are helping ${targetName} answer in chat. Study their tone and style from the recent conversation, identify the most recent thing they should respond to, and write a concise reply as them.
 
 Respond in this format:
 REPLYING TO: [short description of the question/topic]
@@ -63,10 +48,9 @@ Conversation:
 ---
 ${chatLog}
 ---`,
-                }],
-            });
+                { maxTokens: 700 },
+            );
 
-            const text = (aiResponse.content[0] as any).text as string;
             const replyingTo = text.match(/REPLYING TO:\s*(.+?)(?=\nRESPONSE:|$)/s)?.[1]?.trim() || "Auto-detected topic";
             const reply = text.match(/RESPONSE:\s*([\s\S]+)/)?.[1]?.trim() || text.trim();
 
@@ -75,11 +59,18 @@ ${chatLog}
                 content: `**${targetName} might say...**\n${reply}\n\nResponding to: ${replyingTo}`,
             });
         } catch (error) {
+            if (error instanceof AIKeyMissingError) {
+                await rootServer.community.channelMessages.create({
+                    channelId: event.channelId,
+                    content: "Anthropic API key is not configured.",
+                });
+                return;
+            }
             console.error("Answer command error:", error);
             await rootServer.community.channelMessages.create({
                 channelId: event.channelId,
                 content: "Failed to generate an answer.",
             });
         }
-    }
+    },
 };
