@@ -9,6 +9,7 @@ import { memeCommand } from "./meme";
 export { eightBallCommand, rollCommand, jokeCommand, memeCommand };
 export { starboardCommand } from "./starboard";
 export { pollCommand } from "./poll";
+export { quoteCommand } from "./quote";
 
 function parseTime(timeStr: string): number | null {
     const match = timeStr.match(/^(\d+)([smhd])$/);

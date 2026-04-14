@@ -25,6 +25,7 @@ import { serverinfoCommand } from "./utility/serverinfo";
 import { avatarCommand } from "./utility/avatar";
 import { todoCommand } from "./productivity/todo";
 import { remindCommand, handleReminderJob } from "./productivity/remind";
+import { scheduleCommand, handleScheduleJob } from "./productivity/schedule";
 import { noteCommand } from "./productivity/note";
 import { afkCommand } from "./productivity/afk";
 import { countdownCommand } from "./productivity/countdown";
@@ -38,7 +39,8 @@ import { reactionroleCommand } from "./automation/reactionrole";
 import { balanceCommand, dailyCommand, levelCommand, topRolesCommand, leaderboardCommand, addXp } from "./economy";
 import { warnCommand, warningsCommand, kickCommand, banCommand, autoroleCommand, timeoutCommand, untimeoutCommand, modlogCommand } from "./moderation";
 import { serverCommand } from "./moderation/server";
-import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob, eightBallCommand, rollCommand, jokeCommand, memeCommand, starboardCommand, pollCommand } from "./fun";
+import { purgeCommand } from "./moderation/purge";
+import { birthdayCommand, confessionCommand, giveawayCommand, handleGiveawayJob, eightBallCommand, rollCommand, jokeCommand, memeCommand, starboardCommand, pollCommand, quoteCommand } from "./fun";
 import { handlePollJob } from "./fun/poll";
 import { triviaCommand, handleTriviaJob } from "./fun/trivia";
 import { initStarboard } from "../features/starboard";
@@ -183,6 +185,7 @@ export function loadCommands() {
 
     registerCommand(todoCommand);
     registerCommand(remindCommand);
+    registerCommand(scheduleCommand);
     registerCommand(noteCommand);
     registerCommand(afkCommand);
     registerCommand(countdownCommand);
@@ -209,6 +212,7 @@ export function loadCommands() {
     registerCommand(modlogCommand);
     registerCommand(autoroleCommand);
     registerCommand(serverCommand);
+    registerCommand(purgeCommand);
 
     registerCommand(birthdayCommand);
     registerCommand(confessionCommand);
@@ -220,10 +224,12 @@ export function loadCommands() {
     registerCommand(jokeCommand);
     registerCommand(memeCommand);
     registerCommand(triviaCommand);
+    registerCommand(quoteCommand);
 
     // Subscribe to job events
     rootServer.jobScheduler.on(JobScheduleEvent.Job, async (job) => {
         await handleReminderJob(job);
+        await handleScheduleJob(job);
         await handleGiveawayJob(job);
         await handlePollJob(job);
         await handleTriviaJob(job);
