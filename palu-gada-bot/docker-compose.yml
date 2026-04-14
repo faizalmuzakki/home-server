@@ -12,7 +12,7 @@ services:
       - NETWORKS=1
       - VOLUMES=1
       - INFO=1
-      - DF=1
+      - SYSTEM=1
       - EXEC=1
       - POST=1
       - ALLOW_START=1
