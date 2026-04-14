@@ -124,16 +124,23 @@ log "Changed directories: $(echo $CHANGED_DIRS | tr '\n' ' ')"
 
 deploy_service() {
     local service=$1
-    if [ -f "$service/docker-compose.yml" ]; then
-         log "Deploying $service..."
-         cd "/home/solork/Projects/home-server/$service"
-         # Gracefully stop the current containers before pulling/recreating.
-         # This ensures databases (like SQLite) have time to checkpoint WAL files.
-         execute "docker compose stop -t 30"
-         execute "docker compose up -d --build --remove-orphans"
-         # Remove dangling images left behind by the rebuild
-         execute "docker image prune -f"
+    local service_dir="/home/solork/Projects/home-server/$service"
+    if [ ! -f "$service_dir/docker-compose.yml" ]; then
+        return 0
     fi
+    log "Deploying $service..."
+    # Subshell so `cd` can't leak into the next loop iteration — a bug surfaced
+    # when a single commit touched two top-level dirs and the second one got
+    # silently skipped because cwd was still inside the first.
+    (
+        cd "$service_dir" || exit 1
+        # Gracefully stop the current containers before pulling/recreating.
+        # This ensures databases (like SQLite) have time to checkpoint WAL files.
+        execute "docker compose stop -t 30"
+        execute "docker compose up -d --build --remove-orphans"
+        # Remove dangling images left behind by the rebuild
+        execute "docker image prune -f"
+    )
 }
 
 # Iterate over changed directories
