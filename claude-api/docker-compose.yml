@@ -1,0 +1,43 @@
+services:
+  claude-api:
+    build: .
+    container_name: claude-api
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=200m
+    environment:
+      - PORT=3100
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - API_SECRET=${API_SECRET}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-4-20250514}
+      - MAX_TURNS=${MAX_TURNS:-10}
+      - MAX_CONCURRENT=${MAX_CONCURRENT:-3}
+    volumes:
+      - workspace:/workspace:rw
+    ports:
+      - "3100:3100"
+    networks:
+      - traefik-public
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3100/health').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+volumes:
+  workspace:
+
+networks:
+  traefik-public:
+    external: true
