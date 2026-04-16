@@ -10,7 +10,6 @@
     "audit": "npm audit --audit-level=moderate"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
     "@whiskeysockets/baileys": "6.7.9",
     "axios": "1.13.2",
     "better-sqlite3": "^12.8.0",

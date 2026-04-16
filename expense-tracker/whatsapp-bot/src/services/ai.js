@@ -1,8 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const CLAUDE_API_URL = process.env.CLAUDE_API_URL || 'http://claude-api:3100';
+const CLAUDE_API_SECRET = process.env.CLAUDE_API_SECRET;
 
 const SYSTEM_PROMPT = `You are a helpful assistant in a WhatsApp group chat. Answer questions concisely and clearly.
 Keep your responses short and to the point — ideally under 300 words since this is a chat message.
@@ -10,25 +7,32 @@ Use simple formatting (no markdown headers, just plain text with line breaks and
 If you don't know something, say so honestly.
 Respond in the same language as the question.`;
 
-const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
-
 async function runPrompt(system, prompt, maxTokens = 1024) {
-  const response = await anthropic.messages.create({
-    model: DEFAULT_MODEL,
-    max_tokens: maxTokens,
-    system,
-    messages: [{
-      role: 'user',
-      content: prompt,
-    }],
+  const res = await fetch(`${CLAUDE_API_URL}/api/prompt`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${CLAUDE_API_SECRET}`,
+    },
+    body: JSON.stringify({
+      prompt: system
+        ? `System instructions: ${system}\n\n${prompt}`
+        : prompt,
+      maxTurns: 1,
+    }),
   });
 
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Claude API returned ${res.status}`);
+  }
+
+  const data = await res.json();
+  const text = data.result?.result || (typeof data.result === 'string' ? data.result : '');
+
   return {
-    text: response.content[0].text,
-    usage: {
-      input_tokens: response.usage.input_tokens,
-      output_tokens: response.usage.output_tokens,
-    }
+    text,
+    usage: data.result?.usage || {},
   };
 }
 
