@@ -13,6 +13,8 @@ services:
       - PORT=3000
       - DB_PATH=/app/data/expenses.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_API_URL=${CLAUDE_API_URL:-http://claude-api:3100}
+      - CLAUDE_API_SECRET=${CLAUDE_API_SECRET}
       - DASHBOARD_EMAIL=${DASHBOARD_EMAIL}
       - DASHBOARD_PIN=${DASHBOARD_PIN}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}

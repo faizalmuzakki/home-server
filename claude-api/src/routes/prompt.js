@@ -12,11 +12,11 @@ const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT || '3', 10);
  * POST /api/prompt
  * Send a prompt to Claude Code and get a JSON response.
  *
- * Body: { prompt: string, workdir?: string, allowedTools?: string[], model?: string, maxTurns?: number }
+ * Body: { prompt: string, systemPrompt?: string, workdir?: string, allowedTools?: string[], model?: string, maxTurns?: number }
  * Response: { id, result, duration_ms }
  */
 router.post('/', async (req, res) => {
-  const { prompt, workdir, allowedTools, model, maxTurns } = req.body;
+  const { prompt, systemPrompt, workdir, allowedTools, model, maxTurns } = req.body;
 
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'prompt is required and must be a string' });
@@ -30,7 +30,7 @@ router.post('/', async (req, res) => {
   activeSessions.set(sessionId, Date.now());
 
   try {
-    const result = await runClaude({ prompt, workdir, allowedTools, model, maxTurns });
+    const result = await runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns });
     res.json({ id: sessionId, result, duration_ms: Date.now() - activeSessions.get(sessionId) });
   } catch (err) {
     res.status(500).json({ id: sessionId, error: err.message });
@@ -43,10 +43,10 @@ router.post('/', async (req, res) => {
  * POST /api/prompt/stream
  * Send a prompt to Claude Code and stream the response as SSE.
  *
- * Body: { prompt: string, workdir?: string, allowedTools?: string[], model?: string, maxTurns?: number }
+ * Body: { prompt: string, systemPrompt?: string, workdir?: string, allowedTools?: string[], model?: string, maxTurns?: number }
  */
 router.post('/stream', async (req, res) => {
-  const { prompt, workdir, allowedTools, model, maxTurns } = req.body;
+  const { prompt, systemPrompt, workdir, allowedTools, model, maxTurns } = req.body;
 
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'prompt is required and must be a string' });
@@ -69,7 +69,7 @@ router.post('/stream', async (req, res) => {
   res.write(`data: ${JSON.stringify({ type: 'start', id: sessionId })}\n\n`);
 
   try {
-    const args = buildArgs({ prompt, workdir, allowedTools, model, maxTurns, outputFormat: 'stream-json' });
+    const args = buildArgs({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, outputFormat: 'stream-json' });
     const proc = spawn('claude', args, {
       env: { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
       cwd: workdir || '/tmp',
@@ -114,8 +114,12 @@ router.get('/active', (req, res) => {
   });
 });
 
-function buildArgs({ prompt, workdir, allowedTools, model, maxTurns, outputFormat = 'json' }) {
+function buildArgs({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, outputFormat = 'json' }) {
   const args = ['-p', prompt, '--output-format', outputFormat];
+
+  if (systemPrompt) {
+    args.push('--system-prompt', systemPrompt);
+  }
 
   const resolvedModel = model || process.env.CLAUDE_MODEL;
   if (resolvedModel) {
@@ -134,9 +138,9 @@ function buildArgs({ prompt, workdir, allowedTools, model, maxTurns, outputForma
   return args;
 }
 
-function runClaude({ prompt, workdir, allowedTools, model, maxTurns }) {
+function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns }) {
   return new Promise((resolve, reject) => {
-    const args = buildArgs({ prompt, workdir, allowedTools, model, maxTurns });
+    const args = buildArgs({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns });
     const proc = spawn('claude', args, {
       env: { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
       cwd: workdir || '/tmp',

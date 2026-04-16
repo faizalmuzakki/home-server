@@ -1,9 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
-import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODEL, getAiFooter } from '../config/ai.js';
-
-const anthropic = new Anthropic();
+import { askClaude } from '../utils/claudeApi.js';
+import { getAiFooter } from '../config/ai.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -61,19 +59,9 @@ export default {
                 contentToSummarize = `This is a URL that the user wants summarized: ${text}\n\nPlease note that I cannot directly access URLs. Please provide the actual text content you'd like me to summarize, or describe what you know about this page.`;
             }
 
-            const response = await anthropic.messages.create({
-                model: AI_MODEL,
-                max_tokens: 500,
-                messages: [
-                    {
-                        role: 'user',
-                        content: `${styleInstructions[style]}\n\nText to summarize:\n${contentToSummarize}`,
-                    },
-                ],
-                system: 'You are an expert at summarizing content. Be concise and capture the essential information. Use Discord markdown formatting. If the content is too short or unclear to summarize meaningfully, say so politely.',
+            const summary = await askClaude(`${styleInstructions[style]}\n\nText to summarize:\n${contentToSummarize}`, {
+                systemPrompt: 'You are an expert at summarizing content. Be concise and capture the essential information. Use Discord markdown formatting. If the content is too short or unclear to summarize meaningfully, say so politely.',
             });
-
-            const summary = response.content[0].text;
 
             const styleLabels = {
                 bullets: 'Bullet Points',

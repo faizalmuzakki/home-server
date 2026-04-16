@@ -1,9 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
-import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODEL_SMART, getAiFooter } from '../config/ai.js';
-
-const anthropic = new Anthropic();
+import { askClaude } from '../utils/claudeApi.js';
+import { getAiFooter } from '../config/ai.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -29,19 +27,9 @@ export default {
         await interaction.deferReply({ ephemeral: isPrivate });
 
         try {
-            const response = await anthropic.messages.create({
-                model: AI_MODEL_SMART,
-                max_tokens: 1024,
-                messages: [
-                    {
-                        role: 'user',
-                        content: question,
-                    },
-                ],
-                system: 'You are a helpful assistant in a Discord server. Keep your responses concise and friendly. Use Discord markdown formatting when appropriate. If the question is inappropriate or harmful, politely decline to answer.',
+            const answer = await askClaude(question, {
+                systemPrompt: 'You are a helpful assistant in a Discord server. Keep your responses concise and friendly. Use Discord markdown formatting when appropriate. If the question is inappropriate or harmful, politely decline to answer.',
             });
-
-            const answer = response.content[0].text;
 
             // Split long responses - Discord has a 2000 character limit per message
             if (answer.length > 2000) {

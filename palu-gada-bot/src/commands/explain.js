@@ -1,9 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
-import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODEL_SMART, getAiFooter } from '../config/ai.js';
-
-const anthropic = new Anthropic();
+import { askClaude } from '../utils/claudeApi.js';
+import { getAiFooter } from '../config/ai.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -51,19 +49,9 @@ export default {
         };
 
         try {
-            const response = await anthropic.messages.create({
-                model: AI_MODEL_SMART,
-                max_tokens: 1500,
-                messages: [
-                    {
-                        role: 'user',
-                        content: `${levelInstructions[level]}\n\nTopic to explain: ${topic}`,
-                    },
-                ],
-                system: 'You are an expert educator who excels at explaining complex topics. Use Discord markdown formatting for better readability (bold, italics, bullet points, code blocks where appropriate). Keep explanations focused and well-structured.',
+            const explanation = await askClaude(`${levelInstructions[level]}\n\nTopic to explain: ${topic}`, {
+                systemPrompt: 'You are an expert educator who excels at explaining complex topics. Use Discord markdown formatting for better readability (bold, italics, bullet points, code blocks where appropriate). Keep explanations focused and well-structured.',
             });
-
-            const explanation = response.content[0].text;
 
             const levelLabels = {
                 eli5: 'ELI5',

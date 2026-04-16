@@ -8,7 +8,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.74.0",
     "@rootsdk/server-bot": "*",
     "@rootsdk/dev-tools": "*",
     "@types/better-sqlite3": "^7.6.13",

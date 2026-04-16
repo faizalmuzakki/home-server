@@ -5,6 +5,30 @@ import { parseTextValidators, parseImageValidators, sanitizeBase64Image } from '
 
 const router = Router();
 
+// Claude API service for text parsing (uses Max subscription)
+const CLAUDE_API_URL = process.env.CLAUDE_API_URL || 'http://claude-api:3100';
+const CLAUDE_API_SECRET = process.env.CLAUDE_API_SECRET;
+
+async function askClaude(prompt) {
+  const res = await fetch(`${CLAUDE_API_URL}/api/prompt`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${CLAUDE_API_SECRET}`,
+    },
+    body: JSON.stringify({ prompt, maxTurns: 1 }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Claude API returned ${res.status}`);
+  }
+  const data = await res.json();
+  if (data.result?.result) return data.result.result;
+  if (typeof data.result === 'string') return data.result;
+  throw new Error('Unexpected response format from Claude API');
+}
+
+// Keep Anthropic SDK for image parsing (multimodal not supported via CLI)
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -39,12 +63,7 @@ router.post('/text', parseTextValidators, async (req, res) => {
     const expenseCategoryList = expenseCategories.map(c => `${c.id}: ${c.name}`).join('\n');
     const incomeCategoryList = incomeCategories.map(c => `${c.id}: ${c.name}`).join('\n');
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      messages: [{
-        role: 'user',
-        content: `Analyze this text and determine if it's an EXPENSE (money spent) or INCOME (money received).
+    const content = await askClaude(`Analyze this text and determine if it's an EXPENSE (money spent) or INCOME (money received).
 
 Text: "${text}"
 
@@ -68,19 +87,9 @@ Return ONLY valid JSON:
   "confidence": <0-1 how confident you are>
 }
 
-If you cannot extract transaction info, return: {"error": "reason"}`
-      }]
-    });
+If you cannot extract transaction info, return: {"error": "reason"}`);
 
-    const content = response.content[0].text;
     const parsed = JSON.parse(cleanJsonResponse(content));
-
-    // Add token usage for cost tracking
-    parsed.usage = {
-      input_tokens: response.usage.input_tokens,
-      output_tokens: response.usage.output_tokens
-    };
-
     res.json(parsed);
   } catch (error) {
     console.error('Parse text error:', error);

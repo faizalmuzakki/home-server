@@ -1,11 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
-import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODEL, getAiFooter } from '../config/ai.js';
-
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { askClaude } from '../utils/claudeApi.js';
+import { getAiFooter } from '../config/ai.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -20,14 +16,6 @@ export default {
         ),
 
     async execute(interaction) {
-        // Check if API key is configured
-        if (!process.env.ANTHROPIC_API_KEY) {
-            return interaction.reply({
-                content: 'Anthropic API key is not configured. Please set ANTHROPIC_API_KEY in the environment.',
-                flags: MessageFlags.Ephemeral,
-            });
-        }
-
         const hours = interaction.options.getInteger('hours') || 2;
         const targetUser = interaction.user; // Always answer as the person running the command
         let questionMessage = null;
@@ -171,19 +159,7 @@ RESPONSE: [A natural response as ${targetName} would write it]
 Keep the response concise and conversational (1-3 sentences typically). Match their typing style.`;
             }
 
-            // Call Claude API
-            const response = await anthropic.messages.create({
-                model: AI_MODEL,
-                max_tokens: 1024,
-                messages: [
-                    {
-                        role: 'user',
-                        content: prompt,
-                    },
-                ],
-            });
-
-            const aiResponse = response.content[0].text;
+            const aiResponse = await askClaude(prompt);
 
             // Parse the response
             let questionText = questionMessage?.content || 'Auto-detected from conversation';

@@ -1,8 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType } from 'discord.js';
-import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODEL_SMART, getAiFooter } from '../config/ai.js';
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { askClaude } from '../utils/claudeApi.js';
+import { getAiFooter } from '../config/ai.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -18,13 +16,6 @@ export default {
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     async execute(interaction) {
-        if (!process.env.ANTHROPIC_API_KEY) {
-            return interaction.reply({
-                content: 'Anthropic API key is not configured.',
-                flags: MessageFlags.Ephemeral,
-            });
-        }
-
         const hours = interaction.options.getInteger('hours') ?? 24;
         await interaction.deferReply();
 
@@ -86,12 +77,7 @@ export default {
             .join('\n\n');
 
         try {
-            const response = await anthropic.messages.create({
-                model: AI_MODEL_SMART,
-                max_tokens: 2048,
-                messages: [{
-                    role: 'user',
-                    content: `You are writing a casual daily recap for a Discord server covering the last ${hours} hour(s). For each channel that had meaningful activity, write 1-3 sentences describing what was discussed. Be friendly and conversational. Skip channels with only trivial chatter. Format each channel as:
+            const digest = await askClaude(`You are writing a casual daily recap for a Discord server covering the last ${hours} hour(s). For each channel that had meaningful activity, write 1-3 sentences describing what was discussed. Be friendly and conversational. Skip channels with only trivial chatter. Format each channel as:
 
 **#channel-name** — brief summary
 
@@ -100,11 +86,7 @@ Here is the server activity:
 ${chatLog}
 ---
 
-Server recap:`,
-                }],
-            });
-
-            const digest = response.content[0].text;
+Server recap:`);
 
             // Split into multiple embeds if the digest exceeds Discord's 4096 char limit
             const MAX = 4000;

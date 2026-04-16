@@ -1,11 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
-import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODEL_SMART, getAiFooter } from '../config/ai.js';
-
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { askClaude } from '../utils/claudeApi.js';
+import { getAiFooter } from '../config/ai.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -26,14 +22,6 @@ export default {
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     async execute(interaction) {
-        // Check if API key is configured
-        if (!process.env.ANTHROPIC_API_KEY) {
-            return interaction.reply({
-                content: 'Anthropic API key is not configured. Please set ANTHROPIC_API_KEY in the environment.',
-                flags: MessageFlags.Ephemeral,
-            });
-        }
-
         const hours = interaction.options.getInteger('hours') || 1;
         const targetChannel = interaction.options.getChannel('channel') || interaction.channel;
 
@@ -107,14 +95,7 @@ export default {
                 .map(m => `[${m.author}]: ${m.content}`)
                 .join('\n');
 
-            // Call Claude API
-            const response = await anthropic.messages.create({
-                model: AI_MODEL_SMART,
-                max_tokens: 1024,
-                messages: [
-                    {
-                        role: 'user',
-                        content: `Please summarize the following Discord chat conversation. Focus on:
+            const summary = await askClaude(`Please summarize the following Discord chat conversation. Focus on:
 - Main topics discussed
 - Key decisions or conclusions reached
 - Important questions asked
@@ -127,12 +108,7 @@ Chat log from the last ${hours} hour(s):
 ${chatLog}
 ---
 
-Summary:`,
-                    },
-                ],
-            });
-
-            const summary = response.content[0].text;
+Summary:`);
 
             // Send the summary
             await interaction.editReply({

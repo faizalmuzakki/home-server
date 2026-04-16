@@ -1,9 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
-import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODEL, getAiFooter } from '../config/ai.js';
-
-const anthropic = new Anthropic();
+import { askClaude } from '../utils/claudeApi.js';
+import { getAiFooter } from '../config/ai.js';
 
 const LANGUAGES = [
     { name: 'English', value: 'english' },
@@ -81,19 +79,9 @@ export default {
                 ? `Translate the following text to ${formatLang(targetLang)}. First, detect the source language, then provide the translation.\n\nText: ${text}\n\nRespond in this exact format:\nDetected language: [language]\nTranslation: [translated text]`
                 : `Translate the following text from ${formatLang(sourceLang)} to ${formatLang(targetLang)}.\n\nText: ${text}\n\nRespond with only the translation, nothing else.`;
 
-            const response = await anthropic.messages.create({
-                model: AI_MODEL,
-                max_tokens: 1000,
-                messages: [
-                    {
-                        role: 'user',
-                        content: prompt,
-                    },
-                ],
-                system: 'You are a professional translator. Provide accurate, natural-sounding translations. Preserve the tone and style of the original text. For idiomatic expressions, translate the meaning rather than word-for-word.',
+            const result = await askClaude(prompt, {
+                systemPrompt: 'You are a professional translator. Provide accurate, natural-sounding translations. Preserve the tone and style of the original text. For idiomatic expressions, translate the meaning rather than word-for-word.',
             });
-
-            const result = response.content[0].text;
 
             let detectedLang = sourceLang === 'auto' ? null : formatLang(sourceLang);
             let translation = result;
