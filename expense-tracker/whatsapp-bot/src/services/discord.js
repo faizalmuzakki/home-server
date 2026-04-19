@@ -40,6 +40,6 @@ export async function notifyError({ endpoint, method, status, errorMessage, send
       console.error(`Discord webhook failed: ${response.status} ${response.statusText}`);
     }
   } catch (error) {
-    console.error('Discord webhook error:', error.message);
+    console.error('Discord webhook error:', error?.message ?? error);
   }
 }
