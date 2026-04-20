@@ -9,6 +9,8 @@ const router = Router();
 const CLAUDE_API_URL = process.env.CLAUDE_API_URL || 'http://claude-api:3100';
 const CLAUDE_API_SECRET = process.env.CLAUDE_API_SECRET;
 
+const JSON_ONLY_SYSTEM_PROMPT = 'Respond with ONLY a single raw JSON object matching the schema in the user message. No prose before or after. No markdown fences. No commentary.';
+
 async function askClaude(prompt) {
   const res = await fetch(`${CLAUDE_API_URL}/api/prompt`, {
     method: 'POST',
@@ -16,7 +18,7 @@ async function askClaude(prompt) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${CLAUDE_API_SECRET}`,
     },
-    body: JSON.stringify({ prompt, maxTurns: 1 }),
+    body: JSON.stringify({ prompt, maxTurns: 1, systemPrompt: JSON_ONLY_SYSTEM_PROMPT }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -33,19 +35,33 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Helper to clean markdown code blocks from JSON response
-function cleanJsonResponse(text) {
-  // Remove ```json and ``` wrappers
-  let cleaned = text.trim();
-  if (cleaned.startsWith('```json')) {
-    cleaned = cleaned.slice(7);
-  } else if (cleaned.startsWith('```')) {
-    cleaned = cleaned.slice(3);
+// Extract the first balanced JSON object from a response. Tolerates prose
+// preamble/suffix and markdown code fences — the model occasionally ignores
+// "return only JSON" and wraps the object in commentary.
+function extractJsonObject(text) {
+  const start = text.indexOf('{');
+  if (start === -1) throw new Error(`no JSON object in response: ${text.slice(0, 120)}`);
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (inString) {
+      if (ch === '\\') escape = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
   }
-  if (cleaned.endsWith('```')) {
-    cleaned = cleaned.slice(0, -3);
-  }
-  return cleaned.trim();
+  throw new Error(`unbalanced JSON in response: ${text.slice(start, start + 120)}`);
 }
 
 // Parse expense or income from text
@@ -89,7 +105,7 @@ Return ONLY valid JSON:
 
 If you cannot extract transaction info, return: {"error": "reason"}`);
 
-    const parsed = JSON.parse(cleanJsonResponse(content));
+    const parsed = JSON.parse(extractJsonObject(content));
     res.json(parsed);
   } catch (error) {
     console.error('Parse text error:', error);
@@ -165,7 +181,7 @@ If this is not a valid transaction image (e.g., order tracking, shopping cart, u
     });
 
     const content = response.content[0].text;
-    const parsed = JSON.parse(cleanJsonResponse(content));
+    const parsed = JSON.parse(extractJsonObject(content));
 
     // Add token usage for cost tracking
     parsed.usage = {
