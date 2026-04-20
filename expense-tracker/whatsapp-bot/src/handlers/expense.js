@@ -5,8 +5,9 @@ import { createExpense, getCategories, parseImage, parseText, uploadImage } from
 import { formatCurrency, reply } from '../utils/message.js';
 
 export async function sendCategories(sock, jid, msg) {
+  const meta = { sender: jid, messagePreview: '(category list request)' };
   try {
-    const categories = await getCategories();
+    const categories = await getCategories(meta);
     const expenseCategories = categories.filter((category) => category.type !== 'income');
     const incomeCategories = categories.filter((category) => category.type === 'income');
 
@@ -34,8 +35,10 @@ export async function sendPin(sock, jid, msg) {
 export async function handleTextTransaction(sock, jid, text, msg) {
   await reply(sock, jid, 'Analyzing...', msg);
 
+  const meta = { sender: jid, messagePreview: text.slice(0, 100) };
+
   try {
-    const parsed = await parseText(text);
+    const parsed = await parseText(text, meta);
     if (parsed.error) {
       return reply(
         sock,
@@ -54,7 +57,7 @@ export async function handleTextTransaction(sock, jid, text, msg) {
       type: parsed.type || 'expense',
       source: 'whatsapp',
       raw_text: text
-    });
+    }, meta);
 
     const isIncome = parsed.type === 'income';
     const inputCost = (parsed.usage?.input_tokens || 0) * 0.000003;
@@ -75,10 +78,15 @@ export async function handleTextTransaction(sock, jid, text, msg) {
 export async function handleImageTransaction(sock, msg, jid, caption = '') {
   await reply(sock, jid, 'Analyzing image...', msg);
 
+  const meta = {
+    sender: jid,
+    messagePreview: caption ? caption.slice(0, 100) : '(image, no caption)'
+  };
+
   try {
     const buffer = await downloadMediaMessage(msg, 'buffer', {});
     const base64 = buffer.toString('base64');
-    const parsed = await parseImage(base64);
+    const parsed = await parseImage(base64, meta);
 
     if (parsed.error) {
       return reply(sock, jid, `Couldn't parse: ${parsed.error}`, msg);
@@ -87,7 +95,7 @@ export async function handleImageTransaction(sock, msg, jid, caption = '') {
     let imageUrl = null;
     try {
       const filename = `receipt_${Date.now()}.jpg`;
-      const uploadResult = await uploadImage(base64, filename);
+      const uploadResult = await uploadImage(base64, filename, meta);
       imageUrl = uploadResult.image_url;
     } catch (error) {
       console.error('Failed to save image:', error);
@@ -103,7 +111,7 @@ export async function handleImageTransaction(sock, msg, jid, caption = '') {
       source: 'whatsapp_image',
       image_url: imageUrl,
       raw_text: caption || null
-    });
+    }, meta);
 
     const isIncome = parsed.type === 'income';
     const inputCost = (parsed.usage?.input_tokens || 0) * 0.000003;
