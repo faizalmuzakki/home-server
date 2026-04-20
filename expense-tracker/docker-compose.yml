@@ -60,6 +60,7 @@ services:
       - CLAUDE_API_URL=${CLAUDE_API_URL:-http://claude-api:3100}
       - CLAUDE_API_SECRET=${CLAUDE_API_SECRET}
       - ALLOWED_GROUPS=${ALLOWED_GROUPS}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - NODE_ENV=production
       - HEALTH_PORT=3004
     volumes:
