@@ -18,6 +18,13 @@ services:
     volumes:
       - workspace:/workspace:rw
       - /home/solork/.claude:/home/claude/.claude:ro
+      # Claude Code CLI stores OAuth account metadata + migration state in
+      # $HOME/.claude.json (separate from .claude/.credentials.json). Without
+      # this mount the CLI boots with a stub and can't authenticate, surfacing
+      # as `Claude configuration file not found at: /home/claude/.claude.json`
+      # in the logs and 500s on every request. rw so the CLI can write its
+      # own migration flags on version bumps.
+      - /home/solork/.claude.json:/home/claude/.claude.json:rw
     ports:
       - "3100:3100"
     networks:

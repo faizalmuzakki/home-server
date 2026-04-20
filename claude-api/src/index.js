@@ -3,10 +3,46 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import { requireAuth } from './middleware/auth.js';
 import promptRoutes from './routes/prompt.js';
 
 dotenv.config();
+
+// Fail fast if the Claude Code CLI can't authenticate. Without these checks
+// the container stays "up" but every prompt returns 500 because the CLI boots
+// with an auth stub. See claude-api/docker-compose.yml for the matching volume
+// mounts.
+function verifyClaudeAuth() {
+  const home = process.env.HOME || '/home/claude';
+  const configPath = path.join(home, '.claude.json');
+  const credsPath = path.join(home, '.claude', '.credentials.json');
+
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`${configPath} missing — mount host ~/.claude.json into the container`);
+  }
+  if (!fs.existsSync(credsPath)) {
+    throw new Error(`${credsPath} missing — mount host ~/.claude into the container`);
+  }
+
+  let config;
+  try {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (err) {
+    throw new Error(`${configPath} is not valid JSON: ${err.message}`);
+  }
+  if (!config.oauthAccount) {
+    throw new Error(`${configPath} has no oauthAccount — run \`claude login\` on the host and restart`);
+  }
+}
+
+try {
+  verifyClaudeAuth();
+} catch (err) {
+  console.error('Claude auth check failed:', err.message);
+  process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3100;
