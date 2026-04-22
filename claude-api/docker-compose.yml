@@ -15,6 +15,9 @@ services:
       - MAX_TURNS=${MAX_TURNS:-10}
       - MAX_CONCURRENT=${MAX_CONCURRENT:-3}
       - HOME=/home/claude
+      # Fallback path when the CLI's OAuth token (Max subscription) is expired
+      # or otherwise unusable. Used automatically on CLI 401/403.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
       - workspace:/workspace:rw
       - /home/solork/.claude:/home/claude/.claude:ro
