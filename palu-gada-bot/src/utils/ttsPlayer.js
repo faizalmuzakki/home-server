@@ -89,7 +89,13 @@ async function fetchTtsStream(chunk, lang) {
         throw new Error(`TTS service unavailable (HTTP ${response.status})`);
     }
 
-    // Convert the Web ReadableStream body into a Node Readable for @discordjs/voice.
+    // Google throttles with 200 + HTML instead of 429; reject anything non-audio.
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('audio')) {
+        await response.body?.cancel();
+        throw new Error('TTS service returned an unexpected response (possibly rate-limited).');
+    }
+
     return Readable.fromWeb(response.body);
 }
 
@@ -141,7 +147,7 @@ async function connectToChannel(voiceChannel) {
 
 /**
  * Speak `text` in `voiceChannel`.
- * - Reuses any existing session for the guild (cancelling its idle timer).
+ * - Reuses any existing idle session for the guild; rejects if another speak is in progress.
  * - Resolves once the final chunk reaches Idle; then schedules a 60s cleanup.
  * - On any fetch/connection/player error: tears down the session and rejects.
  */
@@ -152,43 +158,63 @@ export async function speak(voiceChannel, textChannel, text, lang) {
     const guildId = voiceChannel.guild.id;
     let session = sessions.get(guildId);
 
+    if (session?.speaking) {
+        throw new Error('Already speaking in this server — please wait.');
+    }
+
     if (session && session.idleTimer) {
         clearTimeout(session.idleTimer);
         session.idleTimer = null;
     }
 
-    try {
-        if (!session) {
+    if (!session) {
+        // Claim the slot synchronously so a concurrent /tts in the same guild
+        // sees an in-progress session and aborts instead of creating a second connection.
+        session = {
+            guildId,
+            voiceChannel,
+            textChannel,
+            connection: null,
+            player: null,
+            idleTimer: null,
+            speaking: true,
+        };
+        sessions.set(guildId, session);
+
+        try {
             const connection = await connectToChannel(voiceChannel);
             const player = createAudioPlayer();
             player.on('error', (err) => {
                 console.error('[ERROR] TTS player error:', err);
             });
+            connection.on(VoiceConnectionStatus.Destroyed, () => {
+                deleteSession(guildId);
+            });
             connection.subscribe(player);
 
-            session = {
-                guildId,
-                voiceChannel,
-                textChannel,
-                connection,
-                player,
-                idleTimer: null,
-            };
-            sessions.set(guildId, session);
+            session.connection = connection;
+            session.player = player;
+        } catch (error) {
+            deleteSession(guildId);
+            throw error;
         }
+    } else {
+        session.speaking = true;
+    }
 
+    try {
         for (const chunk of chunks) {
             const stream = await fetchTtsStream(chunk, lang);
             const resource = createAudioResource(stream);
             session.player.play(resource);
-            // Wait until the player leaves Playing/Buffering and returns to Idle.
             await entersState(session.player, AudioPlayerStatus.Playing, 15_000);
-            await entersState(session.player, AudioPlayerStatus.Idle, 120_000);
+            await entersState(session.player, AudioPlayerStatus.Idle, 30_000);
         }
     } catch (error) {
         deleteSession(guildId);
         throw error;
     }
 
+    session.speaking = false;
     resetIdleTimer(session);
 }

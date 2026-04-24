@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { getQueue } from '../utils/musicPlayer.js';
-import { speak } from '../utils/ttsPlayer.js';
+import { getSession, speak } from '../utils/ttsPlayer.js';
 
 const MAX_TEXT_CHARS = 500;
 
@@ -61,6 +61,14 @@ export default {
         if (musicQueue && (musicQueue.playing || musicQueue.songs.length > 0)) {
             return interaction.reply({
                 content: "Can't use TTS while music is playing. Run `/stop` first.",
+                flags: MessageFlags.Ephemeral,
+            });
+        }
+
+        const existingTts = getSession(interaction.guildId);
+        if (existingTts?.speaking) {
+            return interaction.reply({
+                content: 'Already speaking — wait for the current TTS to finish.',
                 flags: MessageFlags.Ephemeral,
             });
         }
