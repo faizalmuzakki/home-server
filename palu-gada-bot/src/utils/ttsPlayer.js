@@ -136,9 +136,24 @@ async function connectToChannel(voiceChannel) {
         channelId: voiceChannel.id,
         guildId: voiceChannel.guild.id,
         adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+        debug: true,
     });
     connection.on('stateChange', (oldState, newState) => {
         console.log(`[TTS] conn state: ${oldState.status} -> ${newState.status}${newState.reason ? ` (reason=${newState.reason})` : ''}`);
+        if (newState.networking) {
+            newState.networking.on('stateChange', (o, n) => {
+                console.log(`[TTS] net state: code ${o.code} -> ${n.code}`);
+            });
+            newState.networking.on('close', (code) => {
+                console.log(`[TTS] networking close code: ${code}`);
+            });
+            newState.networking.on('error', (err) => {
+                console.log('[TTS] networking error:', err?.message ?? err);
+            });
+        }
+    });
+    connection.on('debug', (msg) => {
+        console.log('[TTS] conn debug:', msg);
     });
     connection.on('error', (err) => {
         console.error('[TTS] conn error:', err);
