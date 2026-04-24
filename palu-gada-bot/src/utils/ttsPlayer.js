@@ -119,3 +119,76 @@ function resetIdleTimer(session) {
         deleteSession(session.guildId);
     }, IDLE_TIMEOUT_MS);
 }
+
+/**
+ * Connect to a voice channel and wait until the connection is Ready.
+ * On timeout or error, destroys the connection and re-throws.
+ */
+async function connectToChannel(voiceChannel) {
+    const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: voiceChannel.guild.id,
+        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+    });
+    try {
+        await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+        return connection;
+    } catch (error) {
+        connection.destroy();
+        throw error;
+    }
+}
+
+/**
+ * Speak `text` in `voiceChannel`.
+ * - Reuses any existing session for the guild (cancelling its idle timer).
+ * - Resolves once the final chunk reaches Idle; then schedules a 60s cleanup.
+ * - On any fetch/connection/player error: tears down the session and rejects.
+ */
+export async function speak(voiceChannel, textChannel, text, lang) {
+    const chunks = chunkText(text);
+    if (chunks.length === 0) throw new Error('Text cannot be empty.');
+
+    const guildId = voiceChannel.guild.id;
+    let session = sessions.get(guildId);
+
+    if (session && session.idleTimer) {
+        clearTimeout(session.idleTimer);
+        session.idleTimer = null;
+    }
+
+    try {
+        if (!session) {
+            const connection = await connectToChannel(voiceChannel);
+            const player = createAudioPlayer();
+            player.on('error', (err) => {
+                console.error('[ERROR] TTS player error:', err);
+            });
+            connection.subscribe(player);
+
+            session = {
+                guildId,
+                voiceChannel,
+                textChannel,
+                connection,
+                player,
+                idleTimer: null,
+            };
+            sessions.set(guildId, session);
+        }
+
+        for (const chunk of chunks) {
+            const stream = await fetchTtsStream(chunk, lang);
+            const resource = createAudioResource(stream);
+            session.player.play(resource);
+            // Wait until the player leaves Playing/Buffering and returns to Idle.
+            await entersState(session.player, AudioPlayerStatus.Playing, 15_000);
+            await entersState(session.player, AudioPlayerStatus.Idle, 120_000);
+        }
+    } catch (error) {
+        deleteSession(guildId);
+        throw error;
+    }
+
+    resetIdleTimer(session);
+}
