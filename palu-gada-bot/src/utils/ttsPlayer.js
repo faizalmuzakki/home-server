@@ -137,6 +137,12 @@ async function connectToChannel(voiceChannel) {
         guildId: voiceChannel.guild.id,
         adapterCreator: voiceChannel.guild.voiceAdapterCreator,
     });
+    connection.on('stateChange', (oldState, newState) => {
+        console.log(`[TTS] conn state: ${oldState.status} -> ${newState.status}${newState.reason ? ` (reason=${newState.reason})` : ''}`);
+    });
+    connection.on('error', (err) => {
+        console.error('[TTS] conn error:', err);
+    });
     try {
         await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
         return connection;
