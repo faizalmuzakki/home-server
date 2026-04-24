@@ -183,10 +183,15 @@ export async function speak(voiceChannel, textChannel, text, lang) {
         sessions.set(guildId, session);
 
         try {
+            console.log('[TTS] connecting to voice channel', voiceChannel.id);
             const connection = await connectToChannel(voiceChannel);
+            console.log('[TTS] voice connection ready');
             const player = createAudioPlayer();
             player.on('error', (err) => {
                 console.error('[ERROR] TTS player error:', err);
+            });
+            player.on('stateChange', (oldState, newState) => {
+                console.log(`[TTS] player state: ${oldState.status} -> ${newState.status}`);
             });
             connection.on(VoiceConnectionStatus.Destroyed, () => {
                 deleteSession(guildId);
@@ -196,6 +201,7 @@ export async function speak(voiceChannel, textChannel, text, lang) {
             session.connection = connection;
             session.player = player;
         } catch (error) {
+            console.error('[ERROR] TTS connect failed:', error);
             deleteSession(guildId);
             throw error;
         }
@@ -205,13 +211,27 @@ export async function speak(voiceChannel, textChannel, text, lang) {
 
     try {
         for (const chunk of chunks) {
+            console.log(`[TTS] fetching chunk (${chunk.length} chars)`);
             const stream = await fetchTtsStream(chunk, lang);
+            console.log('[TTS] fetched, creating resource');
             const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
             session.player.play(resource);
-            await entersState(session.player, AudioPlayerStatus.Playing, 15_000);
-            await entersState(session.player, AudioPlayerStatus.Idle, 30_000);
+            console.log('[TTS] play() called, waiting for Playing state');
+            try {
+                await entersState(session.player, AudioPlayerStatus.Playing, 15_000);
+            } catch (err) {
+                throw new Error(`Player did not reach Playing in 15s (last state: ${session.player.state.status})`);
+            }
+            console.log('[TTS] player is Playing, waiting for Idle');
+            try {
+                await entersState(session.player, AudioPlayerStatus.Idle, 30_000);
+            } catch (err) {
+                throw new Error(`Player did not reach Idle in 30s (last state: ${session.player.state.status})`);
+            }
+            console.log('[TTS] chunk finished');
         }
     } catch (error) {
+        console.error('[ERROR] TTS playback failed:', error.message);
         deleteSession(guildId);
         throw error;
     }
