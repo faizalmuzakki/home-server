@@ -2,6 +2,7 @@ import {
     createAudioPlayer,
     createAudioResource,
     AudioPlayerStatus,
+    StreamType,
     entersState,
     joinVoiceChannel,
     VoiceConnectionStatus,
@@ -205,7 +206,7 @@ export async function speak(voiceChannel, textChannel, text, lang) {
     try {
         for (const chunk of chunks) {
             const stream = await fetchTtsStream(chunk, lang);
-            const resource = createAudioResource(stream);
+            const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
             session.player.play(resource);
             await entersState(session.player, AudioPlayerStatus.Playing, 15_000);
             await entersState(session.player, AudioPlayerStatus.Idle, 30_000);
