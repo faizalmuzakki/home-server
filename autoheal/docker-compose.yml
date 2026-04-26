@@ -1,0 +1,25 @@
+services:
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      # Only act on containers that opt in via label `autoheal=true`.
+      # This avoids restarting unrelated services that happen to define a healthcheck.
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      # How often to scan container health states (seconds).
+      - AUTOHEAL_INTERVAL=30
+      # Wait this long before killing during a restart (seconds).
+      - AUTOHEAL_DEFAULT_STOP_TIMEOUT=15
+      # Don't restart for the first N seconds of a container's life — startup is allowed
+      # to be slow without triggering autoheal. Container's own start_period also covers this,
+      # but this is a belt-and-braces guard.
+      - AUTOHEAL_START_PERIOD=60
+      - TZ=Asia/Jakarta
+    volumes:
+      # Needs read-write socket access — autoheal calls `docker restart` on unhealthy
+      # containers, which is a write operation. The socket-proxy used by palu-gada-bot
+      # is not a fit here because we want to be able to recover the proxy itself.
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - "traefik.enable=false"

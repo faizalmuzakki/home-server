@@ -55,6 +55,8 @@ services:
     # Traefik labels for reverse proxy
     labels:
       - "traefik.enable=true"
+      # Opt this container in to autoheal restarts when healthcheck flips to unhealthy
+      - "autoheal=true"
       # Main API router (requires auth via secure-defaults)
       - "traefik.http.routers.palu-gada-api.rule=Host(`bot-api.${DOMAIN}`)"
       - "traefik.http.routers.palu-gada-api.entrypoints=websecure"

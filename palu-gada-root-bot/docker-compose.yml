@@ -26,6 +26,8 @@ services:
     # Expose /health through Traefik so Uptime Kuma can probe via container name
     labels:
       - "traefik.enable=true"
+      # Opt this container in to autoheal restarts when healthcheck flips to unhealthy
+      - "autoheal=true"
       - "traefik.http.routers.root-bot-health.rule=Host(`root-bot.${DOMAIN}`) && Path(`/health`)"
       - "traefik.http.routers.root-bot-health.entrypoints=websecure"
       - "traefik.http.routers.root-bot-health.tls.certresolver=cloudflare"
