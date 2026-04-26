@@ -1125,8 +1125,18 @@ client.on(Events.Error, (error) => {
     console.error('[ERROR] Discord client error:', error);
 });
 
+// Once the bot is logged in we want unhandled rejections to be loud-but-survivable
+// (bot keeps running, we just see them in logs). Before login succeeds, *any* unhandled
+// rejection means the bot is in an undefined state — exit so Docker restarts us.
+let loginCompleted = false;
+client.once(Events.ClientReady, () => { loginCompleted = true; });
+
 process.on('unhandledRejection', (error) => {
     console.error('[ERROR] Unhandled promise rejection:', error);
+    if (!loginCompleted) {
+        console.error('[FATAL] Unhandled rejection before bot was ready — exiting for restart.');
+        process.exit(1);
+    }
 });
 
 // Graceful shutdown
@@ -1142,5 +1152,31 @@ process.on('SIGTERM', () => {
     process.exit(0);
 });
 
-// Login to Discord
-client.login(config.token);
+// Login to Discord with retry. Transient DNS / outbound network failures at container
+// startup must NOT leave us in a zombie "process up, never logged in" state — exit so
+// Docker's restart policy can recover us.
+async function loginWithRetry({ maxAttempts = 5, baseDelayMs = 2000 } = {}) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await client.login(config.token);
+            return;
+        } catch (error) {
+            const willRetry = attempt < maxAttempts;
+            console.error(
+                `[ERROR] Discord login attempt ${attempt}/${maxAttempts} failed: ${error?.code || error?.name || 'Error'} — ${error?.message || error}`
+            );
+            if (!willRetry) throw error;
+            // Exponential backoff capped at 30 s
+            const delay = Math.min(baseDelayMs * 2 ** (attempt - 1), 30_000);
+            console.log(`[INFO] Retrying login in ${Math.round(delay / 1000)}s...`);
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+}
+
+try {
+    await loginWithRetry();
+} catch (error) {
+    console.error('[FATAL] Could not log in to Discord after retries — exiting for restart.', error);
+    process.exit(1);
+}

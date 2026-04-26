@@ -79,6 +79,44 @@ async function onStarting(state: RootBotStartState) {
   console.log("Bot started successfully!");
 }
 
+// Startup hardening: any failure in lifecycle.start (auth, network, etc.) must
+// crash the process so Docker's restart policy can recover us, instead of leaving
+// a zombie "container up, bot never started" state.
+let startupCompleted = false;
+
+process.on("unhandledRejection", (error) => {
+    console.error("[ERROR] Unhandled promise rejection:", error);
+    if (!startupCompleted) {
+        console.error("[FATAL] Unhandled rejection before bot started — exiting for restart.");
+        process.exit(1);
+    }
+});
+
+async function startWithRetry({ maxAttempts = 5, baseDelayMs = 2000 } = {}) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await rootServer.lifecycle.start(onStarting);
+            startupCompleted = true;
+            return;
+        } catch (error: unknown) {
+            const willRetry = attempt < maxAttempts;
+            const err = error as { code?: string; name?: string; message?: string };
+            console.error(
+                `[ERROR] Root bot start attempt ${attempt}/${maxAttempts} failed: ${err.code || err.name || "Error"} — ${err.message || error}`
+            );
+            if (!willRetry) throw error;
+            const delay = Math.min(baseDelayMs * 2 ** (attempt - 1), 30_000);
+            console.log(`Retrying start in ${Math.round(delay / 1000)}s...`);
+            await new Promise((r) => setTimeout(r, delay));
+        }
+    }
+}
+
 (async () => {
-  await rootServer.lifecycle.start(onStarting);
+    try {
+        await startWithRetry();
+    } catch (error) {
+        console.error("[FATAL] Root bot could not start after retries — exiting for restart.", error);
+        process.exit(1);
+    }
 })();
