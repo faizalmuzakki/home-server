@@ -1,3 +1,5 @@
+import QRCode from 'qrcode';
+
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
 const FIELD_MAX = 1000;
@@ -41,5 +43,52 @@ export async function notifyError({ endpoint, method, status, errorMessage, send
     }
   } catch (error) {
     console.error('Discord webhook error:', error?.message ?? error);
+  }
+}
+
+export async function notifyQrCode(qr) {
+  if (!WEBHOOK_URL) return;
+
+  let pngBuffer;
+  try {
+    pngBuffer = await QRCode.toBuffer(qr, { errorCorrectionLevel: 'M', margin: 2, scale: 8 });
+  } catch (error) {
+    console.error('QR render error:', error?.message ?? error);
+    return;
+  }
+
+  const payloadJson = {
+    embeds: [{
+      title: '📱 WhatsApp bot needs re-pairing',
+      description: 'Scan the QR below with WhatsApp → Linked devices. Code rotates every ~20 seconds; if it expires a new one will be posted.',
+      color: 16753920,
+      timestamp: new Date().toISOString()
+    }]
+  };
+
+  const boundary = `----WaQR${Date.now().toString(16)}`;
+  const head =
+    `--${boundary}\r\n` +
+    'Content-Disposition: form-data; name="payload_json"\r\n' +
+    'Content-Type: application/json\r\n\r\n' +
+    `${JSON.stringify(payloadJson)}\r\n` +
+    `--${boundary}\r\n` +
+    'Content-Disposition: form-data; name="files[0]"; filename="whatsapp-qr.png"\r\n' +
+    'Content-Type: image/png\r\n\r\n';
+  const tail = `\r\n--${boundary}--\r\n`;
+
+  const body = Buffer.concat([Buffer.from(head, 'utf8'), pngBuffer, Buffer.from(tail, 'utf8')]);
+
+  try {
+    const response = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      body
+    });
+    if (!response.ok) {
+      console.error(`Discord QR webhook failed: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Discord QR webhook error:', error?.message ?? error);
   }
 }

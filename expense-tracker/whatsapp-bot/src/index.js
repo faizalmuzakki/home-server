@@ -7,12 +7,14 @@ const {
   fetchLatestBaileysVersion
 } = pkg;
 import http from 'http';
+import { rm } from 'fs/promises';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import dotenv from 'dotenv';
 import { handleMessage } from './handlers/message.js';
 import { initDatabase, getDb } from './database.js';
+import { notifyQrCode } from './services/discord.js';
 
 dotenv.config();
 
@@ -80,6 +82,8 @@ if (ALLOWED_NUMBERS.length > 0) {
 
 const logger = pino({ level: 'info' });
 let schedulersStarted = false;
+let lastDiscordQrAt = 0;
+const DISCORD_QR_THROTTLE_MS = 60_000;
 
 function renderTemplate(template, values) {
   return template
@@ -202,21 +206,32 @@ async function startBot() {
       } catch (err) {
         console.error('Could not save QR image:', err.message);
       }
+
+      const now = Date.now();
+      if (now - lastDiscordQrAt >= DISCORD_QR_THROTTLE_MS) {
+        lastDiscordQrAt = now;
+        notifyQrCode(qr).catch((err) => console.error('notifyQrCode failed:', err?.message ?? err));
+      }
     }
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      console.log(`Connection closed. Status: ${statusCode}, Reconnecting: ${shouldReconnect}`);
-      if (shouldReconnect) {
-        setStatus('disconnected');
-        setTimeout(() => startBot(), 3000);  // Add delay before reconnect
-      } else {
-        // Logged out — stay alive so health server can report status
-        // and Docker doesn't restart in a loop
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+      console.log(`Connection closed. Status: ${statusCode}, LoggedOut: ${isLoggedOut}`);
+      if (isLoggedOut) {
         setStatus('logged_out');
-        console.log('⚠️ Bot logged out of WhatsApp. Health endpoint will report unhealthy.');
-        console.log('⚠️ To re-authenticate, remove auth_info and restart the container.');
+        console.log('⚠️ Bot logged out of WhatsApp. Wiping auth_info and re-pairing via Discord QR.');
+        try {
+          // Clear creds so the next startBot() triggers a fresh QR
+          await rm('./auth_info', { recursive: true, force: true });
+        } catch (err) {
+          console.error('Failed to clear auth_info:', err?.message ?? err);
+        }
+        lastDiscordQrAt = 0;
+        setTimeout(() => startBot(), 3000);
+      } else {
+        setStatus('disconnected');
+        setTimeout(() => startBot(), 3000);
       }
     } else if (connection === 'open') {
       setStatus('connected');
