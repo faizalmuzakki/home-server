@@ -7,7 +7,8 @@ const {
   fetchLatestBaileysVersion
 } = pkg;
 import http from 'http';
-import { rm } from 'fs/promises';
+import { readdir, rm } from 'fs/promises';
+import path from 'path';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import QRCode from 'qrcode';
@@ -222,8 +223,12 @@ async function startBot() {
         setStatus('logged_out');
         console.log('⚠️ Bot logged out of WhatsApp. Wiping auth_info and re-pairing via Discord QR.');
         try {
-          // Clear creds so the next startBot() triggers a fresh QR
-          await rm('./auth_info', { recursive: true, force: true });
+          // auth_info is a bind-mounted directory in production, so wipe its
+          // CONTENTS rather than the dir itself (rmdir on a mountpoint = EBUSY).
+          const entries = await readdir('./auth_info');
+          await Promise.all(entries.map((entry) =>
+            rm(path.join('./auth_info', entry), { recursive: true, force: true })
+          ));
         } catch (err) {
           console.error('Failed to clear auth_info:', err?.message ?? err);
         }
