@@ -113,3 +113,41 @@ export const sanitizeBase64Image = (req, res, next) => {
     next();
 };
 
+// Calorie entry validators
+export const createCalorieValidators = [
+    body('sender_id')
+        .notEmpty().withMessage('sender_id is required')
+        .isString().withMessage('sender_id must be a string')
+        .isLength({ max: 64 }).withMessage('sender_id too long (max 64 chars)'),
+    body('sender_name')
+        .optional({ nullable: true })
+        .isString().withMessage('sender_name must be a string')
+        .isLength({ max: 128 }).withMessage('sender_name too long (max 128 chars)'),
+    body('description')
+        .optional({ nullable: true })
+        .isString().withMessage('description must be a string')
+        .isLength({ max: 500 }).withMessage('description too long (max 500 chars)'),
+    body('calories')
+        .notEmpty().withMessage('calories is required')
+        .isNumeric().withMessage('calories must be a number')
+        .custom(v => parseFloat(v) > 0 && parseFloat(v) <= 20000)
+        .withMessage('calories must be between 1 and 20000'),
+    body('protein_g').optional({ nullable: true }).isNumeric().withMessage('protein_g must be a number'),
+    body('carbs_g').optional({ nullable: true }).isNumeric().withMessage('carbs_g must be a number'),
+    body('fat_g').optional({ nullable: true }).isNumeric().withMessage('fat_g must be a number'),
+    body('confidence').optional({ nullable: true }).isFloat({ min: 0, max: 1 }).withMessage('confidence must be 0-1'),
+    body('items')
+        .optional({ nullable: true })
+        .isArray({ max: 30 }).withMessage('items must be an array (max 30)'),
+    body('image_url').optional({ nullable: true }).isString().isLength({ max: 300 }),
+    body('date')
+        .notEmpty().withMessage('date is required')
+        .isString().withMessage('date must be a string')
+        .matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('date must be YYYY-MM-DD'),
+    handleValidationErrors,
+];
+
+export const listCalorieValidators = [
+    handleValidationErrors,
+];
+
