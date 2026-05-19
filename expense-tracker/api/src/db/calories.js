@@ -49,7 +49,7 @@ export function insertCalorieEntry(db, entry) {
 function dateRangeClause({ sender_id, startDate, endDate }) {
   let where = ' WHERE 1=1';
   const params = [];
-  if (sender_id) { where += ' AND sender_id = ?'; params.push(sender_id); }
+  if (sender_id != null && sender_id !== '') { where += ' AND sender_id = ?'; params.push(sender_id); }
   if (startDate) { where += ' AND DATE(date) >= DATE(?)'; params.push(startDate); }
   if (endDate)   { where += ' AND DATE(date) <= DATE(?)'; params.push(endDate); }
   return { where, params };
@@ -57,7 +57,7 @@ function dateRangeClause({ sender_id, startDate, endDate }) {
 
 export function listCalorieEntries(db, filters = {}) {
   const { where, params } = dateRangeClause(filters);
-  const limit = Number.isFinite(+filters.limit) ? +filters.limit : 100;
+  const limit = (Number.isInteger(+filters.limit) && +filters.limit > 0) ? +filters.limit : 100;
   return db.prepare(
     `SELECT * FROM calorie_entries${where} ORDER BY DATE(date) DESC, created_at DESC LIMIT ?`
   ).all(...params, limit);

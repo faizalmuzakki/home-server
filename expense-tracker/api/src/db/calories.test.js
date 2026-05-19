@@ -79,3 +79,24 @@ test('calorieSummary today() filter returns only today rows', () => {
   assert.equal(summary.length, 1);
   assert.equal(summary[0].total_calories, 500);
 });
+
+test('listCalorieEntries caps at default 100 and honors a valid explicit limit; ignores bad limits', () => {
+  const db = freshDb();
+  for (let i = 0; i < 150; i++) {
+    insertCalorieEntry(db, { sender_id: 'A', calories: 10, date: '2026-05-19' });
+  }
+  assert.equal(listCalorieEntries(db, {}).length, 100);            // default cap
+  assert.equal(listCalorieEntries(db, { limit: 5 }).length, 5);    // explicit
+  assert.equal(listCalorieEntries(db, { limit: 0 }).length, 100);  // bad -> default
+  assert.equal(listCalorieEntries(db, { limit: -3 }).length, 100); // bad -> default
+});
+
+test('calorieSummary returns 0 (not null) for entries with null macros', () => {
+  const db = freshDb();
+  insertCalorieEntry(db, { sender_id: 'A', calories: 200, date: '2026-05-19' }); // macros undefined -> null
+  const summary = calorieSummary(db, {});
+  assert.equal(summary[0].total_calories, 200);
+  assert.equal(summary[0].total_protein_g, 0);
+  assert.equal(summary[0].total_carbs_g, 0);
+  assert.equal(summary[0].total_fat_g, 0);
+});
