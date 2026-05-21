@@ -479,163 +479,167 @@ function App() {
       {/* Main Content */}
       <main className="main-content">
         <div className="container">
-          {/* Filters */}
-          <div className="filter-bar">
-            <div className="filter-row">
-              <input
-                type="text"
-                placeholder="Search description..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-              <select
-                value={categoryId}
-                onChange={e => setCategoryId(e.target.value)}
-              >
-                <option value="">All Categories</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))}
-              />
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))}
-              />
-              <select
-                value={typeFilter}
-                onChange={e => setTypeFilter(e.target.value)}
-              >
-                <option value="all">All Types</option>
-                <option value="expense">Expenses</option>
-                <option value="income">Income</option>
-              </select>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="loading">
-              <div className="spinner"></div>
-            </div>
-          ) : error ? (
-            <div className="empty-state">
-              <p>Error: {error}</p>
-              <button className="btn btn-primary mt-md" onClick={fetchData}>
-                Retry
-              </button>
-            </div>
-          ) : (
+          {activeTab !== 'calories' && (
             <>
-              {/* Stats Grid */}
-              {stats && (
-                <div className="grid grid-stats mb-md">
-                  <StatCard
-                    label="Income"
-                    value={stats.income}
-                    type="income"
-                    count={stats.incomeCount}
+              {/* Filters */}
+              <div className="filter-bar">
+                <div className="filter-row">
+                  <input
+                    type="text"
+                    placeholder="Search description..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
                   />
-                  <StatCard
-                    label="Expenses"
-                    value={stats.expenses}
-                    type="expense"
-                    count={stats.expenseCount}
+                  <select
+                    value={categoryId}
+                    onChange={e => setCategoryId(e.target.value)}
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="date"
+                    value={filters.startDate}
+                    onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))}
                   />
-                  <StatCard
-                    label="Net Balance"
-                    value={stats.net}
-                    type="net"
+                  <input
+                    type="date"
+                    value={filters.endDate}
+                    onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))}
                   />
-                </div>
-              )}
-
-              {/* Main Grid - Transactions & Categories */}
-              <div className="grid grid-main">
-                {/* Transactions */}
-                <div className="card">
-                  <div className="card-header">
-                    <h2>Recent Transactions</h2>
-                    <span className="text-secondary">
-                      {transactions.length} item{transactions.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className="card-body">
-                    {transactions.length === 0 ? (
-                      <div className="empty-state">
-                        <div className="empty-state-icon">{Icons.empty}</div>
-                        <p>No transactions found</p>
-                        <button
-                          className="btn btn-primary mt-md"
-                          onClick={handleNewTransaction}
-                        >
-                          Add your first transaction
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="transaction-list">
-                        {transactions.map(t => (
-                          <TransactionItem
-                            key={t.id}
-                            transaction={t}
-                            onClick={() => handleEditTransaction(t)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Category Breakdown */}
-                {activeTab === 'home' && expenseCategories.length > 0 && (
-                  <div className="card mobile-only">
-                    <div className="card-header">
-                      <h2>Spending by Category</h2>
-                    </div>
-                    <div className="card-body">
-                      <div className="category-list">
-                        {expenseCategories.slice(0, 5).map(cat => (
-                          <CategoryItem
-                            key={cat.id}
-                            category={cat}
-                            maxTotal={maxCategoryTotal}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Desktop sidebar with category breakdown */}
-                <div className="desktop-only">
-                  <div className="card">
-                    <div className="card-header">
-                      <h2>Spending by Category</h2>
-                    </div>
-                    <div className="card-body">
-                      {expenseCategories.length === 0 ? (
-                        <div className="empty-state">
-                          <p className="text-secondary">No expenses yet</p>
-                        </div>
-                      ) : (
-                        <div className="category-list">
-                          {expenseCategories.map(cat => (
-                            <CategoryItem
-                              key={cat.id}
-                              category={cat}
-                              maxTotal={maxCategoryTotal}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <select
+                    value={typeFilter}
+                    onChange={e => setTypeFilter(e.target.value)}
+                  >
+                    <option value="all">All Types</option>
+                    <option value="expense">Expenses</option>
+                    <option value="income">Income</option>
+                  </select>
                 </div>
               </div>
+
+              {loading ? (
+                <div className="loading">
+                  <div className="spinner"></div>
+                </div>
+              ) : error ? (
+                <div className="empty-state">
+                  <p>Error: {error}</p>
+                  <button className="btn btn-primary mt-md" onClick={fetchData}>
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Stats Grid */}
+                  {stats && (
+                    <div className="grid grid-stats mb-md">
+                      <StatCard
+                        label="Income"
+                        value={stats.income}
+                        type="income"
+                        count={stats.incomeCount}
+                      />
+                      <StatCard
+                        label="Expenses"
+                        value={stats.expenses}
+                        type="expense"
+                        count={stats.expenseCount}
+                      />
+                      <StatCard
+                        label="Net Balance"
+                        value={stats.net}
+                        type="net"
+                      />
+                    </div>
+                  )}
+
+                  {/* Main Grid - Transactions & Categories */}
+                  <div className="grid grid-main">
+                    {/* Transactions */}
+                    <div className="card">
+                      <div className="card-header">
+                        <h2>Recent Transactions</h2>
+                        <span className="text-secondary">
+                          {transactions.length} item{transactions.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="card-body">
+                        {transactions.length === 0 ? (
+                          <div className="empty-state">
+                            <div className="empty-state-icon">{Icons.empty}</div>
+                            <p>No transactions found</p>
+                            <button
+                              className="btn btn-primary mt-md"
+                              onClick={handleNewTransaction}
+                            >
+                              Add your first transaction
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="transaction-list">
+                            {transactions.map(t => (
+                              <TransactionItem
+                                key={t.id}
+                                transaction={t}
+                                onClick={() => handleEditTransaction(t)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Category Breakdown */}
+                    {activeTab === 'home' && expenseCategories.length > 0 && (
+                      <div className="card mobile-only">
+                        <div className="card-header">
+                          <h2>Spending by Category</h2>
+                        </div>
+                        <div className="card-body">
+                          <div className="category-list">
+                            {expenseCategories.slice(0, 5).map(cat => (
+                              <CategoryItem
+                                key={cat.id}
+                                category={cat}
+                                maxTotal={maxCategoryTotal}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Desktop sidebar with category breakdown */}
+                    <div className="desktop-only">
+                      <div className="card">
+                        <div className="card-header">
+                          <h2>Spending by Category</h2>
+                        </div>
+                        <div className="card-body">
+                          {expenseCategories.length === 0 ? (
+                            <div className="empty-state">
+                              <p className="text-secondary">No expenses yet</p>
+                            </div>
+                          ) : (
+                            <div className="category-list">
+                              {expenseCategories.map(cat => (
+                                <CategoryItem
+                                  key={cat.id}
+                                  category={cat}
+                                  maxTotal={maxCategoryTotal}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
           {activeTab === 'calories' && <Calories />}
