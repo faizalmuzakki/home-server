@@ -3,8 +3,7 @@ const { downloadMediaMessage } = pkg;
 
 import { createExpense, getCategories, parseImage, parseText, uploadImage } from '../services/api.js';
 import { handleFoodImage } from './calories.js';
-import { getSenderId, getSenderName } from '../utils/message.js';
-import { formatCurrency, reply } from '../utils/message.js';
+import { formatCurrency, getSenderId, getSenderName, reply } from '../utils/message.js';
 
 export async function sendCategories(sock, jid, msg) {
   const meta = { sender: jid, messagePreview: '(category list request)' };
@@ -99,7 +98,7 @@ export async function handleImageTransaction(sock, msg, jid, caption = '') {
     }
 
     if (parsed.kind === 'food') {
-      return handleFoodImage(sock, msg, jid, parsed, base64, getSenderId(msg), getSenderName(msg));
+      return await handleFoodImage(sock, msg, jid, parsed, base64, getSenderId(msg), getSenderName(msg));
     }
 
     let imageUrl = null;
