@@ -19,9 +19,14 @@ export default function Calories() {
     setError(null)
     try {
       const qs = `startDate=${startDate}&endDate=${endDate}`
+      const fetchJson = async (url) => {
+        const r = await fetch(url)
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      }
       const [s, e] = await Promise.all([
-        fetch(`${API_URL}/api/calories/summary?${qs}`).then(r => r.json()),
-        fetch(`${API_URL}/api/calories?${qs}&limit=100`).then(r => r.json())
+        fetchJson(`${API_URL}/api/calories/summary?${qs}`),
+        fetchJson(`${API_URL}/api/calories?${qs}&limit=100`)
       ])
       setSummary(Array.isArray(s) ? s : [])
       setEntries(Array.isArray(e) ? e : [])
