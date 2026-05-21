@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import Calories from './Calories.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -465,6 +466,12 @@ function App() {
             >
               Analytics
             </button>
+            <button
+              className={`tab ${activeTab === 'calories' ? 'active' : ''}`}
+              onClick={() => setActiveTab('calories')}
+            >
+              Calories
+            </button>
           </div>
         </div>
       </header>
@@ -631,6 +638,7 @@ function App() {
               </div>
             </>
           )}
+          {activeTab === 'calories' && <Calories />}
         </div>
       </main>
 
@@ -654,6 +662,13 @@ function App() {
         >
           <span className="nav-icon">{Icons.chart}</span>
           <span>Stats</span>
+        </button>
+        <button
+          className={`nav-item ${activeTab === 'calories' ? 'active' : ''}`}
+          onClick={() => setActiveTab('calories')}
+        >
+          <span className="nav-icon">{Icons.chart}</span>
+          <span>Calories</span>
         </button>
       </nav>
 
