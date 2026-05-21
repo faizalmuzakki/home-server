@@ -75,3 +75,13 @@ export async function uploadImage(base64Image, filename, meta = {}) {
   const response = await api.post('/api/upload', { image: base64Image, filename }, { meta });
   return response.data;
 }
+
+export async function createCalorieEntry(entry, meta = {}) {
+  const response = await api.post('/api/calories', entry, { meta });
+  return response.data;
+}
+
+export async function getCalorieSummary(params = {}, meta = {}) {
+  const response = await api.get('/api/calories/summary', { params, meta });
+  return response.data;
+}
