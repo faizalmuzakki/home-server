@@ -148,6 +148,19 @@ export const createCalorieValidators = [
 ];
 
 export const listCalorieValidators = [
+    query('sender_id')
+        .optional({ values: 'falsy' })
+        .isString().withMessage('sender_id must be a string')
+        .isLength({ max: 64 }).withMessage('sender_id too long (max 64 chars)'),
+    query('startDate')
+        .optional({ values: 'falsy' })
+        .matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('startDate must be YYYY-MM-DD'),
+    query('endDate')
+        .optional({ values: 'falsy' })
+        .matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('endDate must be YYYY-MM-DD'),
+    query('limit')
+        .optional({ values: 'falsy' })
+        .isInt({ min: 1, max: 1000 }).withMessage('limit must be an integer 1-1000'),
     handleValidationErrors,
 ];
 
