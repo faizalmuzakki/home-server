@@ -10,6 +10,10 @@ import {
 import { Readable } from 'stream';
 
 const IDLE_TIMEOUT_MS = 60 * 1000;
+// A chunk is only abandoned if playback makes NO progress for this long. Audio
+// that is still advancing is never cut off, no matter how long it plays.
+const STALL_TIMEOUT_MS = 30 * 1000;
+const STALL_POLL_MS = 5 * 1000;
 const TTS_USER_AGENT =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -128,6 +132,47 @@ function resetIdleTimer(session) {
 }
 
 /**
+ * Resolve once the player finishes the current chunk (reaches Idle).
+ *
+ * The bot must stay connected while it is still speaking, so this imposes no
+ * cap on how long a chunk may play — only a stall watchdog that rejects when
+ * playback makes no progress for STALL_TIMEOUT_MS (a genuinely stuck stream),
+ * never while audio is still advancing. An errored resource transitions to
+ * Idle on its own, so it is treated as "finished" and playback moves on, just
+ * as before.
+ */
+function waitForChunkToFinish(player) {
+    if (player.state.status === AudioPlayerStatus.Idle) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+        let lastDuration = -1;
+        let lastProgressAt = Date.now();
+
+        const stallTimer = setInterval(() => {
+            const progress = player.state.resource?.playbackDuration ?? lastDuration;
+            if (progress > lastDuration) {
+                lastDuration = progress;
+                lastProgressAt = Date.now();
+                return;
+            }
+            if (Date.now() - lastProgressAt >= STALL_TIMEOUT_MS) {
+                cleanup();
+                reject(new Error(`TTS playback stalled (no audio for ${STALL_TIMEOUT_MS / 1000}s, state: ${player.state.status}).`));
+            }
+        }, STALL_POLL_MS);
+
+        const onIdle = () => { cleanup(); resolve(); };
+
+        function cleanup() {
+            clearInterval(stallTimer);
+            player.off(AudioPlayerStatus.Idle, onIdle);
+        }
+
+        player.on(AudioPlayerStatus.Idle, onIdle);
+    });
+}
+
+/**
  * Connect to a voice channel and wait until the connection is Ready.
  * On timeout or error, destroys the connection and re-throws.
  */
@@ -243,12 +288,8 @@ export async function speak(voiceChannel, textChannel, text, lang) {
             } catch (err) {
                 throw new Error(`Player did not reach Playing in 15s (last state: ${session.player.state.status})`);
             }
-            console.log('[TTS] player is Playing, waiting for Idle');
-            try {
-                await entersState(session.player, AudioPlayerStatus.Idle, 30_000);
-            } catch (err) {
-                throw new Error(`Player did not reach Idle in 30s (last state: ${session.player.state.status})`);
-            }
+            console.log('[TTS] player is Playing, waiting for chunk to finish');
+            await waitForChunkToFinish(session.player);
             console.log('[TTS] chunk finished');
         }
     } catch (error) {
