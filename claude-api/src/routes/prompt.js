@@ -194,7 +194,7 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurn
 // CLI-only features (allowedTools, multi-turn), which none of the current
 // callers (parse-text, whatsapp-bot ai.js) rely on.
 async function runAnthropicFallback({ prompt, systemPrompt, model }) {
-  const resolvedModel = model || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+  const resolvedModel = model || process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
   const resp = await anthropic.messages.create({
     model: resolvedModel,
     max_tokens: 4096,

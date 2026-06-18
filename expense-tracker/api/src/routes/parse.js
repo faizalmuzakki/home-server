@@ -136,7 +136,7 @@ router.post('/image', sanitizeBase64Image, parseImageValidators, async (req, res
     else if (image.startsWith('UklGR')) mediaType = 'image/webp';
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       messages: [{
         role: 'user',
