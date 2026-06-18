@@ -22,6 +22,10 @@ export function getSenderId(msg) {
   return normalizeJid(msg.key.participant || msg.key.remoteJid || '');
 }
 
+export function getSenderName(msg) {
+  return msg.pushName || '';
+}
+
 export function getChatId(msg) {
   return msg.key.remoteJid;
 }

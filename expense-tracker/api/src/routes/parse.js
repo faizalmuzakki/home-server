@@ -151,10 +151,12 @@ router.post('/image', sanitizeBase64Image, parseImageValidators, async (req, res
           },
           {
             type: 'text',
-            text: `Analyze this image and determine if it shows an EXPENSE (receipt, purchase, payment) or INCOME (transfer received, salary slip, payment received).
+            text: `First classify this image, then extract data.
 
-EXPENSE indicators: Receipt, invoice, purchase, payment confirmation, bill, struk, nota
-INCOME indicators: Transfer received, salary slip, payment received, "dari", incoming transfer, credit notification
+Set "kind" to:
+- "expense" if it is a receipt, invoice, bill, purchase, or payment/transfer proof (money spent or received)
+- "food" if it is a photo of food or a meal/drink to estimate nutrition for
+- "unknown" if it is neither (e.g. screenshot, person, scenery, order tracking)
 
 EXPENSE categories:
 ${expenseCategoryList}
@@ -162,19 +164,33 @@ ${expenseCategoryList}
 INCOME categories:
 ${incomeCategoryList}
 
-Return ONLY valid JSON:
+If kind is "expense", return ONLY this JSON:
 {
+  "kind": "expense",
   "type": "expense" or "income",
   "amount": <number - total amount>,
   "description": "<brief description>",
   "vendor": "<store/sender name>",
-  "category_id": <number from appropriate category list above>,
+  "category_id": <number from the appropriate category list above>,
   "date": "<YYYY-MM-DD from image, or today: ${new Date().toISOString().split('T')[0]}>",
   "items": ["<item1>", "<item2>"],
-  "confidence": <0-1 how confident you are>
+  "confidence": <0-1>
 }
 
-If this is not a valid transaction image (e.g., order tracking, shopping cart, unrelated image), return: {"error": "reason"}`
+If kind is "food", estimate nutrition and return ONLY this JSON:
+{
+  "kind": "food",
+  "description": "<short description of the meal, e.g. 'Nasi goreng + telur + es teh'>",
+  "calories": <integer total kcal estimate>,
+  "protein_g": <number grams>,
+  "carbs_g": <number grams>,
+  "fat_g": <number grams>,
+  "items": [{"name": "<food>", "calories": <integer>, "portion": "<e.g. 1 plate>"}],
+  "date": "${new Date().toISOString().split('T')[0]}",
+  "confidence": <0-1>
+}
+
+If kind is "unknown", return ONLY: {"kind": "unknown", "reason": "<short reason>"}`
           }
         ]
       }]
@@ -182,6 +198,10 @@ If this is not a valid transaction image (e.g., order tracking, shopping cart, u
 
     const content = response.content[0].text;
     const parsed = JSON.parse(extractJsonObject(content));
+
+    // Backward compat: older prompt versions / receipts without an explicit
+    // discriminator are treated as expenses.
+    if (!parsed.kind && !parsed.error) parsed.kind = 'expense';
 
     // Add token usage for cost tracking
     parsed.usage = {
