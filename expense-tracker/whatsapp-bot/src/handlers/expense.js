@@ -71,7 +71,7 @@ export async function handleTextTransaction(sock, jid, text, msg) {
       msg
     );
   } catch (error) {
-    await reply(sock, jid, `Error: ${error.message}`, msg);
+    await reply(sock, jid, `Error: ${error.apiMessage || error.message}`, msg);
   }
 }
 
@@ -125,6 +125,6 @@ export async function handleImageTransaction(sock, msg, jid, caption = '') {
       msg
     );
   } catch (error) {
-    await reply(sock, jid, `Error: ${error.message}`, msg);
+    await reply(sock, jid, `Error: ${error.apiMessage || error.message}`, msg);
   }
 }

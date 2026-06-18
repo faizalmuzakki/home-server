@@ -13,29 +13,31 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
 
-    // Skip 4xx (user errors, already surfaced to the user)
-    if (typeof status === 'number' && status >= 400 && status < 500) {
-      return Promise.reject(error);
-    }
-
-    const meta = error.config?.meta || {};
-    const endpoint = error.config?.url || null;
-    const method = error.config?.method?.toUpperCase() || null;
+    // Extract the server's real error (e.g. the upstream Claude failure) instead
+    // of axios's generic "Request failed with status code 500", and attach it so
+    // handlers can surface it in the WhatsApp reply.
     const errorMessage = error.response?.data?.error
       || error.response?.data?.message
       || error.code
       || error.message
       || 'unknown error';
+    error.apiMessage = errorMessage;
 
-    // Fire-and-forget: never await, never let webhook failure affect the caller
-    notifyError({
-      endpoint,
-      method,
-      status: typeof status === 'number' ? status : null,
-      errorMessage,
-      sender: meta.sender,
-      messagePreview: meta.messagePreview
-    });
+    // Only alert Discord for server-side (5xx) and network failures — 4xx are
+    // user errors already surfaced in the reply, not worth paging for.
+    const isClientError = typeof status === 'number' && status >= 400 && status < 500;
+    if (!isClientError) {
+      const meta = error.config?.meta || {};
+      // Fire-and-forget: never await, never let webhook failure affect the caller
+      notifyError({
+        endpoint: error.config?.url || null,
+        method: error.config?.method?.toUpperCase() || null,
+        status: typeof status === 'number' ? status : null,
+        errorMessage,
+        sender: meta.sender,
+        messagePreview: meta.messagePreview
+      });
+    }
 
     return Promise.reject(error);
   }
