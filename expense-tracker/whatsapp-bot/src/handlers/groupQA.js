@@ -64,7 +64,7 @@ export async function handleGroupMessage(sock, msg, botJid) {
 
     const { answer, usage } = await askQuestion(question);
 
-    // Calculate approximate cost (Claude Sonnet 4.6 pricing)
+    // Calculate approximate cost (Claude Sonnet 5 pricing)
     const inputCost = (usage.input_tokens || 0) * 0.000003;
     const outputCost = (usage.output_tokens || 0) * 0.000015;
     const totalCost = (inputCost + outputCost).toFixed(6);

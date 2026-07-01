@@ -4,8 +4,8 @@ export const AI_MODEL_NAME = 'Claude 4.5 Haiku';
 
 // Heavier model for commands where intelligence/quality matters more
 // (summarize, recap, explain, ask). Costs a few cents more per call.
-export const AI_MODEL_SMART = 'claude-sonnet-4-6';
-export const AI_MODEL_SMART_NAME = 'Claude 4.6 Sonnet';
+export const AI_MODEL_SMART = 'claude-sonnet-5';
+export const AI_MODEL_SMART_NAME = 'Claude Sonnet 5';
 
 /**
  * Generates the footer object for Discord embeds with attribution.

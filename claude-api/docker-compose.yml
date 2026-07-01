@@ -11,7 +11,7 @@ services:
       - PORT=3100
       - API_SECRET=${API_SECRET}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-4-6}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-5}
       - MAX_TURNS=${MAX_TURNS:-10}
       - MAX_CONCURRENT=${MAX_CONCURRENT:-3}
       - HOME=/home/claude
