@@ -39,6 +39,7 @@ const anthropic = new Anthropic({
 // preamble/suffix and markdown code fences — the model occasionally ignores
 // "return only JSON" and wraps the object in commentary.
 function extractJsonObject(text) {
+  if (typeof text !== 'string') throw new Error(`expected string response, got ${typeof text}`);
   const start = text.indexOf('{');
   if (start === -1) throw new Error(`no JSON object in response: ${text.slice(0, 120)}`);
 
@@ -180,8 +181,9 @@ If this is not a valid transaction image (e.g., order tracking, shopping cart, u
       }]
     });
 
-    const content = response.content[0].text;
-    const parsed = JSON.parse(extractJsonObject(content));
+    const textBlock = response.content.find((block) => block.type === 'text');
+    if (!textBlock) throw new Error('Claude response contained no text block');
+    const parsed = JSON.parse(extractJsonObject(textBlock.text));
 
     // Add token usage for cost tracking
     parsed.usage = {
