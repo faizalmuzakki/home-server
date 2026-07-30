@@ -92,229 +92,25 @@ client.once(Events.ClientReady, async (readyClient) => {
         await startApiServer(config.apiPort);
     }
 
-    // Start reminder checker (runs every 30 seconds)
-    setInterval(async () => {
-        try {
-            const reminders = getPendingReminders();
+    // Start background services
+    const { start: startReminders } = await import('./services/reminderScheduler.js');
+    const { start: startMessages } = await import('./services/messageScheduler.js');
+    const { start: startGiveaways } = await import('./services/giveawayScheduler.js');
+    const { start: startStats } = await import('./services/statsChannelUpdater.js');
+    const { start: startBirthdays } = await import('./services/birthdayScheduler.js');
+    const { start: startVoiceXp } = await import('./services/voiceXpTracker.js');
 
-            for (const reminder of reminders) {
-                try {
-                    // Try to send DM first
-                    const user = await client.users.fetch(reminder.user_id).catch(() => null);
-
-                    if (user) {
-                        const embed = {
-                            color: 0x5865F2,
-                            title: '⏰ Reminder!',
-                            description: reminder.message,
-                            footer: {
-                                text: `Set ${formatTimeAgo(new Date(reminder.created_at))}`,
-                            },
-                            timestamp: new Date().toISOString(),
-                        };
-
-                        // Try DM first
-                        let sent = false;
-                        try {
-                            await user.send({ embeds: [embed] });
-                            sent = true;
-                        } catch (e) {
-                            // DMs disabled, try channel
-                        }
-
-                        // If DM failed and we have a channel, try there
-                        if (!sent && reminder.channel_id) {
-                            const channel = await client.channels.fetch(reminder.channel_id).catch(() => null);
-                            if (channel) {
-                                await channel.send({
-                                    content: `<@${reminder.user_id}>`,
-                                    embeds: [embed],
-                                });
-                            }
-                        }
-                    }
-
-                    // Mark reminder as completed
-                    markReminderCompleted(reminder.id);
-                } catch (e) {
-                    console.error(`[ERROR] Failed to send reminder ${reminder.id}:`, e);
-                }
-            }
-        } catch (e) {
-            console.error('[ERROR] Reminder checker error:', e);
-        }
-    }, 30000);
-
-    console.log('[INFO] Reminder checker started');
-
-    // Start scheduled message dispatcher (runs every 30 seconds)
-    setInterval(async () => {
-        try {
-            const pending = getPendingScheduledMessages();
-            for (const msg of pending) {
-                try {
-                    const channel = await client.channels.fetch(msg.channel_id).catch(() => null);
-                    if (channel?.isTextBased()) {
-                        await channel.send(msg.message);
-                    }
-                    markScheduledMessageSent(msg.id);
-                } catch (e) {
-                    console.error(`[ERROR] Failed to deliver scheduled message ${msg.id}:`, e);
-                }
-            }
-        } catch (e) {
-            console.error('[ERROR] Scheduled message dispatcher error:', e);
-        }
-    }, 30000);
-    console.log('[INFO] Scheduled message dispatcher started');
-
-    // Start giveaway check interval (every 30 seconds)
-    setInterval(() => checkEndedGiveaways(client), 30000);
-    console.log('[INFO] Giveaway checker started');
-
-    // Stats channel updater — updates voice channel names every 10 minutes
-    async function updateStatsChannels() {
-        try {
-            const rows = getAllStatsChannels();
-            for (const row of rows) {
-                const guild = client.guilds.cache.get(row.guild_id);
-                if (!guild) continue;
-                const channel = guild.channels.cache.get(row.channel_id);
-                if (!channel) continue;
-                try {
-                    const count = await getStatValue(guild, row.stat_type);
-                    const newName = formatStatName(row.stat_type, count);
-                    if (channel.name !== newName) {
-                        await channel.setName(newName);
-                    }
-                } catch {
-                    // No ManageChannels permission or rate-limited — skip
-                }
-            }
-        } catch (e) {
-            console.error('[ERROR] Stats channel updater error:', e);
-        }
-    }
-    setInterval(updateStatsChannels, 10 * 60 * 1000);
-    updateStatsChannels(); // run once immediately on startup
-    console.log('[INFO] Stats channel updater started');
-
-    // Birthday announcer — fires at the next UTC midnight, then every 24 h
-    const scheduleBirthdayCheck = () => {
-        const now = new Date();
-        const nextMidnight = new Date(Date.UTC(
-            now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1,
-        ));
-        const msUntilMidnight = nextMidnight.getTime() - now.getTime();
-
-        setTimeout(() => {
-            checkBirthdays(client);
-            setInterval(() => checkBirthdays(client), 24 * 60 * 60 * 1000);
-        }, msUntilMidnight);
-
-        console.log(`[INFO] Birthday checker scheduled — first run in ${Math.round(msUntilMidnight / 60000)} min`);
-    };
-    scheduleBirthdayCheck();
+    startReminders(client);
+    startMessages(client);
+    startGiveaways(client);
+    startStats(client);
+    startBirthdays(client);
+    startVoiceXp(client);
 });
 
 
 
-// Announce today's birthdays in each guild's configured birthday channel
-async function checkBirthdays(client) {
-    for (const [guildId, guild] of client.guilds.cache) {
-        if (!checkGuildAccess(guildId)) continue;
 
-        try {
-            const settings = getGuildSettings(guildId);
-            if (!settings?.birthday_channel_id) continue;
-
-            const channel = guild.channels.cache.get(settings.birthday_channel_id);
-            if (!channel) continue;
-
-            const birthdays = getTodayBirthdays(guildId);
-            for (const entry of birthdays) {
-                const user = await client.users.fetch(entry.user_id).catch(() => null);
-                if (!user) continue;
-
-                await channel.send({
-                    embeds: [{
-                        color: 0xEB459E,
-                        title: '🎂 Happy Birthday!',
-                        description: `Today is **${user.displayName || user.username}**'s birthday! 🎉\n\nWish them a happy birthday!`,
-                        thumbnail: { url: user.displayAvatarURL({ dynamic: true }) },
-                        timestamp: new Date().toISOString(),
-                    }],
-                }).catch(err => console.error(`[ERROR] Birthday message failed for ${entry.user_id}:`, err));
-            }
-        } catch (e) {
-            console.error(`[ERROR] Birthday check failed for guild ${guildId}:`, e);
-        }
-    }
-}
-
-// Check for ended giveaways
-async function checkEndedGiveaways(client) {
-    // Single query for all expired giveaways across all guilds, regardless of bot cache state
-    const expired = getExpiredGiveaways();
-
-    for (const giveaway of expired) {
-        try {
-            const entries = getGiveawayEntries(giveaway.message_id);
-            endGiveaway(giveaway.message_id);
-
-            const channel = await client.channels.fetch(giveaway.channel_id);
-            const message = await channel.messages.fetch(giveaway.message_id);
-
-            if (entries.length === 0) {
-                const embed = {
-                    color: 0x747F8D,
-                    title: '🎉 GIVEAWAY ENDED 🎉',
-                    description: `**${giveaway.prize}**\n\nNo winners - no one entered!`,
-                    timestamp: new Date().toISOString(),
-                };
-                await message.edit({ embeds: [embed], components: [] });
-            } else {
-                // Pick winners using Fisher-Yates shuffle for fair selection
-                const winners = [];
-                const shuffled = [...entries];
-                for (let i = shuffled.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-                }
-                const winnerCount = Math.min(giveaway.winner_count, shuffled.length);
-
-                for (let i = 0; i < winnerCount; i++) {
-                    try {
-                        const user = await client.users.fetch(shuffled[i].user_id);
-                        winners.push(user);
-                    } catch {
-                        // User left server or not found
-                    }
-                }
-
-                const winnerMentions = winners.map(u => `${u}`).join(', ') || 'Could not determine winners';
-
-                const embed = {
-                    color: 0x57F287,
-                    title: '🎉 GIVEAWAY ENDED 🎉',
-                    description: `**${giveaway.prize}**\n\n**Winner${winners.length > 1 ? 's' : ''}:** ${winnerMentions}`,
-                    footer: { text: `${entries.length} total entries` },
-                    timestamp: new Date().toISOString(),
-                };
-
-                await message.edit({ embeds: [embed], components: [] });
-
-                if (winners.length > 0) {
-                    await channel.send({
-                        content: `🎉 Congratulations ${winnerMentions}! You won **${giveaway.prize}**!`,
-                    });
-                }
-            }
-        } catch (error) {
-            console.error('[ERROR] Failed to end giveaway:', giveaway.id, error);
-        }
-    }
-}
 
 // Handle button interactions (giveaways)
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -1015,74 +811,7 @@ client.on(Events.MessageReactionRemove, async (reaction, user) => {
     }
 });
 
-// Voice channel XP tracking
-// Award XP every 5 minutes to users in voice channels
-const voiceXpInterval = 5 * 60 * 1000; // 5 minutes
-const voiceXpAmount = { min: 5, max: 10 }; // XP range per interval
 
-setInterval(async () => {
-    for (const [guildId, guild] of client.guilds.cache) {
-        if (!checkGuildAccess(guildId)) continue;
-
-        // Get all voice channels with members
-        for (const [, channel] of guild.channels.cache) {
-            if (channel.type !== ChannelType.GuildVoice) continue;
-
-            // Get non-bot members in the voice channel
-            const members = channel.members.filter(m => !m.user.bot);
-
-            // Require at least 2 people to prevent solo AFK farming
-            if (members.size < 2) continue;
-
-            // Award XP to each member
-            for (const [, member] of members) {
-                // Skip if member is server deafened (likely AFK)
-                if (member.voice.serverDeaf) continue;
-
-                // Award random XP
-                const xpGained = Math.floor(Math.random() * (voiceXpAmount.max - voiceXpAmount.min + 1)) + voiceXpAmount.min;
-                const result = addXp(guildId, member.user.id, xpGained);
-
-                // Check for level up - notify in configured level channel
-                if (result && result.leveledUp) {
-                    // Get guild settings to check for level channel
-                    const settings = getGuildSettings(guildId);
-
-                    // Check if level notifications are enabled (default: enabled if not set)
-                    const levelEnabled = settings?.level_enabled !== 0;
-
-                    if (levelEnabled) {
-                        let targetChannel = null;
-
-                        if (settings?.level_channel_id) {
-                            // Use configured level channel
-                            targetChannel = guild.channels.cache.get(settings.level_channel_id);
-                        }
-
-                        // Fallback: try to find a general/chat channel
-                        if (!targetChannel) {
-                            targetChannel = guild.channels.cache.find(
-                                c => c.type === 0 && c.permissionsFor(guild.members.me)?.has('SendMessages')
-                            );
-                        }
-
-                        if (targetChannel) {
-                            try {
-                                await targetChannel.send({
-                                    content: `🎉 ${member.user} leveled up to **Level ${result.newLevel}** while vibing in voice!`,
-                                });
-                            } catch {
-                                // Couldn't send
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}, voiceXpInterval);
-
-console.log('[INFO] Voice XP tracker initialized (awards XP every 5 minutes)');
 
 // Handle bot joining a new guild
 client.on(Events.GuildCreate, (guild) => {
