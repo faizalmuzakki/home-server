@@ -32,6 +32,7 @@ import {
 import db from './database/db.js';
 import { getStatValue, formatStatName } from './commands/statschannel.js';
 import { updateTopRoles } from './utils/levelRoles.js';
+import { formatTimeAgo, formatDuration } from './utils/timeFormat.js';
 import { startApiServer, setDiscordClient } from './api/server.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -216,34 +217,7 @@ client.once(Events.ClientReady, async (readyClient) => {
     scheduleBirthdayCheck();
 });
 
-// Helper function to format time ago
-function formatTimeAgo(date) {
-    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
 
-    if (days > 0) return `${days} day${days !== 1 ? 's' : ''} ago`;
-    if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
-    if (minutes > 0) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-    return 'just now';
-}
-
-// Helper function to format duration
-function formatDuration(ms) {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours % 24 > 0) parts.push(`${hours % 24}h`);
-    if (minutes % 60 > 0) parts.push(`${minutes % 60}m`);
-    if (seconds % 60 > 0 && parts.length < 2) parts.push(`${seconds % 60}s`);
-
-    return parts.join(' ') || 'less than a second';
-}
 
 // Announce today's birthdays in each guild's configured birthday channel
 async function checkBirthdays(client) {
