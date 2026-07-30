@@ -96,6 +96,8 @@ TARGETS=(
     "homer:homer/config"
     "syncthing:syncthing/config"
     "crowdsec-config:crowdsec/config"
+    "tailscale-state:tailscale/data"
+    "scrutiny-config:scrutiny/config"
 )
 
 ITEM_COUNT=0
