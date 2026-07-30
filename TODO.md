@@ -31,13 +31,9 @@ Current `mongodb/.env` password doesn't match what's actually stored in the DB (
 
 **Fix:** start mongo once with `--noauth`, rotate the admin user, restart. Then mongodump will succeed and backups will be clean dumps instead of live data-dir copies.
 
-### palu-gada-root-bot — DEV_TOKEN unauthorized, container stopped
+### 2FAuth — not running
 
-`@rootsdk/dev-tools` startup calls `root.CommunityMemberGrpcService/ListAll` against `api.rootapp.com` and gets back `UNAUTHENTICATED` (HTTP 401, gRPC code 16). The SDK doesn't catch it — the unhandled rejection kills the process, container restart-loops (~3 sec cycle, 1641+ restarts logged before stop). Symptom in logs: `Starting dist/main.js` → `ClientMessage/ClientUpdate/DevAppHostService` services → 10s wait → `Exiting` → webpack bundle dump (Node's default error display). No `OutOfBandServices` line is the tell.
-
-Last successful community attach was 2026-04-14 17:12 ICT, detached 18:18 ICT, restart loop began 18:56 ICT — the Root platform either revoked the token or shut down the dev API (rootapp.com marketing site was last published 2026-04-08).
-
-Container is currently stopped (`docker stop` + `docker update --restart=no`). To revive: regenerate DEV_TOKEN from the Root dev portal (if still operational) and `docker compose up -d`. If the Root platform is dead, comment out the service in `palu-gada-root-bot/docker-compose.yml` (mirroring the Jellyfin-only media revival pattern).
+`2fauth/` has a compose file but no container is up, and no `data/` dir exists. The Feb 15 export CSVs are the only copy of those TOTP secrets. Decide: revive the service, or delete the compose and formally migrate those secrets into Vaultwarden/Bitwarden.
 
 ### Discord notifications for backup
 
@@ -45,8 +41,8 @@ Container is currently stopped (`docker stop` + `docker update --restart=no`). T
 
 ## Ideas — not committed to, just parked
 
-### Bot consolidation
-`palu-gada-root-bot` has far fewer features than `palu-gada-bot` — the two codebases have diverged. Either port features over or convert root-bot into a thin wrapper that imports from the main bot.
+### Bot consolidation (parked — root bot archived)
+`palu-gada-root-bot` is archived (Root platform defunct since Apr 2026). If Root revives, evaluate whether to consolidate or maintain separate codebases.
 
 ### New `/server` admin commands for the Discord bot
 Disk usage, memory, container status, restart-service. Socket-proxy is already in place (`palu-gada-socket-proxy`) so the infra exists.
@@ -72,6 +68,7 @@ The full Sonarr/Radarr/Prowlarr/qBittorrent/Bazarr stack is commented out in `me
 
 ## Recently done
 
+- 2026-07-30 — Archived palu-gada-root-bot: commented out docker-compose services. Root platform API is defunct since 2026-04-14 (DEV_TOKEN unauthorized). Code remains in git.
 - 2026-04-13 — Extended LVM from 58G to 116G; `/` went from 72% to 36% used.
 - 2026-04-13 — Wiped the idle 240G SATA SSD (was NTFS, empty) and mounted it at `/data` via fstab. Gives ~220G of dedicated data space.
 - 2026-04-13 — Rewrote `scripts/backup-encrypted.sh` for the bind-mount data layout. Daily root cron at 03:00, 16 targets, age-encrypted, age key at `/etc/home-server/age.key` (also stored in Bitwarden). `restore-backup.sh` updated to match.
