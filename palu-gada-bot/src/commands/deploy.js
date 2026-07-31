@@ -15,7 +15,7 @@ export default {
                     { name: 'Home Server (General)', value: 'home-server' },
                     { name: 'Expense Tracker', value: 'expense-tracker' },
                     { name: 'Palu Gada Bot', value: 'palu-gada-bot' },
-                    { name: '2FAuth', value: '2fauth-local' }
+                    { name: 'Claude API', value: 'claude-api' }
                 ))
         .addStringOption(option =>
             option.setName('service')
@@ -56,9 +56,9 @@ export default {
                 hookId = 'monorepo-deploy';
                 payload = { repository: { name: 'palu-gada-bot' }, ref: 'refs/heads/main' };
                 break;
-            case '2fauth-local':
+            case 'claude-api':
                 hookId = 'monorepo-deploy';
-                payload = { repository: { name: '2fauth-local' }, ref: 'refs/heads/main' };
+                payload = { repository: { name: 'claude-api' }, ref: 'refs/heads/main' };
                 break;
         }
 
