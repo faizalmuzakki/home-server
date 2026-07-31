@@ -63,6 +63,9 @@ notify_success() {
 
 command -v age >/dev/null || die "'age' not installed (sudo apt install age)"
 command -v jq  >/dev/null || die "'jq' not installed"
+if [ -n "${RCLONE_REMOTE:-}" ] && ! command -v rclone >/dev/null; then
+    die "'rclone' is not installed but RCLONE_REMOTE is set (sudo apt install rclone)"
+fi
 
 if [ ! -f "$AGE_KEY" ]; then
     log "Generating age key at $AGE_KEY"
@@ -186,7 +189,7 @@ find "$BACKUP_BASE" -maxdepth 1 -type d -name '20*' -mtime +${RETENTION_DAYS} \
     -exec rm -rf {} \; 2>/dev/null || true
 
 log "[4/4] Offsite sync..."
-if [ -n "${RCLONE_REMOTE:-}" ] && command -v rclone >/dev/null; then
+if [ -n "${RCLONE_REMOTE:-}" ]; then
     rclone sync "$BACKUP_BASE" "$RCLONE_REMOTE" \
         --exclude 'backup.log' \
         --transfers 4 \
@@ -194,7 +197,7 @@ if [ -n "${RCLONE_REMOTE:-}" ] && command -v rclone >/dev/null; then
         || die "rclone sync failed"
     log "  → synced to $RCLONE_REMOTE"
 else
-    log "  → skipped (RCLONE_REMOTE unset or rclone missing)"
+    log "  → skipped (RCLONE_REMOTE unset)"
 fi
 
 TOTAL_SIZE=$(du -sh "$BACKUP_DIR" | cut -f1)
