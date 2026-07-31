@@ -77,10 +77,79 @@ This catches anything that slips through (e.g., manual `docker pull` calls, Watc
 | `/swap.img` | 4.1GB | Fixed swap file |
 | `/home` | 3.4GB | User data |
 | `/usr` | 3.3GB | System packages |
-| `/var/lib/docker` | ~35GB+ | Docker data root — main variable |
+| `/data/docker` | ~35GB+ | Docker data root — moved to dedicated `/data` SSD disk (220GB) |
 | `/opt` | 760MB | Misc |
 
-> The Docker data root (`/var/lib/docker`) is on the root LVM volume. There is no separate partition for it, so Docker growth directly impacts overall available disk space.
+> The Docker data root is configured to `/data/docker` on the dedicated `/dev/sda1` drive (220GB), keeping root partition (`/`) usage clean and predictable.
+
+---
+
+## Docker Data Root Relocation (`/var/lib/docker` -> `/data/docker`)
+
+To prevent Docker image layers and container volumes from overwhelming the 115GB root partition (`/`), the Docker daemon data root can be relocated to the dedicated storage drive mounted at `/data`.
+
+### Automated Relocation (Recommended)
+
+Use the helper script `scripts/migrate-docker-data-root.sh`:
+
+```bash
+sudo ./scripts/migrate-docker-data-root.sh
+```
+
+**Script Workflow:**
+1. Verifies `root` privileges and target parent directory `/data`.
+2. Checks if Docker is already using `/data/docker`.
+3. Stops `docker.service` and `docker.socket`.
+4. Copies `/var/lib/docker/` to `/data/docker/` using `rsync -aHAX` (preserving attributes and links).
+5. Backs up `/etc/docker/daemon.json` and updates `"data-root": "/data/docker"`.
+6. Restarts Docker and verifies active root with `docker info`.
+
+---
+
+### Step-by-Step Manual Relocation
+
+If executing manually:
+
+1. **Create target directory on `/data`:**
+   ```bash
+   sudo mkdir -p /data/docker
+   ```
+
+2. **Stop Docker daemon and socket:**
+   ```bash
+   sudo systemctl stop docker.service docker.socket
+   ```
+
+3. **Rsync Docker data root safely:**
+   ```bash
+   sudo rsync -aHAX --info=progress2 /var/lib/docker/ /data/docker/
+   ```
+
+4. **Update `/etc/docker/daemon.json`:**
+   Add or update the `"data-root"` key in `/etc/docker/daemon.json`:
+   ```json
+   {
+     "data-root": "/data/docker"
+   }
+   ```
+
+5. **Start Docker daemon:**
+   ```bash
+   sudo systemctl start docker.service
+   ```
+
+6. **Verify relocation:**
+   ```bash
+   docker info -f '{{.DockerRootDir}}'
+   # Output should be: /data/docker
+
+   docker ps -a
+   ```
+
+7. **Clean up legacy directory (optional, after verifying container health):**
+   ```bash
+   sudo rm -rf /var/lib/docker
+   ```
 
 ---
 
