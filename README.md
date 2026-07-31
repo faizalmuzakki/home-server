@@ -99,11 +99,12 @@ sudo apt install -y git curl wget htop vim jq tmux
 | [MongoDB](./mongodb/) | 27017 | Database server | `mongodb/` |
 | [Expense Tracker](./expense-tracker/) | 3000 | WhatsApp expense bot + API | `expense-tracker/` |
 | [Vaultwarden](./vaultwarden/) | - | Bitwarden password manager | `vaultwarden/` |
-| [2FAuth](./2fauth/) | - | Self-hosted TOTP authenticator | `2fauth/` |
 | [Syncthing](./syncthing/) | 8384 | File synchronization | `syncthing/` |
 | [Home Assistant](./homeassistant/) | 8123 | Home automation | `homeassistant/` |
 | [Palu Gada Bot](./palu-gada-bot/) | 3003 | Discord bot + API | `palu-gada-bot/` |
 | [Palu Gada Root Bot](./palu-gada-root-bot/) | 3051 | Discord bot (root server) | `palu-gada-root-bot/` |
+| [Immich](./immich/) | 2283 | Photo & video management | `immich/` |
+| [Paperless-ngx](./paperless/) | 8000 | Document management & OCR | `paperless/` |
 
 ### Media Stack
 
@@ -165,6 +166,8 @@ These are hobby/media services. Stop them freely to save resources.
 | **Zigbee2MQTT** | ~50MB | Only when using Zigbee devices |
 | **Mosquitto** | ~10MB | Only when HA/Zigbee are running |
 | **Syncthing** | ~50-100MB | Can run on-demand for file sync |
+| **Immich** | ~500MB-1GB | Self-hosted photo management (data in `/data/immich`) |
+| **Paperless-ngx** | ~300-500MB | Document indexing & OCR (data in `/data/paperless`) |
 
 ### Quick Commands
 
@@ -251,6 +254,8 @@ All services use **bind mounts** instead of Docker named volumes for data persis
 | **Syncthing** | `syncthing/config/` | Sync config |
 | **Traefik** | `traefik/logs/` | Access logs |
 | **Netdata** | `netdata/config/`, `netdata/lib/` | Monitoring data |
+| **Immich** | `/data/immich/` | Photos, Postgres DB, Redis cache |
+| **Paperless-ngx** | `/data/paperless/` | Consume, media, data, export, DB, Redis |
 
 ### Migration from Named Volumes
 
