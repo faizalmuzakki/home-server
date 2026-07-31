@@ -81,11 +81,13 @@ sudo apt install -y git curl wget htop vim jq tmux
 
 | Service | Port | Description | Directory |
 |---------|------|-------------|-----------|
-| [Homer](./homer/) | - | Home dashboard / landing page | `homer/` |
+| [Homepage](./homepage/) | - | Dashboard with live container status widgets | `homepage/` |
 | [Traefik](./traefik/) | 80, 443 | Reverse proxy with auto SSL | `traefik/` |
 | [Cloudflare Tunnel](./cloudflare-tunnel/) | - | Secure tunnel without port forwarding | `cloudflare-tunnel/` |
+| [Tailscale](./tailscale/) | - | Mesh VPN for raw TCP/SSH access | `tailscale/` |
 | [AdGuard Home](./adguard/) | 53, 3001 | Network-wide ad blocking & DNS | `adguard/` |
 | [Uptime Kuma](./uptime-kuma/) | 3002 | Service monitoring & status page | `uptime-kuma/` |
+| [Scrutiny](./scrutiny/) | - | SMART disk health monitoring | `scrutiny/` |
 | [Netdata](./netdata/) | - | Real-time server performance monitoring | `netdata/` |
 | [Webhook](./webhook/) | - | GitHub CI/CD auto-deployment | `webhook/` |
 | [Dockge](./dockge/) | 5001 | Docker Compose management UI | `dockge/` |
@@ -102,7 +104,7 @@ sudo apt install -y git curl wget htop vim jq tmux
 | [Syncthing](./syncthing/) | 8384 | File synchronization | `syncthing/` |
 | [Home Assistant](./homeassistant/) | 8123 | Home automation | `homeassistant/` |
 | [Palu Gada Bot](./palu-gada-bot/) | 3003 | Discord bot + API | `palu-gada-bot/` |
-| [Palu Gada Root Bot](./palu-gada-root-bot/) | 3051 | Discord bot (root server) | `palu-gada-root-bot/` |
+| [Palu Gada Root Bot](./palu-gada-root-bot/) | 3051 | ~~Discord bot (Root platform)~~ — **Archived** (Root API defunct) | `palu-gada-root-bot/` |
 | [Immich](./immich/) | 2283 | Photo & video management | `immich/` |
 | [Paperless-ngx](./paperless/) | 8000 | Document management & OCR | `paperless/` |
 
@@ -131,7 +133,7 @@ These are essential infrastructure or high-value personal services.
 | **Cloudflare Tunnel** | External access | No remote access to any service |
 | **AdGuard Home** | Network DNS | **All devices lose DNS** (internet breaks) |
 | **Vaultwarden** | Password manager | Can't access passwords |
-| **2FAuth** | 2FA codes | Can't access 2FA tokens |
+
 | **Expense Tracker** *(all 3)* | Daily finance tracking | WhatsApp bot + API + tunnel all linked |
 | **MongoDB** | Database | Breaks apps that depend on it |
 
@@ -147,7 +149,7 @@ Useful for operations and maintenance, but won't break daily usage if stopped br
 | **Uptime Kuma** | Monitoring | Yes — just lose alerting |
 | **Netdata** | System metrics | Yes — just lose live monitoring |
 | **Dockge** | Container UI | Yes — use CLI instead |
-| **Homer** | Dashboard | Yes — bookmarks still work |
+| **Homepage** | Dashboard | Yes — bookmarks still work |
 | **Palu Gada Bot** | Discord bot | Yes — Discord features go offline |
 
 ### 🟢 Optional — Stop Anytime
@@ -184,16 +186,17 @@ cd ~/Projects/home-server/homeassistant && docker compose up -d
 docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 ```
 
-### Current Status (as of Feb 24, 2026)
+### Current Status (as of Jul 30, 2026)
 
 | Group | Status | Containers |
 |-------|--------|------------|
-| **Core Infrastructure** | ✅ Running | traefik, cloudflared, adguard, crowdsec, crowdsec-bouncer, watchtower, webhook |
-| **Applications** | ✅ Running | vaultwarden, expense-tracker (×3), mongodb, palu-gada-bot, palu-gada-root-bot |
-| **Monitoring** | ✅ Running | uptime-kuma, netdata, dockge, homer |
+| **Core Infrastructure** | ✅ Running | traefik, cloudflared, adguard, crowdsec, crowdsec-bouncer, watchtower, webhook, tailscale |
+| **Applications** | ✅ Running | vaultwarden, expense-tracker (×3), mongodb, palu-gada-bot, claude-api |
+| **Monitoring** | ✅ Running | uptime-kuma, netdata, dockge, homepage, scrutiny |
 | **File Sync** | ✅ Running | syncthing |
-| **Media Stack** | 🛑 Stopped | jellyfin, sonarr, radarr, bazarr, prowlarr, qbittorrent |
+| **Media Stack** | 🟡 Partial | jellyfin (running); sonarr, radarr, bazarr, prowlarr, qbittorrent (stopped, needs VPN) |
 | **Smart Home** | 🛑 Stopped | homeassistant, zigbee2mqtt, mosquitto |
+| **Archived** | ⬜ Removed | palu-gada-root-bot, homer, 2fauth |
 
 ### Incident Log
 

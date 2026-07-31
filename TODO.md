@@ -8,36 +8,24 @@ Open items and ideas for future sessions. Keep this current — remove what's do
 
 Local encrypted backups are running daily at 03:00. Still need offsite.
 
-**Steps:**
-1. Create a Cloudflare R2 bucket (e.g. `home-server-backups`). Free tier: 10GB storage, 1M Class A ops/month — current backup is ~1GB so well under.
-2. Create an R2 API token scoped to that bucket (Access Key ID + Secret).
-3. On the server, install rclone: `sudo apt install rclone` (or `curl https://rclone.org/install.sh | sudo bash` for latest).
-4. Run `rclone config` and add an S3-compatible remote:
-   - name: `r2`
-   - provider: `Cloudflare`
-   - access_key_id / secret_access_key: from step 2
-   - endpoint: `https://<account_id>.r2.cloudflarestorage.com`
-5. Create `scripts/.env.backup` (gitignored) from `scripts/.env.backup.example` and set:
-   ```
-   RCLONE_REMOTE=r2:home-server-backups
-   DISCORD_WEBHOOK_URL=...  # optional, reuse the deploy webhook
-   ```
-6. Test manually: `sudo /home/solork/Projects/home-server/scripts/backup-encrypted.sh`
-7. Verify files in R2 dashboard.
+Plan written: `docs/superpowers/plans/2026-07-30-offsite-backup-r2.md`
+Requires manual server work (rclone config, R2 bucket creation, `.env.backup` secrets).
 
 ### MongoDB — admin password rotation
 
-Current `mongodb/.env` password doesn't match what's actually stored in the DB (auth was rotated inside mongo at some point). The backup script currently falls back to a data-dir tarball, which works but isn't transaction-safe.
+Current `mongodb/.env` password doesn't match what's actually stored in the DB. The backup script falls back to a data-dir tarball instead of clean `mongodump`.
 
-**Fix:** start mongo once with `--noauth`, rotate the admin user, restart. Then mongodump will succeed and backups will be clean dumps instead of live data-dir copies.
+Plan written: `docs/superpowers/plans/2026-07-30-mongodb-2fauth-cleanup.md` (Task 1)
+Requires manual server work (mongosh password rotation, compose env uncomment).
 
-### palu-gada-root-bot — DEV_TOKEN unauthorized, container stopped
+### 2FAuth — decide: revive or delete
 
-`@rootsdk/dev-tools` startup calls `root.CommunityMemberGrpcService/ListAll` against `api.rootapp.com` and gets back `UNAUTHENTICATED` (HTTP 401, gRPC code 16). The SDK doesn't catch it — the unhandled rejection kills the process, container restart-loops (~3 sec cycle, 1641+ restarts logged before stop). Symptom in logs: `Starting dist/main.js` → `ClientMessage/ClientUpdate/DevAppHostService` services → 10s wait → `Exiting` → webpack bundle dump (Node's default error display). No `OutOfBandServices` line is the tell.
+`2fauth/` has a compose file but no container is up, and no `data/` dir exists. The Feb 15 export CSVs are the only copy of those TOTP secrets.
 
-Last successful community attach was 2026-04-14 17:12 ICT, detached 18:18 ICT, restart loop began 18:56 ICT — the Root platform either revoked the token or shut down the dev API (rootapp.com marketing site was last published 2026-04-08).
+Plan written: `docs/superpowers/plans/2026-07-30-mongodb-2fauth-cleanup.md` (Task 2)
+Decision: import CSVs into Vaultwarden and delete, or revive the container.
 
-Container is currently stopped (`docker stop` + `docker update --restart=no`). To revive: regenerate DEV_TOKEN from the Root dev portal (if still operational) and `docker compose up -d`. If the Root platform is dead, comment out the service in `palu-gada-root-bot/docker-compose.yml` (mirroring the Jellyfin-only media revival pattern).
+### Tailscale — needs auth key
 
 ### Discord notifications for backup
 
@@ -45,39 +33,24 @@ Container is currently stopped (`docker stop` + `docker update --restart=no`). T
 
 ## Ideas — not committed to, just parked
 
-### Bot consolidation
-`palu-gada-root-bot` has far fewer features than `palu-gada-bot` — the two codebases have diverged. Either port features over or convert root-bot into a thin wrapper that imports from the main bot.
-
-### New `/server` admin commands for the Discord bot
-Disk usage, memory, container status, restart-service. Socket-proxy is already in place (`palu-gada-socket-proxy`) so the infra exists.
-
-### Expense tracker ↔ bot integration
-`/expense today`, `/budget` slash commands pulling from the expense-tracker SQLite DB.
-
-### New services worth considering
-- **Paperless-ngx** — document scanning/search (pairs well with Syncthing)
-- **Immich** — self-hosted Google Photos (needs the `/data` drive we just set up)
-- **Gitea / Forgejo** — private git mirror
-- **Homepage** (gethomepage.dev) — modern dashboard with live widgets
-- **Scrutiny** — SMART disk health monitoring
-- **Tailscale** — complement to Cloudflare Tunnel for raw TCP/SSH access
-
 ### Maintenance
-- Move `/var/lib/docker` to the new `/data` SSD so Docker images/volumes stop competing with the OS partition for space (not urgent now — root is at 36%).
-- `docker system prune` pass periodically.
-- **IPv6 egress is flaky on wifi** — `docker pull` from Docker Hub (which is Cloudflare-hosted) fails repeatedly with "connection reset by peer" on the v6 path. Workaround for big pulls: `sudo sysctl -w net.ipv6.conf.{all,default}.disable_ipv6=1`, pull, then restore with `=0`. Long-term fix would be either disabling v6 permanently on the wifi interface, switching to ethernet, or pinning Docker's registry calls to v4 only (no clean way via daemon.json — Docker's Go resolver ignores gai.conf).
+- Move `/var/lib/docker` to the `/data` SSD so Docker images/volumes stop competing with the OS partition for space (not urgent — root is at 36%).
+- **IPv6 egress is flaky on wifi** — `docker pull` from Docker Hub fails on the v6 path. Workaround: `sudo sysctl -w net.ipv6.conf.{all,default}.disable_ipv6=1`, pull, restore with `=0`.
 
 ### Media stack — VPN-gated *arr services (parked)
-The full Sonarr/Radarr/Prowlarr/qBittorrent/Bazarr stack is commented out in `media/docker-compose.yml`. To revive: add a gluetun container + paid VPN (Mullvad/ProtonVPN Plus/AirVPN), route qBittorrent through it via `network_mode: "service:gluetun"`, then uncomment the service blocks. Do NOT enable qBittorrent without a VPN — it'll egress on the residential IP.
+The full Sonarr/Radarr/Prowlarr/qBittorrent/Bazarr stack is commented out in `media/docker-compose.yml`. To revive: add a gluetun container + paid VPN, route qBittorrent through it. Do NOT enable qBittorrent without a VPN.
 
 ## Recently done
 
+- 2026-07-30 — **Bot monolith refactor** (PR #16): split `palu-gada-bot/src/index.js` from 1183 lines to 129 lines. Extracted 6 background services to `src/services/` and 8 event handlers to `src/events/`.
+- 2026-07-30 — **Infrastructure cleanup** (PR #14): archived `palu-gada-root-bot` (freed 512M RAM reservation), reduced `claude-api` RAM limit from 1G to 384M.
+- 2026-07-30 — **Expense Discord integration** (PR #15): added `/expense today|month|summary|log` slash commands to `palu-gada-bot`.
+- 2026-07-30 — **Server command upgrades** (PR #17): added `/server disk` and `/server memory` subcommands.
+- 2026-07-30 — **Homepage dashboard** (PR #18): added `homepage/` (gethomepage.dev) replacing Homer, with live Docker container status widgets.
+- 2026-07-30 — **Tailscale + Scrutiny** (PR #19): added Tailscale sidecar and Scrutiny SMART monitoring compose configs.
+- 2026-04-14 — Added `/server` admin command to both bots (status/containers/stats/logs/restart).
+- 2026-04-14 — palu-gada-bot: `/summarize /recap /explain /ask` upgraded to Sonnet 4.6 via `AI_MODEL_SMART`.
+- 2026-04-14 — Ported `/quote /purge /schedule` from palu-gada-bot to palu-gada-root-bot.
+- 2026-04-14 — Revived media stack as Jellyfin-only (port 127.0.0.1:8096, 1G mem cap, Traefik secure-defaults).
 - 2026-04-13 — Extended LVM from 58G to 116G; `/` went from 72% to 36% used.
-- 2026-04-13 — Wiped the idle 240G SATA SSD (was NTFS, empty) and mounted it at `/data` via fstab. Gives ~220G of dedicated data space.
-- 2026-04-13 — Rewrote `scripts/backup-encrypted.sh` for the bind-mount data layout. Daily root cron at 03:00, 16 targets, age-encrypted, age key at `/etc/home-server/age.key` (also stored in Bitwarden). `restore-backup.sh` updated to match.
-- 2026-04-14 — palu-gada-root-bot: centralized AI client, bumped Haiku 3.5 → 4.5.
-- 2026-04-14 — palu-gada-bot: `/summarize /recap /explain /ask` upgraded to Sonnet 4.6 via new `AI_MODEL_SMART` alongside the default Haiku 4.5.
-- 2026-04-14 — Added `/server` admin command to both bots (status/containers/stats/logs/restart, ALLOWED_USERS-gated, shared `palu-gada-socket-proxy` external network). Fixed deploy.sh cwd leak + `SYSTEM=1` proxy flag in follow-ups.
-- 2026-04-14 — Ported `/quote /purge /schedule` from palu-gada-bot to palu-gada-root-bot. Rest of the command gap is music (no Root voice APIs) or Discord-only.
-- 2026-04-14 — Revived media stack as Jellyfin-only (port 127.0.0.1:8096, 1G mem cap, Traefik secure-defaults). *arr services left commented out pending a VPN layer.
 - 2026-07-31 — Purged obsolete 2FAuth service and docker-compose stack (TOTP secrets migrated to Vaultwarden).
