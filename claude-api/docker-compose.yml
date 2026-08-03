@@ -8,6 +8,7 @@ services:
     tmpfs:
       - /tmp:noexec,nosuid,size=200m
     environment:
+      - TZ=Asia/Jakarta
       - PORT=3100
       - API_SECRET=${API_SECRET}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
