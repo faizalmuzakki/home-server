@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     environment:
       - HOMEPAGE_ALLOWED_HOSTS=apps.${DOMAIN}
+      - HOMEPAGE_VAR_DOMAIN=${DOMAIN}
     volumes:
       - ./config:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
