@@ -100,6 +100,9 @@ TARGETS=(
     "homepage-config:homepage/config"
     "syncthing:syncthing/config"
     "crowdsec-config:crowdsec/config"
+    "tailscale-state:tailscale/data"
+    "scrutiny-config:scrutiny/config"
+    "scrutiny-influxdb:scrutiny/influxdb"
 )
 
 ITEM_COUNT=0
