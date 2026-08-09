@@ -82,6 +82,21 @@ router.post('/', createExpenseValidators, (req, res) => {
     // Validate type (already validated by middleware, but extra safety)
     const validType = type === 'income' ? 'income' : 'expense';
 
+    if (req.query.force !== 'true') {
+      const duplicate = db.prepare(`
+        SELECT id FROM expenses
+        WHERE amount = ? AND date = ? AND COALESCE(vendor, '') = COALESCE(?, '')
+          AND created_at > datetime('now', '-5 minutes')
+      `).get(finalAmount, date, vendor || '');
+
+      if (duplicate) {
+        return res.status(409).json({
+          error: 'Duplicate expense detected within 5 minutes. Pass ?force=true to override.',
+          existing_id: duplicate.id
+        });
+      }
+    }
+
     const result = db.prepare(`
       INSERT INTO expenses (amount, description, vendor, category_id, date, type, source, image_url, raw_text)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
