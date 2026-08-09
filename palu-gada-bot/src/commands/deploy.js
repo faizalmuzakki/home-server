@@ -53,11 +53,11 @@ export default {
                 payload = { backend: service || 'all', ref: 'refs/heads/main' };
                 break;
             case 'palu-gada-bot':
-                hookId = 'monorepo-deploy';
+                hookId = 'home-server-deploy';
                 payload = { repository: { name: 'palu-gada-bot' }, ref: 'refs/heads/main' };
                 break;
             case 'claude-api':
-                hookId = 'monorepo-deploy';
+                hookId = 'home-server-deploy';
                 payload = { repository: { name: 'claude-api' }, ref: 'refs/heads/main' };
                 break;
         }
