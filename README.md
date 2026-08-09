@@ -102,7 +102,7 @@ sudo apt install -y git curl wget htop vim jq tmux
 | [Syncthing](./syncthing/) | 8384 | File synchronization | `syncthing/` |
 | [Home Assistant](./homeassistant/) | 8123 | Home automation | `homeassistant/` |
 | [Palu Gada Bot](./palu-gada-bot/) | 3003 | Discord bot + API | `palu-gada-bot/` |
-| [Palu Gada Root Bot](./palu-gada-root-bot/) | 3051 | Discord bot (root server) | `palu-gada-root-bot/` |
+| [Palu Gada Root Bot](./palu-gada-root-bot/) | 3051 | ~~Discord bot (Root platform)~~ — **Archived** (Root API defunct) | `palu-gada-root-bot/` |
 | [Immich](./immich/) | 2283 | Photo & video management | `immich/` |
 | [Paperless-ngx](./paperless/) | 8000 | Document management & OCR | `paperless/` |
 
@@ -189,7 +189,7 @@ docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 | Group | Status | Containers |
 |-------|--------|------------|
 | **Core Infrastructure** | ✅ Running | traefik, cloudflared, adguard, crowdsec, crowdsec-bouncer, watchtower, webhook |
-| **Applications** | ✅ Running | vaultwarden, expense-tracker (×3), mongodb, palu-gada-bot, palu-gada-root-bot |
+| **Applications** | ✅ Running | vaultwarden, expense-tracker (×3), mongodb, palu-gada-bot |
 | **Monitoring** | ✅ Running | uptime-kuma, netdata, dockge, homer |
 | **File Sync** | ✅ Running | syncthing |
 | **Media Stack** | 🛑 Stopped | jellyfin, sonarr, radarr, bazarr, prowlarr, qbittorrent |
