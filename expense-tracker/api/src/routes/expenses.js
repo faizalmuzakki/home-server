@@ -81,6 +81,8 @@ router.post('/', createExpenseValidators, (req, res) => {
 
     // Validate type (already validated by middleware, but extra safety)
     const validType = type === 'income' ? 'income' : 'expense';
+    // Must match what INSERT stores, or the duplicate check compares TEXT to REAL and never hits
+    const finalAmount = parseFloat(amount);
 
     if (req.query.force !== 'true') {
       const duplicate = db.prepare(`
@@ -101,7 +103,7 @@ router.post('/', createExpenseValidators, (req, res) => {
       INSERT INTO expenses (amount, description, vendor, category_id, date, type, source, image_url, raw_text)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      parseFloat(amount),
+      finalAmount,
       description || null,
       vendor || null,
       category_id ? parseInt(category_id) : null,
