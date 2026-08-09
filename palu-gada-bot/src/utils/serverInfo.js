@@ -7,7 +7,6 @@ const docker = new Docker();
 // itself, the Docker connection, or critical shared infra.
 const RESTART_BLACKLIST = new Set([
     'palu-gada-bot',
-    'palu-gada-root-bot',
     'palu-gada-socket-proxy',
     'mongodb',
     'traefik',
