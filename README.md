@@ -131,7 +131,6 @@ These are essential infrastructure or high-value personal services.
 | **Cloudflare Tunnel** | External access | No remote access to any service |
 | **AdGuard Home** | Network DNS | **All devices lose DNS** (internet breaks) |
 | **Vaultwarden** | Password manager | Can't access passwords |
-| **2FAuth** | 2FA codes | Can't access 2FA tokens |
 | **Expense Tracker** *(all 3)* | Daily finance tracking | WhatsApp bot + API + tunnel all linked |
 | **MongoDB** | Database | Breaks apps that depend on it |
 
