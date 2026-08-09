@@ -34,6 +34,15 @@ A WhatsApp-integrated expense tracker with a web dashboard.
 - Anthropic API key (for Claude Vision)
 - Cloudflare account (for tunnel and Pages)
 
+## Calorie Tracking
+
+Send a photo of a meal to the bot in a DM. The same Claude Vision call that
+reads receipts now also classifies the image: receipts become expenses, food
+photos are estimated for calories + protein/carbs/fat + a per-item breakdown,
+stored per sender (by phone number, labelled with the WhatsApp display name),
+and shown in the dashboard's **Calories** tab. Use `/calories` to get your
+total for today. Group-chat images are ignored, as before.
+
 ## Security
 
 This application includes comprehensive security hardening. See [SECURITY.md](SECURITY.md) for full details.

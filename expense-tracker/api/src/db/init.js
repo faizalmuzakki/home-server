@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { initCalorieSchema } from './calories.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = process.env.DB_PATH || path.join(__dirname, '../../data/expenses.db');
@@ -278,6 +279,9 @@ export function initDatabase() {
       insertOrIgnore.run(cat.name, cat.icon, cat.color, cat.type);
     }
   }
+
+  // Calorie tracking (food-image estimation). Additive — no migration needed.
+  initCalorieSchema(db);
 
   console.log('Database initialized');
 }
