@@ -47,7 +47,16 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3100;
 
+import crypto from 'crypto';
+
 app.set('trust proxy', 1);
+
+// Correlation ID middleware
+app.use((req, res, next) => {
+  req.id = req.headers['x-request-id'] || crypto.randomUUID();
+  res.setHeader('X-Request-Id', req.id);
+  next();
+});
 
 app.use(helmet());
 

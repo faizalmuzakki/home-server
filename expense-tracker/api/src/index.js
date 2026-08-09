@@ -22,8 +22,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+import crypto from 'crypto';
+
 // Trust proxy for rate limiting behind reverse proxy
 app.set('trust proxy', 1);
+
+// Correlation ID middleware
+app.use((req, res, next) => {
+  req.id = req.headers['x-request-id'] || crypto.randomUUID();
+  res.setHeader('X-Request-Id', req.id);
+  next();
+});
 
 // Security: Helmet adds various HTTP headers for protection
 app.use(helmet({
