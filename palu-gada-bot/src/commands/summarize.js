@@ -90,9 +90,13 @@ export default {
             // Reverse to chronological order
             messages.reverse();
 
-            // Format messages for Claude
+            // Format messages for Claude with prompt injection sanitization
+            const sanitize = (text) => text
+                .replace(/<\/?(system|chat_log|human|assistant|instruction)>/gi, '')
+                .slice(0, 500);
+
             const chatLog = messages
-                .map(m => `[${m.author}]: ${m.content}`)
+                .map(m => `[${m.author}]: ${sanitize(m.content)}`)
                 .join('\n');
 
             const summary = await askClaude(`Please summarize the following Discord chat conversation. Focus on:
@@ -104,9 +108,9 @@ export default {
 Keep the summary concise but informative. Use bullet points for clarity.
 
 Chat log from the last ${hours} hour(s):
----
+<chat_log>
 ${chatLog}
----
+</chat_log>
 
 Summary:`);
 
