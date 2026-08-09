@@ -97,6 +97,7 @@ TARGETS=(
     "traefik-certs:traefik/certs"
     "dockge:dockge/data"
     "homer:homer/config"
+    "homepage-config:homepage/config"
     "syncthing:syncthing/config"
     "crowdsec-config:crowdsec/config"
 )

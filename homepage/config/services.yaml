@@ -1,0 +1,59 @@
+- Infrastructure:
+    - Traefik:
+        href: https://traefik.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Reverse Proxy
+        icon: traefik
+        server: my-docker
+        container: traefik
+    - Vaultwarden:
+        href: https://vault.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Password Manager
+        icon: vaultwarden
+        server: my-docker
+        container: vaultwarden
+    - AdGuard Home:
+        href: https://adguard.{{HOMEPAGE_VAR_DOMAIN}}
+        description: DNS & Ad Blocking
+        icon: adguard-home
+        server: my-docker
+        container: adguardhome
+    - Syncthing:
+        href: https://sync.{{HOMEPAGE_VAR_DOMAIN}}
+        description: File Sync
+        icon: syncthing
+        server: my-docker
+        container: syncthing
+
+- Applications:
+    - Expense Tracker:
+        href: https://expense.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Expense Tracking
+        icon: mdi-cash-register
+        server: my-docker
+        container: expense-tracker-api
+    - Jellyfin:
+        href: https://media.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Media Server
+        icon: jellyfin
+        server: my-docker
+        container: jellyfin
+    - Dockge:
+        href: https://dockge.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Docker Compose Manager
+        icon: dockge
+        server: my-docker
+        container: dockge
+
+- Monitoring:
+    - Uptime Kuma:
+        href: https://status.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Uptime Monitor
+        icon: uptime-kuma
+        server: my-docker
+        container: uptime-kuma
+    - Netdata:
+        href: https://netdata.{{HOMEPAGE_VAR_DOMAIN}}
+        description: System Monitor
+        icon: netdata
+        server: my-docker
+        container: netdata
