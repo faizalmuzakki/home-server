@@ -1,8 +1,8 @@
 #!/bin/bash
 # Docker Weekly Prune Script
 #
-# Cleans up old stopped containers, dangling images, networks, and build cache older than 24h,
-# as well as unused images older than 7 days (168h). Preserves named volumes.
+# Cleans up dangling images, unused networks, and build cache older than 168h (7 days).
+# Does NOT remove stopped containers to preserve inactive/archived compose stacks.
 #
 # Installation as a weekly root cron job (Sunday at 04:00):
 #   Run the installer helper script:
@@ -24,10 +24,10 @@ fi
 
 log "Starting weekly Docker prune..."
 
-log "Running docker system prune -af --filter 'until=24h'..."
-docker system prune -af --filter "until=24h"
-
 log "Running docker image prune -af --filter 'until=168h'..."
 docker image prune -af --filter "until=168h"
+
+log "Running docker builder prune -f --filter 'until=168h'..."
+docker builder prune -f --filter "until=168h"
 
 log "Weekly Docker prune completed."
