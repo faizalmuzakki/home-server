@@ -3,13 +3,15 @@ services:
     image: tailscale/tailscale:latest
     container_name: tailscale
     restart: unless-stopped
-    hostname: ${TAILSCALE_HOSTNAME:-homeserver}
     environment:
       - TS_AUTHKEY=${TAILSCALE_AUTHKEY}
+      - TS_HOSTNAME=${TAILSCALE_HOSTNAME:-homeserver}
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_USERSPACE=false
     volumes:
       - ./data:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
