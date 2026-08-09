@@ -1,4 +1,5 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { isCommandAllowed } from '../utils/validation.js';
 import { getExpenseSummary, getDailyStats, getMonthlyStats, createExpense } from '../utils/expenseApi.js';
 
 function idr(amount) {
@@ -45,9 +46,15 @@ const data = new SlashCommandBuilder()
                     .setDescription('Where? (optional)')));
 
 async function execute(interaction) {
-    const sub = interaction.options.getSubcommand();
+    const validation = isCommandAllowed(interaction, 'ALLOWED_EXPENSE_USERS', 'EXPENSE_CHANNEL_ID');
+    if (!validation.allowed) {
+        return interaction.reply({
+            content: validation.reason,
+            flags: MessageFlags.Ephemeral
+        });
+    }
 
-    await interaction.deferReply();
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
         switch (sub) {
