@@ -9,6 +9,10 @@ import {
     formatContainerStats,
     getContainerLogs,
     restartContainer,
+    getDiskUsage,
+    formatDiskUsage,
+    getMemoryDetail,
+    formatMemoryDetail,
 } from '../utils/serverInfo.js';
 
 const MAX_MSG = 1900;
@@ -45,6 +49,12 @@ export default {
                 .setName('restart')
                 .setDescription('Restart a container (protected infra blocked)')
                 .addStringOption((o) => o.setName('name').setDescription('Container name').setRequired(true))
+        )
+        .addSubcommand((sc) =>
+            sc.setName('disk').setDescription('Docker disk usage breakdown')
+        )
+        .addSubcommand((sc) =>
+            sc.setName('memory').setDescription('Memory usage per container, sorted by usage')
         ),
 
     async execute(interaction) {
@@ -102,6 +112,20 @@ export default {
                 });
             }
 
+            if (sub === 'disk') {
+                const d = await getDiskUsage();
+                return interaction.editReply({
+                    embeds: [{ color: 0xeb459e, title: '💾 Docker Storage Usage', description: truncate(formatDiskUsage(d)) }],
+                });
+            }
+
+            if (sub === 'memory') {
+                const m = await getMemoryDetail();
+                return interaction.editReply({
+                    embeds: [{ color: 0x5865f2, title: '🧠 Container Memory Usage', description: truncate(formatMemoryDetail(m)) }],
+                });
+            }
+
             return interaction.editReply('Unknown subcommand.');
         } catch (error) {
             console.error('/server error:', error);
@@ -112,3 +136,4 @@ export default {
         }
     },
 };
+

@@ -178,4 +178,73 @@ export async function restartContainer(name) {
     await container.restart({ t: 10 });
 }
 
+export async function getDiskUsage() {
+    const [info, df] = await Promise.all([docker.info(), docker.df()]);
+
+    const dockerRoot = info.DockerRootDir || '/var/lib/docker';
+    const imagesSize = (df.Images || []).reduce((a, i) => a + (i.Size || 0), 0);
+    const containersSize = (df.Containers || []).reduce((a, c) => a + (c.SizeRw || 0), 0);
+    const volumesSize = (df.Volumes || []).reduce((a, v) => a + (v.UsageData?.Size || 0), 0);
+    const buildCacheSize = (df.BuildCache || []).reduce((a, b) => a + (b.Size || 0), 0);
+    const totalDocker = imagesSize + containersSize + volumesSize + buildCacheSize;
+
+    return {
+        dockerRoot,
+        imagesSize,
+        containersSize,
+        volumesSize,
+        buildCacheSize,
+        totalDocker,
+    };
+}
+
+export function formatDiskUsage(d) {
+    return [
+        `**Docker Root**: \`${d.dockerRoot}\``,
+        `**Images**: ${formatBytes(d.imagesSize)}`,
+        `**Containers (writable layers)**: ${formatBytes(d.containersSize)}`,
+        `**Volumes**: ${formatBytes(d.volumesSize)}`,
+        `**Build cache**: ${formatBytes(d.buildCacheSize)}`,
+        `**Total Docker storage**: ${formatBytes(d.totalDocker)}`,
+    ].join('\n');
+}
+
+export async function getMemoryDetail() {
+    const containers = await docker.listContainers({ all: false });
+    const statsList = await Promise.all(
+        containers.map(async (c) => {
+            const container = docker.getContainer(c.Id);
+            const stats = await container.stats({ stream: false });
+            return {
+                name: c.Names[0]?.replace(/^\//, '') || c.Id.slice(0, 12),
+                memUsage: stats.memory_stats?.usage || 0,
+                memLimit: stats.memory_stats?.limit || 0,
+            };
+        })
+    );
+
+    statsList.sort((a, b) => b.memUsage - a.memUsage);
+
+    const info = await docker.info();
+    return {
+        hostTotal: info.MemTotal,
+        containers: statsList,
+    };
+}
+
+export function formatMemoryDetail(m) {
+    const lines = [`**Host total**: ${formatBytes(m.hostTotal)}`, ''];
+    let containerTotal = 0;
+    for (const c of m.containers) {
+        containerTotal += c.memUsage;
+        const limit = c.memLimit && c.memLimit < m.hostTotal
+            ? ` / ${formatBytes(c.memLimit)}`
+            : '';
+        lines.push(`• \`${c.name}\`: ${formatBytes(c.memUsage)}${limit}`);
+    }
+    lines.push('', `**Container total**: ${formatBytes(containerTotal)}`);
+    return lines.join('\n');
+}
+
 export { formatBytes, formatSeconds, RESTART_BLACKLIST };
+
