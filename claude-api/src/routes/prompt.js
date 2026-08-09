@@ -73,9 +73,20 @@ router.post('/stream', async (req, res) => {
 
   res.write(`data: ${JSON.stringify({ type: 'start', id: sessionId })}\n\n`);
 
+  let proc = null;
+
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      if (proc) {
+        try { proc.kill('SIGTERM'); } catch {}
+      }
+      activeSessions.delete(sessionId);
+    }
+  });
+
   try {
     const args = buildArgs({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, outputFormat: 'stream-json' });
-    const proc = spawn('claude', args, {
+    proc = spawn('claude', args, {
       env: { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
       cwd: workdir || '/tmp',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -94,17 +105,16 @@ router.post('/stream', async (req, res) => {
 
     proc.on('close', (code) => {
       res.write(`data: ${JSON.stringify({ type: 'done', exit_code: code })}\n\n`);
-      res.end();
-      activeSessions.delete(sessionId);
-    });
-
-    req.on('close', () => {
-      proc.kill('SIGTERM');
+      if (!res.writableEnded) {
+        res.end();
+      }
       activeSessions.delete(sessionId);
     });
   } catch (err) {
     res.write(`data: ${JSON.stringify({ type: 'error', message: err.message })}\n\n`);
-    res.end();
+    if (!res.writableEnded) {
+      res.end();
+    }
     activeSessions.delete(sessionId);
   }
 });
