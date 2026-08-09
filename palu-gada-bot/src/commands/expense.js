@@ -56,6 +56,8 @@ async function execute(interaction) {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+    const sub = interaction.options.getSubcommand();
+
     try {
         switch (sub) {
             case 'today': return await handleToday(interaction);
