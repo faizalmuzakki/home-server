@@ -31,10 +31,6 @@ Current `mongodb/.env` password doesn't match what's actually stored in the DB (
 
 **Fix:** start mongo once with `--noauth`, rotate the admin user, restart. Then mongodump will succeed and backups will be clean dumps instead of live data-dir copies.
 
-### 2FAuth — not running
-
-`2fauth/` has a compose file but no container is up, and no `data/` dir exists. The Feb 15 export CSVs are the only copy of those TOTP secrets. Decide: revive the service, or delete the compose and formally migrate those secrets into Vaultwarden/Bitwarden.
-
 ### Discord notifications for backup
 
 `scripts/.env.backup.example` supports `DISCORD_WEBHOOK_URL`. Once R2 is wired up, plug in the same webhook used by the deploy script (or a separate backup channel) so failures page you.
@@ -68,6 +64,7 @@ The full Sonarr/Radarr/Prowlarr/qBittorrent/Bazarr stack is commented out in `me
 
 ## Recently done
 
+- 2026-07-31 — Purged obsolete 2FAuth service and docker-compose stack (TOTP secrets migrated to Vaultwarden).
 - 2026-07-30 — Archived palu-gada-root-bot: commented out docker-compose services. Root platform API is defunct since 2026-04-14 (DEV_TOKEN unauthorized). Code remains in git.
 - 2026-04-13 — Extended LVM from 58G to 116G; `/` went from 72% to 36% used.
 - 2026-04-13 — Wiped the idle 240G SATA SSD (was NTFS, empty) and mounted it at `/data` via fstab. Gives ~220G of dedicated data space.
@@ -77,4 +74,3 @@ The full Sonarr/Radarr/Prowlarr/qBittorrent/Bazarr stack is commented out in `me
 - 2026-04-14 — Added `/server` admin command to both bots (status/containers/stats/logs/restart, ALLOWED_USERS-gated, shared `palu-gada-socket-proxy` external network). Fixed deploy.sh cwd leak + `SYSTEM=1` proxy flag in follow-ups.
 - 2026-04-14 — Ported `/quote /purge /schedule` from palu-gada-bot to palu-gada-root-bot. Rest of the command gap is music (no Root voice APIs) or Discord-only.
 - 2026-04-14 — Revived media stack as Jellyfin-only (port 127.0.0.1:8096, 1G mem cap, Traefik secure-defaults). *arr services left commented out pending a VPN layer.
-- 2026-07-31 — Purged obsolete 2FAuth service and docker-compose stack (TOTP secrets migrated to Vaultwarden).
