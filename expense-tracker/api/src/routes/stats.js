@@ -41,7 +41,6 @@ router.get('/summary', (req, res) => {
       WHERE type = 'income' ${dateFilter}
     `).get(...params);
 
-    // Get category breakdown (filter by type if specified)
     let categoryQuery = `
       SELECT 
         c.id,
@@ -52,16 +51,43 @@ router.get('/summary', (req, res) => {
         COALESCE(SUM(e.amount), 0) as total,
         COUNT(e.id) as count
       FROM categories c
-      LEFT JOIN expenses e ON c.id = e.category_id ${dateFilter ? 'AND' + dateFilter.replace('AND', '').replace(/date\)/g, 'e.date)').replace(/description/g, 'e.description').replace(/vendor/g, 'e.vendor').replace(/category_id/g, 'e.category_id') : ''}
+      LEFT JOIN expenses e ON c.id = e.category_id
     `;
 
-    if (type && (type === 'expense' || type === 'income')) {
-      categoryQuery += ` WHERE c.type = '${type}'`;
+    const joinConditions = [];
+    const joinParams = [];
+
+    if (startDate) {
+      joinConditions.push('DATE(e.date) >= DATE(?)');
+      joinParams.push(startDate);
+    }
+    if (endDate) {
+      joinConditions.push('DATE(e.date) <= DATE(?)');
+      joinParams.push(endDate);
+    }
+    if (search) {
+      joinConditions.push('(e.description LIKE ? OR e.vendor LIKE ?)');
+      joinParams.push(`%${search}%`, `%${search}%`);
+    }
+    if (categoryId) {
+      joinConditions.push('e.category_id = ?');
+      joinParams.push(parseInt(categoryId));
     }
 
-    categoryQuery += ` GROUP BY c.id ORDER BY total DESC`;
+    if (joinConditions.length > 0) {
+      categoryQuery += ` AND ${joinConditions.join(' AND ')}`;
+    }
 
-    const byCategory = db.prepare(categoryQuery).all(...params);
+    const categoryParams = [...joinParams];
+
+    if (type && (type === 'expense' || type === 'income')) {
+      categoryQuery += ' WHERE c.type = ?';
+      categoryParams.push(type);
+    }
+
+    categoryQuery += ' GROUP BY c.id ORDER BY total DESC';
+
+    const byCategory = db.prepare(categoryQuery).all(...categoryParams);
 
     res.json({
       income: incomeTotal.total,
