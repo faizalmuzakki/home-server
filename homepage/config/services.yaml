@@ -16,27 +16,45 @@
         description: DNS & Ad Blocking
         icon: adguard-home
         server: my-docker
-        container: adguardhome
+        container: adguard
     - Syncthing:
         href: https://sync.{{HOMEPAGE_VAR_DOMAIN}}
         description: File Sync
         icon: syncthing
         server: my-docker
         container: syncthing
+    - Home Assistant:
+        href: https://home.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Home Automation
+        icon: home-assistant
+        server: my-docker
+        container: homeassistant
 
 - Applications:
     - Expense Tracker:
         href: https://expense.{{HOMEPAGE_VAR_DOMAIN}}
-        description: Expense Tracking
+        description: Expense Tracking API & Bot
         icon: mdi-cash-register
         server: my-docker
         container: expense-tracker-api
+    - Paperless-ngx:
+        href: https://paperless.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Document Management & OCR
+        icon: paperless
+        server: my-docker
+        container: paperless_webserver
     - Jellyfin:
         href: https://media.{{HOMEPAGE_VAR_DOMAIN}}
         description: Media Server
         icon: jellyfin
         server: my-docker
         container: jellyfin
+    - Palu Gada Bot:
+        href: https://bot-api.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Discord Bot & API
+        icon: discord
+        server: my-docker
+        container: palu-gada-bot
     - Dockge:
         href: https://dockge.{{HOMEPAGE_VAR_DOMAIN}}
         description: Docker Compose Manager
@@ -44,16 +62,22 @@
         server: my-docker
         container: dockge
 
-- Monitoring:
+- Monitoring & Management:
     - Uptime Kuma:
         href: https://status.{{HOMEPAGE_VAR_DOMAIN}}
-        description: Uptime Monitor
+        description: Service Uptime Monitor
         icon: uptime-kuma
         server: my-docker
         container: uptime-kuma
     - Netdata:
-        href: https://netdata.{{HOMEPAGE_VAR_DOMAIN}}
-        description: System Monitor
+        href: https://monitor.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Real-time System Performance
         icon: netdata
         server: my-docker
         container: netdata
+    - Scrutiny:
+        href: https://disks.{{HOMEPAGE_VAR_DOMAIN}}
+        description: SMART Disk Health Monitoring
+        icon: scrutiny
+        server: my-docker
+        container: scrutiny
