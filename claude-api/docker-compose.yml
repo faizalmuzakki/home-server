@@ -31,7 +31,7 @@ services:
       # own migration flags on version bumps.
       - /home/solork/.claude.json:/home/claude/.claude.json:rw
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     networks:
       - traefik-public
     healthcheck:
