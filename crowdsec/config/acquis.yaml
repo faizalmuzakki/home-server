@@ -1,0 +1,11 @@
+# Traefik Access Logs
+filenames:
+  - /var/log/traefik/access.log
+labels:
+  type: traefik
+---
+# Host SSH Auth Logs
+filenames:
+  - /var/log/host/auth.log
+labels:
+  type: syslog
