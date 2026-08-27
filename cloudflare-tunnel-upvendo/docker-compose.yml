@@ -1,0 +1,43 @@
+services:
+  cloudflared-upvendo:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-upvendo
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      # Token from the UPVENDO Cloudflare account, not the personal one. A
+      # token tunnel carries its own account credentials, so this connector
+      # is completely independent of the `cloudflared` container next door:
+      # nothing is shared, and revoking one leaves the other running.
+      - TUNNEL_TOKEN=${UPVENDO_TUNNEL_TOKEN}
+    # The origin is a HOST process (upvendo-dispatch on 0.0.0.0:8377), not a
+    # container. ufw drops docker-subnet -> host:8377, so a bridged connector
+    # times out — measured with a throwaway busybox on both 172.17.0.0/16 and
+    # this stack's own 172.19.0.0/16, while the same request from the host
+    # answers 200. The two ways out were a ufw allow for the bridge subnet,
+    # which would hand EVERY container on this box unauthenticated access to
+    # the page (the PIN wall keys off CF headers, not source IP), or the host
+    # namespace, which grants that reach to this connector alone. extra_hosts
+    # still populates /etc/hosts under host networking, so
+    # host.docker.internal keeps resolving to 172.17.0.1 and the dashboard
+    # route needs no edit.
+    network_mode: host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "cloudflared", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
