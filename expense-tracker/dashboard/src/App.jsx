@@ -34,6 +34,9 @@ const getCurrentMonthRange = () => {
   }
 }
 
+// Transactions the list requests at once; stats are always for the whole range
+const TRANSACTION_LIMIT = 100
+
 // Icons (simple SVG)
 const Icons = {
   home: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
@@ -331,6 +334,7 @@ function App() {
   const [editingTransaction, setEditingTransaction] = useState(null)
 
   const [filters, setFilters] = useState(() => getCurrentMonthRange())
+  const [allTime, setAllTime] = useState(false)
   const [typeFilter, setTypeFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -340,11 +344,12 @@ function App() {
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams({
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        limit: '100'
-      })
+      // "All time" simply omits the date bounds - the API treats them as optional
+      const params = new URLSearchParams({ limit: String(TRANSACTION_LIMIT) })
+      if (!allTime) {
+        params.append('startDate', filters.startDate)
+        params.append('endDate', filters.endDate)
+      }
       if (typeFilter !== 'all') {
         params.append('type', typeFilter)
       }
@@ -355,10 +360,11 @@ function App() {
         params.append('categoryId', categoryId)
       }
 
-      const statsParams = new URLSearchParams({
-        startDate: filters.startDate,
-        endDate: filters.endDate
-      })
+      const statsParams = new URLSearchParams()
+      if (!allTime) {
+        statsParams.append('startDate', filters.startDate)
+        statsParams.append('endDate', filters.endDate)
+      }
       if (searchQuery) statsParams.append('search', searchQuery)
       if (categoryId) statsParams.append('categoryId', categoryId)
 
@@ -387,7 +393,7 @@ function App() {
     } finally {
       setLoading(false)
     }
-  }, [filters, typeFilter, searchQuery, categoryId])
+  }, [filters, allTime, typeFilter, searchQuery, categoryId])
 
   useEffect(() => {
     fetchData()
@@ -503,13 +509,25 @@ function App() {
                   <input
                     type="date"
                     value={filters.startDate}
+                    disabled={allTime}
                     onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))}
                   />
                   <input
                     type="date"
                     value={filters.endDate}
+                    disabled={allTime}
                     onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))}
                   />
+                  <button
+                    type="button"
+                    className={`filter-toggle ${allTime ? 'active' : ''}`}
+                    aria-pressed={allTime}
+                    title={allTime ? 'Showing all time - click to use the date range' : 'Ignore the date range and show everything'}
+                    onClick={() => setAllTime(v => !v)}
+                  >
+                    {Icons.calendar}
+                    All time
+                  </button>
                   <select
                     value={typeFilter}
                     onChange={e => setTypeFilter(e.target.value)}
@@ -564,7 +582,9 @@ function App() {
                       <div className="card-header">
                         <h2>Recent Transactions</h2>
                         <span className="text-secondary">
-                          {transactions.length} item{transactions.length !== 1 ? 's' : ''}
+                          {transactions.length === TRANSACTION_LIMIT
+                            ? `latest ${TRANSACTION_LIMIT} items`
+                            : `${transactions.length} item${transactions.length !== 1 ? 's' : ''}`}
                         </span>
                       </div>
                       <div className="card-body">
