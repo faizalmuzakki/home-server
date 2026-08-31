@@ -280,6 +280,22 @@ export function initDatabase() {
     }
   }
 
+  // Step 5: A category with no colour blanks the whole dashboard — the frontend feeds
+  // category.color straight into a recharts <Cell fill>, which calls .includes() on it
+  // and unmounts the tree. Bulk importers have shipped rows without one, so heal any
+  // gap at boot rather than trusting every future writer to remember.
+  const uncolored = db.prepare(
+    "SELECT id FROM categories WHERE color IS NULL OR color = '' ORDER BY id"
+  ).all();
+  if (uncolored.length > 0) {
+    const fallback = ['#6366F1', '#EC4899', '#0EA5E9', '#F59E0B', '#8B5CF6', '#D946EF', '#059669', '#14B8A6'];
+    const fix = db.prepare(
+      "UPDATE categories SET color = ?, icon = COALESCE(NULLIF(icon, ''), '🏷️') WHERE id = ?"
+    );
+    uncolored.forEach((cat, i) => fix.run(fallback[i % fallback.length], cat.id));
+    console.log(`Migration: filled colour on ${uncolored.length} categories`);
+  }
+
   // Calorie tracking (food-image estimation). Additive — no migration needed.
   initCalorieSchema(db);
 
