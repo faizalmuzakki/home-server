@@ -45,36 +45,6 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
-// Security: Rate limiting - general API
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per 15 minutes
-  message: { error: 'Too many requests, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Security: Stricter rate limiting for AI/parse endpoints (expensive operations)
-const parseLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // 30 requests per 15 minutes
-  message: { error: 'Too many AI requests, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Security: Rate limiting for upload endpoint
-const uploadLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 uploads per 15 minutes
-  message: { error: 'Too many uploads, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Apply general rate limiting
-app.use(generalLimiter);
-
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
@@ -94,6 +64,50 @@ app.use(cors({
 
 app.use(express.json({ limit: '20mb' }));
 
+// Health check (excluded from rate limiting for monitoring)
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Security: Rate limiting - general API (generous limit for dashboard usage)
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_GENERAL_MAX || '3000', 10), // 3000 requests per 15 minutes
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Security: Stricter rate limiting for AI/parse endpoints (expensive operations)
+const parseLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_PARSE_MAX || '100', 10), // 100 requests per 15 minutes
+  message: { error: 'Too many AI requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Security: Rate limiting for upload endpoint
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_UPLOAD_MAX || '100', 10), // 100 uploads per 15 minutes
+  message: { error: 'Too many uploads, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Security: Rate limiting for auth verification endpoints (prevent PIN brute-force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_AUTH_MAX || '30', 10), // 30 attempts per 15 minutes
+  message: { error: 'Too many authentication attempts, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply general rate limiting
+app.use(generalLimiter);
+
 // Serve uploaded images
 app.use('/uploads', express.static(path.join(__dirname, '../data/uploads')));
 
@@ -105,16 +119,11 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/parse', parseLimiter, parseRoutes);
 app.use('/api/stats', statsRoutes);
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/upload', uploadLimiter, uploadRoutes);
 app.use('/api/investments', investmentRoutes);
 app.use('/api/travel-expenses', travelExpenseRoutes);
 app.use('/api/calories', calorieRoutes);
-
-// Health check (excluded from rate limiting for monitoring)
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 
 // Error handler for CORS and other errors
 app.use((err, req, res, next) => {
