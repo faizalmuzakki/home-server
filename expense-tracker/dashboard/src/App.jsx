@@ -338,6 +338,7 @@ function App() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [excludeMranggen, setExcludeMranggen] = useState(false)
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -368,6 +369,12 @@ function App() {
       if (searchQuery) statsParams.append('search', searchQuery)
       if (categoryId) statsParams.append('categoryId', categoryId)
 
+      const mranggenCat = categories.find(c => c.name && c.name.toLowerCase().includes('mranggen'))
+      if (excludeMranggen && mranggenCat && categoryId !== String(mranggenCat.id)) {
+        params.append('excludeCategoryId', mranggenCat.id)
+        statsParams.append('excludeCategoryId', mranggenCat.id)
+      }
+
       const [transRes, catRes, statsRes] = await Promise.all([
         fetch(`${API_URL}/api/expenses?${params}`),
         fetch(`${API_URL}/api/categories`),
@@ -393,7 +400,7 @@ function App() {
     } finally {
       setLoading(false)
     }
-  }, [filters, allTime, typeFilter, searchQuery, categoryId])
+  }, [filters, allTime, typeFilter, searchQuery, categoryId, excludeMranggen, categories])
 
   useEffect(() => {
     fetchData()
@@ -527,6 +534,16 @@ function App() {
                   >
                     {Icons.calendar}
                     All time
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-toggle ${excludeMranggen ? 'active' : ''}`}
+                    aria-pressed={excludeMranggen}
+                    title={excludeMranggen ? 'Renov Mranggen excluded from overall calculations' : 'Exclude Renov Mranggen from overall calculations'}
+                    onClick={() => setExcludeMranggen(v => !v)}
+                  >
+                    {Icons.filter}
+                    Exclude Renov Mranggen
                   </button>
                   <select
                     value={typeFilter}
