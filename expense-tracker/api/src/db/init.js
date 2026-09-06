@@ -17,6 +17,7 @@ export function initDatabase() {
       icon TEXT,
       color TEXT,
       type TEXT DEFAULT 'expense',
+      exclude_from_dashboard INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -53,6 +54,12 @@ export function initDatabase() {
   if (!catHasTypeColumn) {
     db.exec("ALTER TABLE categories ADD COLUMN type TEXT DEFAULT 'expense'");
     console.log('Migration: Added type column to categories table');
+  }
+
+  const catHasExcludeColumn = catTableInfo.some(col => col.name === 'exclude_from_dashboard');
+  if (!catHasExcludeColumn) {
+    db.exec("ALTER TABLE categories ADD COLUMN exclude_from_dashboard INTEGER DEFAULT 0");
+    console.log('Migration: Added exclude_from_dashboard column to categories table');
   }
 
   // Step 3: Create type index AFTER migration ensures column exists

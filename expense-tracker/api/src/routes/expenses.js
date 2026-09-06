@@ -13,7 +13,7 @@ const router = Router();
 // Get all transactions (expenses and income) with optional filters
 router.get('/', listExpenseValidators, (req, res) => {
   try {
-    const { startDate, endDate, categoryId, excludeCategoryId, excludeCategory, type, search, limit = 50, offset = 0 } = req.query;
+    const { startDate, endDate, categoryId, excludeCategoryId, excludeCategory, excludeFromDashboard, type, search, limit = 50, offset = 0 } = req.query;
 
     let query = `
       SELECT e.*, c.name as category_name, c.icon as category_icon, c.color as category_color, c.type as category_type
@@ -35,7 +35,11 @@ router.get('/', listExpenseValidators, (req, res) => {
       query += ' AND e.category_id = ?';
       params.push(parseInt(categoryId));
     }
-    const excludeIds = getExcludeIds(db, { excludeCategoryId, excludeCategory });
+    const excludeIds = getExcludeIds(db, {
+      excludeCategoryId,
+      excludeCategory,
+      includeExcluded: excludeFromDashboard !== 'true'
+    });
     if (excludeIds.length > 0) {
       query += ` AND (e.category_id NOT IN (${excludeIds.map(() => '?').join(',')}) OR e.category_id IS NULL)`;
       params.push(...excludeIds);

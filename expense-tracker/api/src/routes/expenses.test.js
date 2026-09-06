@@ -8,16 +8,20 @@ initDatabase();
 const { default: expenseRoutes } = await import('./expenses.js');
 const { default: statsRoutes } = await import('./stats.js');
 
+const { default: categoryRoutes } = await import('./categories.js');
+
 const app = express();
 app.use(express.json());
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/categories', categoryRoutes);
 
-let server, base, statsBase;
+let server, base, statsBase, catBase;
 before(() => {
   server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}/api/expenses`;
   statsBase = `http://127.0.0.1:${server.address().port}/api/stats`;
+  catBase = `http://127.0.0.1:${server.address().port}/api/categories`;
 });
 after(() => server.close());
 
@@ -63,7 +67,7 @@ test('excludeCategoryId filters out transactions and stats', async () => {
   assert.ok(filteredExp.every(e => e.category_id !== 2));
 
   // GET /api/stats/summary with and without excludeCategoryId=2
-  const allStats = await (await fetch(statsBase + '/summary')).json();
+  const allStats = await (await fetch(statsBase + '/summary?includeExcluded=true')).json();
   const excludedStats = await (await fetch(statsBase + '/summary?excludeCategoryId=2')).json();
   assert.equal(allStats.expenses - excludedStats.expenses, 200);
   assert.ok(allStats.byCategory.some(c => c.id === 2));
@@ -74,5 +78,53 @@ test('excludeCategoryId filters out transactions and stats', async () => {
   const excludedByNameStats = await (await fetch(statsBase + '/summary?excludeCategory=transportation')).json();
   assert.equal(allStats.expenses - excludedByNameStats.expenses, 200);
   assert.ok(!excludedByNameStats.byCategory.some(c => c.id === 2));
+});
+
+test('category with exclude_from_dashboard=1 is excluded from stats automatically', async () => {
+  // 1. Create a category with exclude_from_dashboard: 1
+  const catRes = await fetch(catBase, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Renov Test Category',
+      icon: '🧱',
+      color: '#B45309',
+      type: 'expense',
+      exclude_from_dashboard: 1
+    })
+  });
+  assert.equal(catRes.status, 201);
+  const cat = await catRes.json();
+  assert.equal(cat.exclude_from_dashboard, 1);
+
+  // 2. Post an expense to that category
+  const expRes = await post('?force=true', {
+    amount: '500000',
+    category_id: cat.id,
+    vendor: 'Toko Bangunan'
+  });
+  assert.equal(expRes.status, 201);
+
+  // 3. Stats summary should exclude it by default
+  const statsRes = await fetch(statsBase + '/summary');
+  const stats = await statsRes.json();
+  assert.ok(!stats.byCategory.some(c => c.id === cat.id));
+
+  // 4. Specifically querying by categoryId should still return its stats
+  const catSpecificStats = await (await fetch(`${statsBase}/summary?categoryId=${cat.id}`)).json();
+  assert.equal(catSpecificStats.expenses, 500000);
+
+  // 5. Updating category to exclude_from_dashboard: 0 includes it again
+  const putRes = await fetch(`${catBase}/${cat.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ exclude_from_dashboard: 0 })
+  });
+  assert.equal(putRes.status, 200);
+  const updatedCat = await putRes.json();
+  assert.equal(updatedCat.exclude_from_dashboard, 0);
+
+  const updatedStats = await (await fetch(statsBase + '/summary')).json();
+  assert.ok(updatedStats.byCategory.some(c => c.id === cat.id));
 });
 

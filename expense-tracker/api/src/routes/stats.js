@@ -3,14 +3,28 @@ import { db } from '../db/init.js';
 
 const router = Router();
 
-export function getExcludeIds(db, { excludeCategoryId, excludeCategory } = {}) {
+export function getExcludeIds(db, { excludeCategoryId, excludeCategory, includeExcluded = false } = {}) {
   const ids = [];
+  if (!includeExcluded) {
+    try {
+      const rows = db.prepare('SELECT id FROM categories WHERE exclude_from_dashboard = 1').all();
+      for (const row of rows) {
+        if (!ids.includes(row.id)) {
+          ids.push(row.id);
+        }
+      }
+    } catch (e) {
+      // ignore if column or table not initialized yet
+    }
+  }
   if (excludeCategoryId) {
     const parsed = String(excludeCategoryId)
       .split(',')
       .map(id => parseInt(id.trim(), 10))
       .filter(id => !isNaN(id));
-    ids.push(...parsed);
+    for (const id of parsed) {
+      if (!ids.includes(id)) ids.push(id);
+    }
   }
   if (excludeCategory) {
     const names = String(excludeCategory).split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
@@ -53,7 +67,10 @@ router.get('/summary', (req, res) => {
 
     let excludeFilter = '';
     const excludeParams = [];
-    const excludeIds = getExcludeIds(db, { excludeCategoryId, excludeCategory });
+    let excludeIds = getExcludeIds(db, { excludeCategoryId, excludeCategory });
+    if (categoryId) {
+      excludeIds = excludeIds.filter(id => id !== parseInt(categoryId, 10));
+    }
     if (excludeIds.length > 0) {
       excludeFilter = ` AND (category_id NOT IN (${excludeIds.map(() => '?').join(',')}) OR category_id IS NULL)`;
       excludeParams.push(...excludeIds);
