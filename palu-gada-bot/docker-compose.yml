@@ -26,6 +26,7 @@ services:
   palu-gada-bot:
     build: .
     container_name: palu-gada-bot
+    user: "1000:1000"
     restart: unless-stopped
     depends_on:
       - socket-proxy

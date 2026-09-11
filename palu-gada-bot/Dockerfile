@@ -34,9 +34,12 @@ RUN npm config set fetch-retries 5 && \
 COPY . .
 
 # Create non-root user for security
+# uid 1000 matches the host owner of the bind-mounted ./data and /host-repo;
+# node:20-slim already holds 1000 for its `node` user, so drop that one first.
 # Add to docker group (GID 999 typically, will be overridden by socket's group at runtime)
 RUN groupadd -g 999 docker || true && \
-    useradd -m -s /bin/bash botuser && \
+    userdel -r node 2>/dev/null || true && \
+    useradd -u 1000 -m -s /bin/bash botuser && \
     usermod -aG docker botuser && \
     mkdir -p /app/data && \
     chown -R botuser:botuser /app
