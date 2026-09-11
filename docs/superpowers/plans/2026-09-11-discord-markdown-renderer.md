@@ -1723,6 +1723,14 @@ Replace the follow-up block:
                 for (const chunk of chunks.slice(0, 5)) {
                     await interaction.followUp({ content: chunk, ephemeral: isPrivate });
                 }
+                // Say so rather than dropping the tail silently, matching
+                // how /fallacy reports omitted findings.
+                if (chunks.length > 5) {
+                    await interaction.followUp({
+                        content: '*Translation truncated due to length…*',
+                        ephemeral: isPrivate,
+                    });
+                }
             }
 ```
 
@@ -1734,9 +1742,38 @@ Headings go to bold here even though this is message content, because the embed 
 
 Add `import { toDiscordMarkdown } from '../utils/discordMarkdown.js';`.
 
-Append `DISCORD_FORMAT_PROMPT` to `SYSTEM_PROMPT` at the top of the file.
+**Do NOT append `DISCORD_FORMAT_PROMPT` to `/fallacy`'s `SYSTEM_PROMPT`.**
+Every other command sends model prose to Discord, so shaping that prose is
+the point. `/fallacy` does not: it asks for strict JSON and parses it, and
+the only text that reaches Discord is the parsed field values, which the
+converter already handles. Appending a preamble that asks for bullet lists
+and says fenced code blocks work normally actively fights the JSON
+instruction sitting closer to generation. The existing `stripJsonFence`
+and the `JSON.parse` try/catch bound the damage to an occasional failed
+analysis rather than corruption, but the right move is not to create the
+tension at all.
 
-Find where each finding's text is composed into `entries` before `src/commands/fallacy.js:195`. Wrap the model-authored text in `toDiscordMarkdown(text, { headings: 'bold' })` at the point it is inserted. Read the surrounding code to place it correctly — the entry shape is built above line 195 and the plan does not assume its exact variable names.
+Find where each finding's text is composed into `entries`. Wrap the
+model-authored text in `toDiscordMarkdown(text, { headings: 'bold' })` at
+the point it is inserted. Read the surrounding code to place it correctly;
+the plan does not assume its exact variable names.
+
+**Convert the quoted user message too, and blockquote every line of it.**
+The entry template prefixes only the FIRST line with `> `, so a horizontal
+rule sitting on a later line of a real user message renders as a raw,
+unquoted rule that splits the embed description. That is a layout break,
+not cosmetic litter. Converting the preview costs no fidelity of record:
+the entry already carries a jump link to the verbatim original.
+
+```js
+const quote = toDiscordMarkdown(truncate(rawContent, QUOTE_MAX_CHARS), { headings: 'bold' })
+    .split('\n')
+    .map(line => `> ${line}`)
+    .join('\n');
+```
+
+Then drop the now-redundant `> ` from the template's own interpolation of
+the quote, or the first line ends up double-prefixed.
 
 Leave the `while (description.length > EMBED_DESC_LIMIT)` entry-dropping loop alone. It already handles overflow correctly.
 
