@@ -14,7 +14,7 @@ const CLAUDE_API_SECRET = process.env.CLAUDE_API_SECRET;
  * @param {string} [opts.systemPrompt] - System prompt
  * @param {string} [opts.model] - Model override
  * @param {number} [opts.maxTurns] - Max turns (default 1)
- * @returns {Promise<string>} The text response
+ * @returns {Promise<{text: string, model: string}>} The response text and the model claude-api used
  */
 export async function askClaude(prompt, opts = {}) {
     const res = await fetch(`${CLAUDE_API_URL}/api/prompt`, {
@@ -42,12 +42,15 @@ export async function askClaude(prompt, opts = {}) {
     const data = await res.json();
 
     // claude-api returns { id, result, duration_ms }
-    // result is the Claude Code JSON output with a .result field containing the text
+    // result is the Claude Code JSON output with a .result field containing the text,
+    // and modelUsage keyed by the model id that actually served the request.
+    const model = Object.keys(data.result?.modelUsage ?? {})[0] ?? '';
+
     if (data.result?.result) {
-        return data.result.result;
+        return { text: data.result.result, model };
     }
     if (typeof data.result === 'string') {
-        return data.result;
+        return { text: data.result, model };
     }
     throw new Error('Unexpected response format from Claude API');
 }

@@ -49,7 +49,7 @@ export default {
         };
 
         try {
-            const explanation = await askClaude(`${levelInstructions[level]}\n\nTopic to explain: ${topic}`, {
+            const { text: explanation, model } = await askClaude(`${levelInstructions[level]}\n\nTopic to explain: ${topic}`, {
                 systemPrompt: 'You are an expert educator who excels at explaining complex topics. Use Discord markdown formatting for better readability (bold, italics, bullet points, code blocks where appropriate). Keep explanations focused and well-structured.',
             });
 
@@ -66,7 +66,7 @@ export default {
                 title: `📚 ${topic}`,
                 description: explanation.slice(0, 4096),
                 fields: [],
-                footer: getAiFooter(`Level: ${levelLabels[level]}`, { smart: true }),
+                footer: getAiFooter(`Level: ${levelLabels[level]}`, model),
                 timestamp: new Date().toISOString(),
             };
 

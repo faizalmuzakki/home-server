@@ -27,7 +27,7 @@ export default {
         await interaction.deferReply({ ephemeral: isPrivate });
 
         try {
-            const answer = await askClaude(question, {
+            const { text: answer, model } = await askClaude(question, {
                 systemPrompt: 'You are a helpful assistant in a Discord server. Keep your responses concise and friendly. Use Discord markdown formatting when appropriate. If the question is inappropriate or harmful, politely decline to answer.',
             });
 
@@ -72,7 +72,7 @@ export default {
                             name: 'Answer',
                             value: answer.slice(0, 1024),
                         }],
-                        footer: getAiFooter('', { smart: true }),
+                        footer: getAiFooter('', model),
                         timestamp: new Date().toISOString(),
                     }],
                 });

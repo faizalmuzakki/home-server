@@ -159,7 +159,7 @@ RESPONSE: [A natural response as ${targetName} would write it]
 Keep the response concise and conversational (1-3 sentences typically). Match their typing style.`;
             }
 
-            const aiResponse = await askClaude(prompt);
+            const { text: aiResponse, model } = await askClaude(prompt);
 
             // Parse the response
             let questionText = questionMessage?.content || 'Auto-detected from conversation';
@@ -204,7 +204,7 @@ Keep the response concise and conversational (1-3 sentences typically). Match th
                             inline: true,
                         },
                     ],
-                    footer: getAiFooter('AI-generated response based on your conversation style'),
+                    footer: getAiFooter('AI-generated response based on your conversation style', model),
                     timestamp: new Date().toISOString(),
                 }],
             });
