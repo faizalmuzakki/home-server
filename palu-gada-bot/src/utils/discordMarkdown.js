@@ -10,6 +10,12 @@ const HEADING_RE = /^(#{1,6})\s+(.*)$/;
 const ROW_RE = /^\s*\|.*\|\s*$/;
 const ALIGN_CELL_RE = /^:?-{3,}:?$/;
 const RULE_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
+// A dash run directly under a non-blank prose line is a setext H2, not a
+// thematic break. Dropping it as a rule deleted the heading outright.
+const DASH_RULE_RE = /^\s*-{3,}\s*$/;
+// Discord's subtext. Renders in message content, prints literally in an
+// embed, so 'bold' mode strips the prefix and 'keep' mode leaves it.
+const SUBTEXT_RE = /^(\s*)-#\s+(.*)$/;
 const IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 const TASK_RE = /^(\s*)[-*+]\s+\[([ xX])\]\s+/;
 const LIST_RE = /^(\s*)([-*+]|\d+[.)])\s+/;
@@ -47,6 +53,11 @@ export function toDiscordMarkdown(text, opts) {
     const indents = []; // mutable stack of enclosing list indent widths
     let dropBlank = false; // a rule was just removed
 
+    // Index in `out` of the plain prose line a following dash run would
+    // underline as a setext H2, or -1 when the previous line cannot be
+    // underlined (blank, a list item, a heading, a fence or a table row).
+    let setextAt = -1;
+
     for (const line of lines) {
         if (dropBlank) {
             dropBlank = false;
@@ -55,6 +66,7 @@ export function toDiscordMarkdown(text, opts) {
 
         const fenceMatch = FENCE_RE.exec(line);
         if (fenceMatch) {
+            setextAt = -1;
             out.push(...flushTable(table));
             table = [];
             const marker = fenceMatch[1];
@@ -73,11 +85,21 @@ export function toDiscordMarkdown(text, opts) {
         }
 
         if (ROW_RE.test(line)) {
+            setextAt = -1;
             table.push(line);
             continue;
         }
 
         if (RULE_RE.test(line)) {
+            // A dash run underlining prose is a setext H2. Rewrite the line
+            // it underlines instead of deleting the pair.
+            if (DASH_RULE_RE.test(line) && setextAt !== -1 && table.length === 0) {
+                const title = out[setextAt].trim();
+                out[setextAt] = headings === 'bold' ? `**${title}**` : `## ${title}`;
+                setextAt = -1;
+                continue;
+            }
+            setextAt = -1;
             out.push(...flushTable(table));
             table = [];
             dropBlank = true;
@@ -87,11 +109,27 @@ export function toDiscordMarkdown(text, opts) {
         out.push(...flushTable(table));
         table = [];
         out.push(convertLine(line, headings, indents));
+        setextAt = underlinable(line) ? out.length - 1 : -1;
     }
 
     out.push(...flushTable(table));
 
     return out.join('\n');
+}
+
+/**
+ * Whether a dash run on the next line would make this one a setext H2.
+ * Only plain, non-blank prose qualifies: a blank line makes the dashes a
+ * thematic break, and an ATX heading, list item or subtext line is not
+ * something a setext underline applies to.
+ */
+function underlinable(line) {
+    if (line.trim() === '') return false;
+    if (HEADING_RE.test(line)) return false;
+    if (SUBTEXT_RE.test(line)) return false;
+    if (TASK_RE.test(line)) return false;
+    if (LIST_RE.test(line)) return false;
+    return true;
 }
 
 /**
@@ -115,6 +153,14 @@ function convertLine(line, headings, indents) {
     let result = line.replace(IMAGE_RE, (_m, alt, url) =>
         alt ? `[${alt}](${url})` : url
     );
+
+    const subtext = SUBTEXT_RE.exec(result);
+    if (subtext) {
+        indents.length = 0;
+        // Message content renders '-# ' fine, so 'keep' leaves it alone. An
+        // embed prints the prefix literally, so 'bold' drops it.
+        return headings === 'bold' ? subtext[2] : result;
+    }
 
     const task = TASK_RE.exec(result);
     if (task) {

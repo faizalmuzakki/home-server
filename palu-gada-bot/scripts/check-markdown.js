@@ -201,6 +201,56 @@ check(
     '```\na\nb\n```\n\nAfter.'
 );
 
+// --- setext headings and subtext ---------------------------------------
+
+check(
+    'a dash run under prose is a setext H2, not a rule',
+    toDiscordMarkdown('Title\n---\nbody'),
+    '## Title\nbody'
+);
+
+check(
+    'a setext H2 flattens to bold in bold mode',
+    toDiscordMarkdown('Title\n---\nbody', { headings: 'bold' }),
+    '**Title**\nbody'
+);
+
+check(
+    'a dash run after a blank line is still a rule',
+    toDiscordMarkdown('Before.\n\n---\n\nAfter.'),
+    'Before.\n\nAfter.'
+);
+
+check(
+    'a dash run at the very start of the input is still a rule',
+    toDiscordMarkdown('---\nAfter.'),
+    'After.'
+);
+
+check(
+    'a dash run under a list item is still a rule',
+    toDiscordMarkdown('- a\n---\nAfter.'),
+    '- a\nAfter.'
+);
+
+check(
+    'subtext keeps its prefix in keep mode',
+    toDiscordMarkdown('-# small print'),
+    '-# small print'
+);
+
+check(
+    'subtext loses its prefix in bold mode',
+    toDiscordMarkdown('-# small print', { headings: 'bold' }),
+    'small print'
+);
+
+check(
+    'subtext inside a fence is left alone',
+    toDiscordMarkdown('```\n-# small print\n```', { headings: 'bold' }),
+    '```\n-# small print\n```'
+);
+
 check(
     'indentation depth resets after prose',
     toDiscordMarkdown('- a\n    - b\n\nProse.\n\n- c'),
