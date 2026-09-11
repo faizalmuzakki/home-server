@@ -520,6 +520,12 @@ check(
 );
 
 check(
+    'a rule followed by a fence drops the blank after the rule, not after the fence',
+    toDiscordMarkdown('---\n```\ncode\n```\n\nAfter.'),
+    '```\ncode\n```\n\nAfter.'
+);
+
+check(
     'a rule followed by a table drops the blank after the rule, not after the table',
     toDiscordMarkdown('---\n| a |\n|---|\n| b |\n\nAfter.'),
     '```\na\nb\n```\n\nAfter.'
@@ -621,11 +627,17 @@ In `toDiscordMarkdown`, declare the state before the loop:
 Two branches go into the loop, at two DIFFERENT positions. Do not put
 them together — that is the defect this wording exists to prevent.
 
-**The `dropBlank` consumption goes BEFORE the `ROW_RE` branch**, directly
-after the inside-fence passthrough. If it sits after `ROW_RE`, a table
-following a rule buffers its rows and `continue`s past this check, so the
-flag survives the whole table and eats the blank line after it instead of
-the one after the rule:
+**The `dropBlank` consumption goes FIRST, at the very top of the loop
+body**, ahead of the fence branches and ahead of `ROW_RE`. Every one of
+those branches can `continue`, and any `continue` that skips this check
+carries the flag forward to eat a blank line much later in the document.
+A rule followed by a table, or a rule followed by a fenced block, both
+lose the wrong blank line if this check sits any lower.
+
+Placing it first is safe because `dropBlank` is only ever set by the
+`RULE_RE` branch, which runs only outside a fence, and the very next line
+either clears the flag or is the blank it consumes. The flag is therefore
+never true while inside a fence:
 
 ```js
         if (dropBlank) {
@@ -646,8 +658,8 @@ alignment row then never reaches the rule test:
         }
 ```
 
-The finished loop dispatches in this order: fence match, inside-fence
-passthrough, `dropBlank` consumption, `ROW_RE` buffering, `RULE_RE`,
+The finished loop dispatches in this order: `dropBlank` consumption,
+fence match, inside-fence passthrough, `ROW_RE` buffering, `RULE_RE`,
 then flush plus `convertLine`.
 
 And change the final dispatch from `convertLine(line, headings)` to `convertLine(line, headings, indents)`.
@@ -660,8 +672,8 @@ defensive, but keep the order.
 The rule branch flushes any buffered table before dropping the line, so
 place it after `table.push(line); continue;` in source order but before
 the final `convertLine` dispatch. The `dropBlank` consumption is the
-opposite: it must run before any branch that can `continue`, other than
-the fence ones.
+opposite: it must run before EVERY branch that can `continue`, the fence
+branches included.
 
 - [ ] **Step 4: Run it to verify it passes**
 
@@ -669,7 +681,7 @@ the fence ones.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `26 passed, 0 failed`, exit 0.
+Expected: `27 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -889,7 +901,7 @@ distinctly from plain line-greedy behaviour. Do not add it back.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `43 passed, 0 failed`, exit 0.
+Expected: `44 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Add a guard that no chunk exceeds its limit**
 
@@ -914,7 +926,7 @@ check(
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `43 passed, 0 failed`.
+Expected: `44 passed, 0 failed`.
 
 - [ ] **Step 6: Commit**
 
@@ -1143,7 +1155,7 @@ Note: `header` is spread before `description` in embed mode, so a caller passing
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `48 passed, 0 failed`, exit 0.
+Expected: `49 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -1541,7 +1553,7 @@ Expected: two `ok` lines.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `48 passed, 0 failed`, exit 0.
+Expected: `49 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
