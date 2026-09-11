@@ -21,6 +21,20 @@ function truncate(str, max) {
     return str.slice(0, max - 1).trimEnd() + '…';
 }
 
+/**
+ * Truncates to `limit` without bisecting a surrogate pair.
+ *
+ * The entry-dropping loop below stops at one entry, so a SINGLE finding
+ * whose explanation alone exceeds the cap left the description over-limit
+ * and Discord 400'd the whole reply. This is the hard backstop.
+ */
+function capToLimit(text, limit) {
+    if (text.length <= limit) return text;
+    const code = text.charCodeAt(limit - 1);
+    const end = code >= 0xD800 && code <= 0xDBFF ? limit - 1 : limit;
+    return text.slice(0, end);
+}
+
 function stripJsonFence(raw) {
     const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
     return fenced ? fenced[1] : raw;
@@ -205,6 +219,7 @@ JSON:`;
             omitted++;
             description = entries.join('\n\n') + `\n\n…and ${omitted} more finding${omitted > 1 ? 's' : ''} omitted.`;
         }
+        description = capToLimit(description, EMBED_DESC_LIMIT);
 
         await interaction.editReply({
             embeds: [{

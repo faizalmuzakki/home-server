@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { getAiFooter } from '../config/ai.js';
 import { chunkForDiscord } from '../utils/discordChunker.js';
 import { toDiscordMarkdown } from '../utils/discordMarkdown.js';
 
@@ -82,7 +82,7 @@ export default {
                 : `Translate the following text from ${formatLang(sourceLang)} to ${formatLang(targetLang)}.\n\nText: ${text}\n\nRespond with only the translation, nothing else.`;
 
             const result = await askClaude(prompt, {
-                systemPrompt: `You are a professional translator. Provide accurate, natural-sounding translations. Preserve the tone and style of the original text. For idiomatic expressions, translate the meaning rather than word-for-word. ${DISCORD_FORMAT_PROMPT}`,
+                systemPrompt: `You are a professional translator. Provide accurate, natural-sounding translations. Preserve the tone and style of the original text. For idiomatic expressions, translate the meaning rather than word-for-word.`,
             });
 
             let detectedLang = sourceLang === 'auto' ? null : formatLang(sourceLang);

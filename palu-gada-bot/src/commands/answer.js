@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { getAiFooter } from '../config/ai.js';
 import { sendAiReply } from '../utils/aiReply.js';
 
 export default {
@@ -160,9 +160,12 @@ RESPONSE: [A natural response as ${targetName} would write it]
 Keep the response concise and conversational (1-3 sentences typically). Match their typing style.`;
             }
 
-            const aiResponse = await askClaude(prompt, {
-                systemPrompt: DISCORD_FORMAT_PROMPT,
-            });
+            // No systemPrompt on purpose: this command parses its own
+            // `REPLYING TO:` / `RESPONSE:` format and asks for 1-3
+            // conversational sentences in the user's own typing style, which
+            // the shared format prompt's "prefer short bullet lists"
+            // directly contradicts.
+            const aiResponse = await askClaude(prompt);
 
             // Parse the response
             let questionText = questionMessage?.content || 'Auto-detected from conversation';
