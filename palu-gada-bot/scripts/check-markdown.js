@@ -283,6 +283,71 @@ check(
     longDoc.replace(/\s+/g, ' ').trim()
 );
 
+// --- sendAiReply ------------------------------------------------------
+
+import { sendAiReply } from '../src/utils/aiReply.js';
+
+function fakeInteraction() {
+    const calls = [];
+    return {
+        calls,
+        editReply: async payload => { calls.push(['edit', payload]); },
+        followUp: async payload => { calls.push(['follow', payload]); },
+    };
+}
+
+const messageMode = fakeInteraction();
+await sendAiReply(messageMode, {
+    header: { author: { name: 'someone asked:' }, description: 'a question' },
+    body: '## Heading\n\nSome prose.',
+    footer: { text: 'Powered by Claude' },
+    mode: 'message',
+});
+
+check(
+    'message mode edits with a header embed carrying no prose',
+    JSON.stringify(messageMode.calls[0]),
+    JSON.stringify(['edit', { embeds: [{
+        color: 0x5865F2,
+        author: { name: 'someone asked:' },
+        description: 'a question',
+    }] }])
+);
+
+check(
+    'message mode posts prose as content with the heading intact',
+    messageMode.calls[1][1].content,
+    '## Heading\n\nSome prose.\n-# Powered by Claude'
+);
+
+const embedMode = fakeInteraction();
+await sendAiReply(embedMode, {
+    header: { title: 'Translated' },
+    body: '## Heading\n\nSome prose.',
+    footer: { text: 'Powered by Claude' },
+    mode: 'embed',
+});
+
+check(
+    'embed mode downgrades headings to bold inside the description',
+    embedMode.calls[0][1].embeds[0].description,
+    '**Heading**\n\nSome prose.'
+);
+
+check(
+    'embed mode sends exactly one message',
+    String(embedMode.calls.length),
+    '1'
+);
+
+const emptyBody = fakeInteraction();
+await sendAiReply(emptyBody, { header: { title: 'x' }, body: '', mode: 'message' });
+check(
+    'an empty body still produces a visible reply',
+    String(emptyBody.calls.length >= 1),
+    'true'
+);
+
 // --- summary ----------------------------------------------------------
 
 console.log(`\n${passes} passed, ${failures} failed`);
