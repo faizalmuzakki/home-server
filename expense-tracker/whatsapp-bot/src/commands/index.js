@@ -1,12 +1,15 @@
 import QRCode from 'qrcode';
 import { getDb } from '../database.js';
 import { sendCategories, sendPin } from '../handlers/expense.js';
+import { getCalorieSummary } from '../services/api.js';
+import { formatTodaySummary } from '../handlers/calorieFormat.js';
 import {
   formatCountdown,
   formatDuration,
   getMentionedJids,
   parseDateTime,
   parseDuration,
+  getSenderId,
   reply
 } from '../utils/message.js';
 import {
@@ -176,6 +179,22 @@ export const commands = [
     description: 'Show the dashboard PIN',
     async execute(ctx) {
       await sendPin(ctx.sock, ctx.jid, ctx.msg);
+    }
+  },
+  {
+    name: 'calories',
+    category: 'Finance',
+    description: "Show today's calorie total from your food photos",
+    async execute(ctx) {
+      const today = new Date().toISOString().split('T')[0];
+      const senderId = getSenderId(ctx.msg);
+      const meta = { sender: ctx.jid, messagePreview: '(/calories)' };
+      const summary = await getCalorieSummary(
+        { sender_id: senderId, startDate: today, endDate: today },
+        meta
+      );
+      const row = Array.isArray(summary) ? summary[0] : null;
+      await reply(ctx.sock, ctx.jid, formatTodaySummary(row), ctx.msg);
     }
   },
   {

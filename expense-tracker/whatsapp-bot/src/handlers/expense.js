@@ -2,7 +2,8 @@ import pkg from '@whiskeysockets/baileys';
 const { downloadMediaMessage } = pkg;
 
 import { createExpense, getCategories, parseImage, parseText, uploadImage } from '../services/api.js';
-import { formatCurrency, reply } from '../utils/message.js';
+import { handleFoodImage } from './calories.js';
+import { formatCurrency, getSenderId, getSenderName, reply } from '../utils/message.js';
 
 export async function sendCategories(sock, jid, msg) {
   const meta = { sender: jid, messagePreview: '(category list request)' };
@@ -71,7 +72,7 @@ export async function handleTextTransaction(sock, jid, text, msg) {
       msg
     );
   } catch (error) {
-    await reply(sock, jid, `Error: ${error.message}`, msg);
+    await reply(sock, jid, `Error: ${error.apiMessage || error.message}`, msg);
   }
 }
 
@@ -90,6 +91,14 @@ export async function handleImageTransaction(sock, msg, jid, caption = '') {
 
     if (parsed.error) {
       return reply(sock, jid, `Couldn't parse: ${parsed.error}`, msg);
+    }
+
+    if (parsed.kind === 'unknown') {
+      return reply(sock, jid, "I couldn't tell if this is a receipt or food. Send a clear photo of a receipt to log an expense, or a meal to track calories.", msg);
+    }
+
+    if (parsed.kind === 'food') {
+      return await handleFoodImage(sock, msg, jid, parsed, base64, getSenderId(msg), getSenderName(msg));
     }
 
     let imageUrl = null;
@@ -125,6 +134,6 @@ export async function handleImageTransaction(sock, msg, jid, caption = '') {
       msg
     );
   } catch (error) {
-    await reply(sock, jid, `Error: ${error.message}`, msg);
+    await reply(sock, jid, `Error: ${error.apiMessage || error.message}`, msg);
   }
 }

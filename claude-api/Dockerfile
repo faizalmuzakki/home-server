@@ -15,4 +15,4 @@ RUN mkdir -p /workspace
 
 EXPOSE 3100
 
-CMD ["npm", "start"]
+CMD ["node", "src/index.js"]

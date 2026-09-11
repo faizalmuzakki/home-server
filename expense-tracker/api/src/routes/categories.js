@@ -40,7 +40,7 @@ router.get('/:id', (req, res) => {
 // Create category
 router.post('/', (req, res) => {
   try {
-    const { name, icon, color, type = 'expense' } = req.body;
+    const { name, icon, color, type = 'expense', exclude_from_dashboard = 0 } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
@@ -48,8 +48,9 @@ router.post('/', (req, res) => {
 
     // Validate type
     const validType = type === 'income' ? 'income' : 'expense';
+    const validExclude = exclude_from_dashboard ? 1 : 0;
 
-    const result = db.prepare('INSERT INTO categories (name, icon, color, type) VALUES (?, ?, ?, ?)').run(name, icon, color, validType);
+    const result = db.prepare('INSERT INTO categories (name, icon, color, type, exclude_from_dashboard) VALUES (?, ?, ?, ?, ?)').run(name, icon, color, validType, validExclude);
     const category = db.prepare('SELECT * FROM categories WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(category);
   } catch (error) {
@@ -63,19 +64,21 @@ router.post('/', (req, res) => {
 // Update category
 router.put('/:id', (req, res) => {
   try {
-    const { name, icon, color, type } = req.body;
+    const { name, icon, color, type, exclude_from_dashboard } = req.body;
 
     // Validate type if provided
     const validType = type ? (type === 'income' ? 'income' : 'expense') : null;
+    const excludeVal = exclude_from_dashboard !== undefined ? (exclude_from_dashboard ? 1 : 0) : null;
 
     const result = db.prepare(`
       UPDATE categories 
       SET name = COALESCE(?, name),
           icon = COALESCE(?, icon),
           color = COALESCE(?, color),
-          type = COALESCE(?, type)
+          type = COALESCE(?, type),
+          exclude_from_dashboard = COALESCE(?, exclude_from_dashboard)
       WHERE id = ?
-    `).run(name, icon, color, validType, req.params.id);
+    `).run(name, icon, color, validType, excludeVal, req.params.id);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Category not found' });

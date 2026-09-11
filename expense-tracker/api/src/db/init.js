@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { initCalorieSchema } from './calories.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = process.env.DB_PATH || path.join(__dirname, '../../data/expenses.db');
@@ -16,6 +17,7 @@ export function initDatabase() {
       icon TEXT,
       color TEXT,
       type TEXT DEFAULT 'expense',
+      exclude_from_dashboard INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -52,6 +54,12 @@ export function initDatabase() {
   if (!catHasTypeColumn) {
     db.exec("ALTER TABLE categories ADD COLUMN type TEXT DEFAULT 'expense'");
     console.log('Migration: Added type column to categories table');
+  }
+
+  const catHasExcludeColumn = catTableInfo.some(col => col.name === 'exclude_from_dashboard');
+  if (!catHasExcludeColumn) {
+    db.exec("ALTER TABLE categories ADD COLUMN exclude_from_dashboard INTEGER DEFAULT 0");
+    console.log('Migration: Added exclude_from_dashboard column to categories table');
   }
 
   // Step 3: Create type index AFTER migration ensures column exists
@@ -278,6 +286,25 @@ export function initDatabase() {
       insertOrIgnore.run(cat.name, cat.icon, cat.color, cat.type);
     }
   }
+
+  // Step 5: A category with no colour blanks the whole dashboard — the frontend feeds
+  // category.color straight into a recharts <Cell fill>, which calls .includes() on it
+  // and unmounts the tree. Bulk importers have shipped rows without one, so heal any
+  // gap at boot rather than trusting every future writer to remember.
+  const uncolored = db.prepare(
+    "SELECT id FROM categories WHERE color IS NULL OR color = '' ORDER BY id"
+  ).all();
+  if (uncolored.length > 0) {
+    const fallback = ['#6366F1', '#EC4899', '#0EA5E9', '#F59E0B', '#8B5CF6', '#D946EF', '#059669', '#14B8A6'];
+    const fix = db.prepare(
+      "UPDATE categories SET color = ?, icon = COALESCE(NULLIF(icon, ''), '🏷️') WHERE id = ?"
+    );
+    uncolored.forEach((cat, i) => fix.run(fallback[i % fallback.length], cat.id));
+    console.log(`Migration: filled colour on ${uncolored.length} categories`);
+  }
+
+  // Calorie tracking (food-image estimation). Additive — no migration needed.
+  initCalorieSchema(db);
 
   console.log('Database initialized');
 }

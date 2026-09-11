@@ -68,7 +68,7 @@ npm install
 
 Optional:
 
-- `ANTHROPIC_MODEL` — override the Claude model (default: `claude-sonnet-4-6`)
+- `ANTHROPIC_MODEL` — override the Claude model (default: `claude-sonnet-5`)
 
 3. Start the bot:
 

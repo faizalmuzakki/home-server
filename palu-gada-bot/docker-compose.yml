@@ -35,6 +35,7 @@ services:
       - NODE_ENV=production
       # Use the socket proxy instead of the raw Docker socket
       - DOCKER_HOST=tcp://socket-proxy:2375
+      - EXPENSE_API_URL=${EXPENSE_API_URL:-http://expense-tracker-api:3000}
     # Security hardening
     security_opt:
       - no-new-privileges:true

@@ -1,0 +1,69 @@
+services:
+  webserver:
+    container_name: paperless_webserver
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBPORT: 5432
+      PAPERLESS_DBNAME: ${PAPERLESS_DBNAME:-paperless}
+      PAPERLESS_DBUSER: ${PAPERLESS_DBUSER:-paperless}
+      PAPERLESS_DBPASS: ${PAPERLESS_DBPASS:-paperless}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:-change-me-to-a-secure-random-string}
+      PAPERLESS_URL: https://paperless.${DOMAIN:-example.com}
+      PAPERLESS_TIME_ZONE: ${TZ:-UTC}
+      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-eng}
+      USERMAP_UID: ${PUID:-1000}
+      USERMAP_GID: ${PGID:-1000}
+    volumes:
+      - /data/paperless/data:/usr/src/paperless/data
+      - /data/paperless/media:/usr/src/paperless/media
+      - /data/paperless/export:/usr/src/paperless/export
+      - /data/paperless/consume:/usr/src/paperless/consume
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.paperless.rule=Host(`paperless.${DOMAIN}`)"
+      - "traefik.http.routers.paperless.entrypoints=websecure"
+      - "traefik.http.routers.paperless.tls.certresolver=cloudflare"
+      - "traefik.http.services.paperless.loadbalancer.server.port=8000"
+
+  broker:
+    container_name: paperless_redis
+    image: docker.io/library/redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - /data/paperless/redis:/data
+    networks:
+      - traefik-public
+
+  db:
+    container_name: paperless_db
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PAPERLESS_DBNAME:-paperless}
+      POSTGRES_USER: ${PAPERLESS_DBUSER:-paperless}
+      POSTGRES_PASSWORD: ${PAPERLESS_DBPASS:-paperless}
+    volumes:
+      - /data/paperless/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PAPERLESS_DBUSER:-paperless} -d ${PAPERLESS_DBNAME:-paperless} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - traefik-public
+
+networks:
+  traefik-public:
+    external: true

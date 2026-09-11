@@ -3,6 +3,9 @@ services:
     build: ./api
     container_name: expense-tracker-api
     restart: unless-stopped
+    labels:
+      # Opt this container in to autoheal restarts when healthcheck flips to unhealthy
+      - "autoheal=true"
     # Security hardening
     # Note: read_only and cap_drop are NOT used here because SQLite and file uploads need full filesystem access
     security_opt:
@@ -45,6 +48,9 @@ services:
     build: ./whatsapp-bot
     container_name: expense-tracker-whatsapp
     restart: unless-stopped
+    labels:
+      # Opt this container in to autoheal restarts when healthcheck flips to unhealthy
+      - "autoheal=true"
     # Security hardening
     # Note: read_only is NOT used here because Baileys needs write access to auth_info
     security_opt:

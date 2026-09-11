@@ -73,9 +73,20 @@ router.post('/stream', async (req, res) => {
 
   res.write(`data: ${JSON.stringify({ type: 'start', id: sessionId })}\n\n`);
 
+  let proc = null;
+
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      if (proc) {
+        try { proc.kill('SIGTERM'); } catch {}
+      }
+      activeSessions.delete(sessionId);
+    }
+  });
+
   try {
     const args = buildArgs({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, outputFormat: 'stream-json' });
-    const proc = spawn('claude', args, {
+    proc = spawn('claude', args, {
       env: { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
       cwd: workdir || '/tmp',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -94,17 +105,16 @@ router.post('/stream', async (req, res) => {
 
     proc.on('close', (code) => {
       res.write(`data: ${JSON.stringify({ type: 'done', exit_code: code })}\n\n`);
-      res.end();
-      activeSessions.delete(sessionId);
-    });
-
-    req.on('close', () => {
-      proc.kill('SIGTERM');
+      if (!res.writableEnded) {
+        res.end();
+      }
       activeSessions.delete(sessionId);
     });
   } catch (err) {
     res.write(`data: ${JSON.stringify({ type: 'error', message: err.message })}\n\n`);
-    res.end();
+    if (!res.writableEnded) {
+      res.end();
+    }
     activeSessions.delete(sessionId);
   }
 });
@@ -165,10 +175,11 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurn
       let parsed = null;
       try { parsed = JSON.parse(stdout); } catch { /* not JSON */ }
 
-      // CLI OAuth auth failure (expired Max-subscription token, etc.) surfaces
-      // as is_error with api_error_status 401/403. Fall back to ANTHROPIC_API_KEY
-      // so the service keeps working until the host re-logs in.
-      if (parsed && parsed.is_error && [401, 403].includes(parsed.api_error_status)) {
+      // CLI errors the ANTHROPIC_API_KEY path may recover from: OAuth auth
+      // failures (401/403, expired Max-subscription token) and model-not-found
+      // (404, e.g. a stale CLAUDE_MODEL the subscription can't reach but the API
+      // key can). Fall back to ANTHROPIC_API_KEY so the service keeps working.
+      if (parsed && parsed.is_error && [401, 403, 404].includes(parsed.api_error_status)) {
         if (!anthropic) {
           return reject(new Error(`Claude CLI auth failed (${parsed.api_error_status}) and ANTHROPIC_API_KEY is not set: ${parsed.result || 'no detail'}`));
         }
@@ -181,7 +192,12 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurn
       }
 
       if (code !== 0) {
-        return reject(new Error(stderr.trim() || `Claude exited with code ${code}`));
+        // Surface the real reason. The CLI reports model/usage errors as JSON on
+        // stdout (parsed.result) with an empty stderr, so a bare "exited with
+        // code N" hid the actual cause (e.g. a retired model id) until now.
+        const detail = stderr.trim() || (parsed && parsed.result) || '';
+        const statusTag = parsed && parsed.api_error_status ? ` (api ${parsed.api_error_status})` : '';
+        return reject(new Error(detail ? `Claude CLI failed${statusTag}: ${detail}` : `Claude exited with code ${code}`));
       }
       resolve(parsed ?? stdout.trim());
     });
@@ -194,7 +210,7 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurn
 // CLI-only features (allowedTools, multi-turn), which none of the current
 // callers (parse-text, whatsapp-bot ai.js) rely on.
 async function runAnthropicFallback({ prompt, systemPrompt, model }) {
-  const resolvedModel = model || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+  const resolvedModel = model || process.env.CLAUDE_MODEL || 'claude-sonnet-5';
   const resp = await anthropic.messages.create({
     model: resolvedModel,
     max_tokens: 4096,

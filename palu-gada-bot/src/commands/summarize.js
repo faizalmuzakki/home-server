@@ -91,12 +91,16 @@ export default {
             // Reverse to chronological order
             messages.reverse();
 
-            // Format messages for Claude
+            // Format messages for Claude with prompt injection sanitization
+            const sanitize = (text) => text
+                .replace(/<\/?(system|chat_log|human|assistant|instruction)>/gi, '')
+                .slice(0, 500);
+
             const chatLog = messages
-                .map(m => `[${m.author}]: ${m.content}`)
+                .map(m => `[${m.author}]: ${sanitize(m.content)}`)
                 .join('\n');
 
-            const summary = await askClaude(`Please summarize the following Discord chat conversation. Focus on:
+            const { text: summary, model } = await askClaude(`Please summarize the following Discord chat conversation. Focus on:
 - Main topics discussed
 - Key decisions or conclusions reached
 - Important questions asked
@@ -105,9 +109,9 @@ export default {
 Keep the summary concise but informative. Use bullet points for clarity.
 
 Chat log from the last ${hours} hour(s):
----
+<chat_log>
 ${chatLog}
----
+</chat_log>
 
 Summary:`, {
                 systemPrompt: DISCORD_FORMAT_PROMPT,
@@ -140,7 +144,7 @@ Summary:`, {
                     timestamp: new Date().toISOString(),
                 },
                 body: summary,
-                footer: getAiFooter('', { smart: true }),
+                footer: getAiFooter('', model),
                 mode: 'message',
             });
         } catch (error) {

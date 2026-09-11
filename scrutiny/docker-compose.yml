@@ -1,0 +1,27 @@
+services:
+  scrutiny:
+    image: ghcr.io/analogj/scrutiny:master-omnibus
+    container_name: scrutiny
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - SYS_RAWIO
+      - SYS_ADMIN
+    volumes:
+      - ./config:/opt/scrutiny/config
+      - ./influxdb:/opt/scrutiny/influxdb
+      - /run/udev:/run/udev:ro
+      - /dev:/dev:ro
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.scrutiny.rule=Host(`disks.${DOMAIN}`)"
+      - "traefik.http.routers.scrutiny.entrypoints=websecure"
+      - "traefik.http.routers.scrutiny.tls.certresolver=cloudflare"
+      - "traefik.http.routers.scrutiny.middlewares=admin-secure@file"
+      - "traefik.http.services.scrutiny.loadbalancer.server.port=8080"
+
+networks:
+  traefik-public:
+    external: true

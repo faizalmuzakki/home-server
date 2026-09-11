@@ -134,10 +134,20 @@ deploy_service() {
     # silently skipped because cwd was still inside the first.
     (
         cd "$service_dir" || exit 1
-        # Gracefully stop the current containers before pulling/recreating.
-        # This ensures databases (like SQLite) have time to checkpoint WAL files.
+        # Build new images FIRST, while the current containers keep serving. A
+        # transient failure here (e.g. a network-stalled `apk add`) must not take
+        # the service down, so cap the build with a timeout and, on failure, leave
+        # the existing containers running instead of a half-finished recreate.
+        # (A hung build with no timeout is what caused the 2026-06-18 outage.)
+        if ! execute "timeout 600 docker compose build"; then
+            log "⚠️ Build failed/timed out for $service — keeping existing containers up"
+            execute "docker compose up -d --remove-orphans" || true
+            exit 1
+        fi
+        # Stop briefly so databases (like SQLite) can checkpoint WAL files, then
+        # recreate from the freshly built images.
         execute "docker compose stop -t 30"
-        execute "docker compose up -d --build --remove-orphans"
+        execute "docker compose up -d --remove-orphans"
         # Remove dangling images left behind by the rebuild
         execute "docker image prune -f"
     )

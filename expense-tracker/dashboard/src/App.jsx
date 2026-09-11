@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import Calories from './Calories.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -33,6 +34,9 @@ const getCurrentMonthRange = () => {
   }
 }
 
+// Transactions the list requests at once; stats are always for the whole range
+const TRANSACTION_LIMIT = 100
+
 // Icons (simple SVG)
 const Icons = {
   home: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
@@ -42,7 +46,8 @@ const Icons = {
   calendar: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
   filter: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
   wallet: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
-  empty: <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+  empty: <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>,
+  flame: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
 }
 
 // Stat Card Component
@@ -329,6 +334,7 @@ function App() {
   const [editingTransaction, setEditingTransaction] = useState(null)
 
   const [filters, setFilters] = useState(() => getCurrentMonthRange())
+  const [allTime, setAllTime] = useState(false)
   const [typeFilter, setTypeFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -338,11 +344,12 @@ function App() {
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams({
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        limit: '100'
-      })
+      // "All time" simply omits the date bounds - the API treats them as optional
+      const params = new URLSearchParams({ limit: String(TRANSACTION_LIMIT) })
+      if (!allTime) {
+        params.append('startDate', filters.startDate)
+        params.append('endDate', filters.endDate)
+      }
       if (typeFilter !== 'all') {
         params.append('type', typeFilter)
       }
@@ -353,10 +360,11 @@ function App() {
         params.append('categoryId', categoryId)
       }
 
-      const statsParams = new URLSearchParams({
-        startDate: filters.startDate,
-        endDate: filters.endDate
-      })
+      const statsParams = new URLSearchParams()
+      if (!allTime) {
+        statsParams.append('startDate', filters.startDate)
+        statsParams.append('endDate', filters.endDate)
+      }
       if (searchQuery) statsParams.append('search', searchQuery)
       if (categoryId) statsParams.append('categoryId', categoryId)
 
@@ -385,7 +393,7 @@ function App() {
     } finally {
       setLoading(false)
     }
-  }, [filters, typeFilter, searchQuery, categoryId])
+  }, [filters, allTime, typeFilter, searchQuery, categoryId])
 
   useEffect(() => {
     fetchData()
@@ -465,6 +473,12 @@ function App() {
             >
               Analytics
             </button>
+            <button
+              className={`tab ${activeTab === 'calories' ? 'active' : ''}`}
+              onClick={() => setActiveTab('calories')}
+            >
+              Calories
+            </button>
           </div>
         </div>
       </header>
@@ -472,165 +486,184 @@ function App() {
       {/* Main Content */}
       <main className="main-content">
         <div className="container">
-          {/* Filters */}
-          <div className="filter-bar">
-            <div className="filter-row">
-              <input
-                type="text"
-                placeholder="Search description..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-              <select
-                value={categoryId}
-                onChange={e => setCategoryId(e.target.value)}
-              >
-                <option value="">All Categories</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))}
-              />
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))}
-              />
-              <select
-                value={typeFilter}
-                onChange={e => setTypeFilter(e.target.value)}
-              >
-                <option value="all">All Types</option>
-                <option value="expense">Expenses</option>
-                <option value="income">Income</option>
-              </select>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="loading">
-              <div className="spinner"></div>
-            </div>
-          ) : error ? (
-            <div className="empty-state">
-              <p>Error: {error}</p>
-              <button className="btn btn-primary mt-md" onClick={fetchData}>
-                Retry
-              </button>
-            </div>
-          ) : (
+          {activeTab !== 'calories' && (
             <>
-              {/* Stats Grid */}
-              {stats && (
-                <div className="grid grid-stats mb-md">
-                  <StatCard
-                    label="Income"
-                    value={stats.income}
-                    type="income"
-                    count={stats.incomeCount}
+              {/* Filters */}
+              <div className="filter-bar">
+                <div className="filter-row">
+                  <input
+                    type="text"
+                    placeholder="Search description..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
                   />
-                  <StatCard
-                    label="Expenses"
-                    value={stats.expenses}
-                    type="expense"
-                    count={stats.expenseCount}
+                  <select
+                    value={categoryId}
+                    onChange={e => setCategoryId(e.target.value)}
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="date"
+                    value={filters.startDate}
+                    disabled={allTime}
+                    onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))}
                   />
-                  <StatCard
-                    label="Net Balance"
-                    value={stats.net}
-                    type="net"
+                  <input
+                    type="date"
+                    value={filters.endDate}
+                    disabled={allTime}
+                    onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))}
                   />
-                </div>
-              )}
-
-              {/* Main Grid - Transactions & Categories */}
-              <div className="grid grid-main">
-                {/* Transactions */}
-                <div className="card">
-                  <div className="card-header">
-                    <h2>Recent Transactions</h2>
-                    <span className="text-secondary">
-                      {transactions.length} item{transactions.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className="card-body">
-                    {transactions.length === 0 ? (
-                      <div className="empty-state">
-                        <div className="empty-state-icon">{Icons.empty}</div>
-                        <p>No transactions found</p>
-                        <button
-                          className="btn btn-primary mt-md"
-                          onClick={handleNewTransaction}
-                        >
-                          Add your first transaction
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="transaction-list">
-                        {transactions.map(t => (
-                          <TransactionItem
-                            key={t.id}
-                            transaction={t}
-                            onClick={() => handleEditTransaction(t)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Category Breakdown */}
-                {activeTab === 'home' && expenseCategories.length > 0 && (
-                  <div className="card mobile-only">
-                    <div className="card-header">
-                      <h2>Spending by Category</h2>
-                    </div>
-                    <div className="card-body">
-                      <div className="category-list">
-                        {expenseCategories.slice(0, 5).map(cat => (
-                          <CategoryItem
-                            key={cat.id}
-                            category={cat}
-                            maxTotal={maxCategoryTotal}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Desktop sidebar with category breakdown */}
-                <div className="desktop-only">
-                  <div className="card">
-                    <div className="card-header">
-                      <h2>Spending by Category</h2>
-                    </div>
-                    <div className="card-body">
-                      {expenseCategories.length === 0 ? (
-                        <div className="empty-state">
-                          <p className="text-secondary">No expenses yet</p>
-                        </div>
-                      ) : (
-                        <div className="category-list">
-                          {expenseCategories.map(cat => (
-                            <CategoryItem
-                              key={cat.id}
-                              category={cat}
-                              maxTotal={maxCategoryTotal}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    className={`filter-toggle ${allTime ? 'active' : ''}`}
+                    aria-pressed={allTime}
+                    title={allTime ? 'Showing all time - click to use the date range' : 'Ignore the date range and show everything'}
+                    onClick={() => setAllTime(v => !v)}
+                  >
+                    {Icons.calendar}
+                    All time
+                  </button>
+                  <select
+                    value={typeFilter}
+                    onChange={e => setTypeFilter(e.target.value)}
+                  >
+                    <option value="all">All Types</option>
+                    <option value="expense">Expenses</option>
+                    <option value="income">Income</option>
+                  </select>
                 </div>
               </div>
+
+              {loading ? (
+                <div className="loading">
+                  <div className="spinner"></div>
+                </div>
+              ) : error ? (
+                <div className="empty-state">
+                  <p>Error: {error}</p>
+                  <button className="btn btn-primary mt-md" onClick={fetchData}>
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Stats Grid */}
+                  {stats && (
+                    <div className="grid grid-stats mb-md">
+                      <StatCard
+                        label="Income"
+                        value={stats.income}
+                        type="income"
+                        count={stats.incomeCount}
+                      />
+                      <StatCard
+                        label="Expenses"
+                        value={stats.expenses}
+                        type="expense"
+                        count={stats.expenseCount}
+                      />
+                      <StatCard
+                        label="Net Balance"
+                        value={stats.net}
+                        type="net"
+                      />
+                    </div>
+                  )}
+
+                  {/* Main Grid - Transactions & Categories */}
+                  <div className="grid grid-main">
+                    {/* Transactions */}
+                    <div className="card">
+                      <div className="card-header">
+                        <h2>Recent Transactions</h2>
+                        <span className="text-secondary">
+                          {transactions.length === TRANSACTION_LIMIT
+                            ? `latest ${TRANSACTION_LIMIT} items`
+                            : `${transactions.length} item${transactions.length !== 1 ? 's' : ''}`}
+                        </span>
+                      </div>
+                      <div className="card-body">
+                        {transactions.length === 0 ? (
+                          <div className="empty-state">
+                            <div className="empty-state-icon">{Icons.empty}</div>
+                            <p>No transactions found</p>
+                            <button
+                              className="btn btn-primary mt-md"
+                              onClick={handleNewTransaction}
+                            >
+                              Add your first transaction
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="transaction-list">
+                            {transactions.map(t => (
+                              <TransactionItem
+                                key={t.id}
+                                transaction={t}
+                                onClick={() => handleEditTransaction(t)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Category Breakdown */}
+                    {activeTab === 'home' && expenseCategories.length > 0 && (
+                      <div className="card mobile-only">
+                        <div className="card-header">
+                          <h2>Spending by Category</h2>
+                        </div>
+                        <div className="card-body">
+                          <div className="category-list">
+                            {expenseCategories.slice(0, 5).map(cat => (
+                              <CategoryItem
+                                key={cat.id}
+                                category={cat}
+                                maxTotal={maxCategoryTotal}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Desktop sidebar with category breakdown */}
+                    <div className="desktop-only">
+                      <div className="card">
+                        <div className="card-header">
+                          <h2>Spending by Category</h2>
+                        </div>
+                        <div className="card-body">
+                          {expenseCategories.length === 0 ? (
+                            <div className="empty-state">
+                              <p className="text-secondary">No expenses yet</p>
+                            </div>
+                          ) : (
+                            <div className="category-list">
+                              {expenseCategories.map(cat => (
+                                <CategoryItem
+                                  key={cat.id}
+                                  category={cat}
+                                  maxTotal={maxCategoryTotal}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
+          {activeTab === 'calories' && <Calories />}
         </div>
       </main>
 
@@ -654,6 +687,13 @@ function App() {
         >
           <span className="nav-icon">{Icons.chart}</span>
           <span>Stats</span>
+        </button>
+        <button
+          className={`nav-item ${activeTab === 'calories' ? 'active' : ''}`}
+          onClick={() => setActiveTab('calories')}
+        >
+          <span className="nav-icon">{Icons.flame}</span>
+          <span>Calories</span>
         </button>
       </nav>
 

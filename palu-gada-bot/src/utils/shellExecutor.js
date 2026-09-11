@@ -11,7 +11,29 @@ const MAX_TIMEOUT = 120000; // 2 minutes
  * @param {number} options.timeout - Timeout in ms (default: 30s, max: 120s)
  * @returns {Promise<{stdout: string, stderr: string, exitCode: number, duration: number}>}
  */
+const BLOCKED_PATTERNS = [
+    /\brm\s+-rf\s+\//,
+    /\bmkfs\b/,
+    /\bdd\s+if=/,
+    /\bshutdown\b/,
+    /\breboot\b/,
+    /\bchmod\s+777\s+\//,
+    /\bcurl.*\|\s*(ba)?sh/,
+    /\bwget.*\|\s*(ba)?sh/
+];
+
 export function executeCommand(command, options = {}) {
+    for (const pattern of BLOCKED_PATTERNS) {
+        if (pattern.test(command)) {
+            return Promise.resolve({
+                stdout: '',
+                stderr: 'Command blocked by security policy.',
+                exitCode: 126,
+                duration: 0,
+            });
+        }
+    }
+
     const timeout = Math.min(options.timeout || DEFAULT_TIMEOUT, MAX_TIMEOUT);
 
     return new Promise((resolve) => {

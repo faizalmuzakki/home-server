@@ -14,7 +14,7 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 - Volume control and seeking
 
 ### Utility
-- AI-powered chat summarization using Claude 3.5 Haiku
+- AI-powered chat summarization using Claude Haiku 4.5
 - Urban Dictionary lookups
 - Weather information
 - QR code generation

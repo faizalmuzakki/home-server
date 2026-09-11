@@ -28,7 +28,7 @@ export default {
         await interaction.deferReply({ ephemeral: isPrivate });
 
         try {
-            const answer = await askClaude(question, {
+            const { text: answer, model } = await askClaude(question, {
                 systemPrompt: `You are a helpful assistant in a Discord server. Keep your responses concise and friendly. If the question is inappropriate or harmful, politely decline to answer. ${DISCORD_FORMAT_PROMPT}`,
             });
 
@@ -42,7 +42,7 @@ export default {
                     timestamp: new Date().toISOString(),
                 },
                 body: answer,
-                footer: getAiFooter('', { smart: true }),
+                footer: getAiFooter('', model),
                 ephemeral: isPrivate,
                 mode: 'message',
             });

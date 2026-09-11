@@ -60,7 +60,7 @@ export default {
                 contentToSummarize = `This is a URL that the user wants summarized: ${text}\n\nPlease note that I cannot directly access URLs. Please provide the actual text content you'd like me to summarize, or describe what you know about this page.`;
             }
 
-            const summary = await askClaude(`${styleInstructions[style]}\n\nText to summarize:\n${contentToSummarize}`, {
+            const { text: summary, model } = await askClaude(`${styleInstructions[style]}\n\nText to summarize:\n${contentToSummarize}`, {
                 systemPrompt: `You are an expert at summarizing content. Be concise and capture the essential information. If the content is too short or unclear to summarize meaningfully, say so politely. ${DISCORD_FORMAT_PROMPT}`,
             });
 
@@ -86,7 +86,7 @@ export default {
             await sendAiReply(interaction, {
                 header,
                 body: summary,
-                footer: getAiFooter(`Style: ${styleLabels[style]}`),
+                footer: getAiFooter(`Style: ${styleLabels[style]}`, model),
                 ephemeral: isPrivate,
                 mode: 'message',
             });

@@ -3,10 +3,47 @@ import { db } from '../db/init.js';
 
 const router = Router();
 
+export function getExcludeIds(db, { excludeCategoryId, excludeCategory, includeExcluded = false } = {}) {
+  const ids = [];
+  if (!includeExcluded) {
+    try {
+      const rows = db.prepare('SELECT id FROM categories WHERE exclude_from_dashboard = 1').all();
+      for (const row of rows) {
+        if (!ids.includes(row.id)) {
+          ids.push(row.id);
+        }
+      }
+    } catch (e) {
+      // ignore if column or table not initialized yet
+    }
+  }
+  if (excludeCategoryId) {
+    const parsed = String(excludeCategoryId)
+      .split(',')
+      .map(id => parseInt(id.trim(), 10))
+      .filter(id => !isNaN(id));
+    for (const id of parsed) {
+      if (!ids.includes(id)) ids.push(id);
+    }
+  }
+  if (excludeCategory) {
+    const names = String(excludeCategory).split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
+    for (const name of names) {
+      const rows = db.prepare('SELECT id FROM categories WHERE LOWER(name) LIKE ?').all(`%${name}%`);
+      for (const row of rows) {
+        if (!ids.includes(row.id)) {
+          ids.push(row.id);
+        }
+      }
+    }
+  }
+  return ids;
+}
+
 // Get summary stats
 router.get('/summary', (req, res) => {
   try {
-    const { startDate, endDate, type, search, categoryId } = req.query;
+    const { startDate, endDate, type, search, categoryId, excludeCategoryId, excludeCategory } = req.query;
 
     let dateFilter = '';
     const params = [];
@@ -28,20 +65,30 @@ router.get('/summary', (req, res) => {
       params.push(parseInt(categoryId));
     }
 
+    let excludeFilter = '';
+    const excludeParams = [];
+    let excludeIds = getExcludeIds(db, { excludeCategoryId, excludeCategory });
+    if (categoryId) {
+      excludeIds = excludeIds.filter(id => id !== parseInt(categoryId, 10));
+    }
+    if (excludeIds.length > 0) {
+      excludeFilter = ` AND (category_id NOT IN (${excludeIds.map(() => '?').join(',')}) OR category_id IS NULL)`;
+      excludeParams.push(...excludeIds);
+    }
+
     // Get totals by type
     const expenseTotal = db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
       FROM expenses
-      WHERE type = 'expense' ${dateFilter}
-    `).get(...params);
+      WHERE type = 'expense' ${dateFilter} ${excludeFilter}
+    `).get(...params, ...excludeParams);
 
     const incomeTotal = db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
       FROM expenses
-      WHERE type = 'income' ${dateFilter}
-    `).get(...params);
+      WHERE type = 'income' ${dateFilter} ${excludeFilter}
+    `).get(...params, ...excludeParams);
 
-    // Get category breakdown (filter by type if specified)
     let categoryQuery = `
       SELECT 
         c.id,
@@ -52,16 +99,53 @@ router.get('/summary', (req, res) => {
         COALESCE(SUM(e.amount), 0) as total,
         COUNT(e.id) as count
       FROM categories c
-      LEFT JOIN expenses e ON c.id = e.category_id ${dateFilter ? 'AND' + dateFilter.replace('AND', '').replace(/date\)/g, 'e.date)').replace(/description/g, 'e.description').replace(/vendor/g, 'e.vendor').replace(/category_id/g, 'e.category_id') : ''}
+      LEFT JOIN expenses e ON c.id = e.category_id
     `;
 
-    if (type && (type === 'expense' || type === 'income')) {
-      categoryQuery += ` WHERE c.type = '${type}'`;
+    const joinConditions = [];
+    const joinParams = [];
+
+    if (startDate) {
+      joinConditions.push('DATE(e.date) >= DATE(?)');
+      joinParams.push(startDate);
+    }
+    if (endDate) {
+      joinConditions.push('DATE(e.date) <= DATE(?)');
+      joinParams.push(endDate);
+    }
+    if (search) {
+      joinConditions.push('(e.description LIKE ? OR e.vendor LIKE ?)');
+      joinParams.push(`%${search}%`, `%${search}%`);
+    }
+    if (categoryId) {
+      joinConditions.push('e.category_id = ?');
+      joinParams.push(parseInt(categoryId));
     }
 
-    categoryQuery += ` GROUP BY c.id ORDER BY total DESC`;
+    if (joinConditions.length > 0) {
+      categoryQuery += ` AND ${joinConditions.join(' AND ')}`;
+    }
 
-    const byCategory = db.prepare(categoryQuery).all(...params);
+    const categoryParams = [...joinParams];
+    const whereConditions = [];
+
+    if (type && (type === 'expense' || type === 'income')) {
+      whereConditions.push('c.type = ?');
+      categoryParams.push(type);
+    }
+
+    if (excludeIds.length > 0) {
+      whereConditions.push(`c.id NOT IN (${excludeIds.map(() => '?').join(',')})`);
+      categoryParams.push(...excludeIds);
+    }
+
+    if (whereConditions.length > 0) {
+      categoryQuery += ` WHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    categoryQuery += ' GROUP BY c.id ORDER BY total DESC';
+
+    const byCategory = db.prepare(categoryQuery).all(...categoryParams);
 
     res.json({
       income: incomeTotal.total,
@@ -81,7 +165,7 @@ router.get('/summary', (req, res) => {
 // Get daily totals for chart
 router.get('/daily', (req, res) => {
   try {
-    const { startDate, endDate, type } = req.query;
+    const { startDate, endDate, type, excludeCategoryId, excludeCategory } = req.query;
 
     let query = `
       SELECT 
@@ -108,6 +192,12 @@ router.get('/daily', (req, res) => {
       params.push(type);
     }
 
+    const excludeIds = getExcludeIds(db, { excludeCategoryId, excludeCategory });
+    if (excludeIds.length > 0) {
+      query += ` AND (category_id NOT IN (${excludeIds.map(() => '?').join(',')}) OR category_id IS NULL)`;
+      params.push(...excludeIds);
+    }
+
     query += ' GROUP BY date ORDER BY date';
 
     const daily = db.prepare(query).all(...params);
@@ -120,7 +210,7 @@ router.get('/daily', (req, res) => {
 // Get monthly totals
 router.get('/monthly', (req, res) => {
   try {
-    const { year, type } = req.query;
+    const { year, type, excludeCategoryId, excludeCategory } = req.query;
 
     let query = `
       SELECT 
@@ -141,6 +231,12 @@ router.get('/monthly', (req, res) => {
     if (type && (type === 'expense' || type === 'income')) {
       conditions.push('type = ?');
       params.push(type);
+    }
+
+    const excludeIds = getExcludeIds(db, { excludeCategoryId, excludeCategory });
+    if (excludeIds.length > 0) {
+      conditions.push(`(category_id NOT IN (${excludeIds.map(() => '?').join(',')}) OR category_id IS NULL)`);
+      params.push(...excludeIds);
     }
 
     if (conditions.length > 0) {

@@ -78,7 +78,7 @@ export default {
             .join('\n\n');
 
         try {
-            const digest = await askClaude(`You are writing a casual daily recap for a Discord server covering the last ${hours} hour(s). For each channel that had meaningful activity, write 1-3 sentences describing what was discussed. Be friendly and conversational. Skip channels with only trivial chatter. Format each channel as:
+            const { text: digest, model } = await askClaude(`You are writing a casual daily recap for a Discord server covering the last ${hours} hour(s). For each channel that had meaningful activity, write 1-3 sentences describing what was discussed. Be friendly and conversational. Skip channels with only trivial chatter. Format each channel as:
 
 **#channel-name** — brief summary
 
@@ -102,7 +102,7 @@ Server recap:`, {
                     timestamp: new Date().toISOString(),
                 },
                 body: digest,
-                footer: getAiFooter('', { smart: true }),
+                footer: getAiFooter('', model),
                 mode: 'message',
             });
         } catch (error) {

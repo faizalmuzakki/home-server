@@ -1,59 +1,59 @@
-services:
-  palu-gada-root-bot:
-    build: .
-    container_name: palu-gada-root-bot
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      - NODE_ENV=production
-      # Use the socket proxy (shared with palu-gada-bot) for /server command
-      - DOCKER_HOST=tcp://palu-gada-socket-proxy:2375
-    # Security hardening
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    # Localhost only — Traefik handles external routing
-    ports:
-      - "127.0.0.1:3051:3051"
-    networks:
-      - traefik-public
-      - socket-proxy
-    volumes:
-      # Named volume intentional: no bind-mount path needed, data is opaque SQLite
-      - bot-data:/app/data
-    # Expose /health through Traefik so Uptime Kuma can probe via container name
-    labels:
-      - "traefik.enable=true"
-      # Opt this container in to autoheal restarts when healthcheck flips to unhealthy
-      - "autoheal=true"
-      - "traefik.http.routers.root-bot-health.rule=Host(`root-bot.${DOMAIN}`) && Path(`/health`)"
-      - "traefik.http.routers.root-bot-health.entrypoints=websecure"
-      - "traefik.http.routers.root-bot-health.tls.certresolver=cloudflare"
-      - "traefik.http.routers.root-bot-health.middlewares=lan-only@file"
-      - "traefik.http.services.root-bot-health.loadbalancer.server.port=3051"
-    healthcheck:
-      test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://localhost:3051/health\", (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(\"error\", () => process.exit(1))'"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
+# =============================================================================
+# ARCHIVED — Root platform is defunct (DEV_TOKEN unauthorized since 2026-04-14).
+# See TODO.md for context. Uncomment and supply a valid DEV_TOKEN to revive.
+# =============================================================================
+#
+# services:
+#   palu-gada-root-bot:
+#     build: .
+#     container_name: palu-gada-root-bot
+#     restart: unless-stopped
+#     env_file:
+#       - .env
+#     environment:
+#       - NODE_ENV=production
+#       - DOCKER_HOST=tcp://palu-gada-socket-proxy:2375
+#     security_opt:
+#       - no-new-privileges:true
+#     cap_drop:
+#       - ALL
+#     ports:
+#       - "127.0.0.1:3051:3051"
+#     networks:
+#       - traefik-public
+#       - socket-proxy
+#     volumes:
+#       - bot-data:/app/data
+#     labels:
+#       - "traefik.enable=true"
+#       - "autoheal=true"
+#       - "traefik.http.routers.root-bot-health.rule=Host(`root-bot.${DOMAIN}`) && Path(`/health`)"
+#       - "traefik.http.routers.root-bot-health.entrypoints=websecure"
+#       - "traefik.http.routers.root-bot-health.tls.certresolver=cloudflare"
+#       - "traefik.http.routers.root-bot-health.middlewares=lan-only@file"
+#       - "traefik.http.services.root-bot-health.loadbalancer.server.port=3051"
+#     healthcheck:
+#       test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://localhost:3051/health\", (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on(\"error\", () => process.exit(1))'"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+#       start_period: 30s
+#     deploy:
+#       resources:
+#         limits:
+#           cpus: '0.5'
+#           memory: 512M
+#         reservations:
+#           cpus: '0.1'
+#           memory: 128M
+#
+# networks:
+#   traefik-public:
+#     external: true
+#   socket-proxy:
+#     name: palu-gada-socket-proxy
+#     external: true
+#
+# volumes:
+#   bot-data:
 
-networks:
-  traefik-public:
-    external: true
-  socket-proxy:
-    name: palu-gada-socket-proxy
-    external: true
-
-volumes:
-  bot-data:

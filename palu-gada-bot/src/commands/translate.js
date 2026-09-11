@@ -81,7 +81,7 @@ export default {
                 ? `Translate the following text to ${formatLang(targetLang)}. First, detect the source language, then provide the translation.\n\nText: ${text}\n\nRespond in this exact format:\nDetected language: [language]\nTranslation: [translated text]`
                 : `Translate the following text from ${formatLang(sourceLang)} to ${formatLang(targetLang)}.\n\nText: ${text}\n\nRespond with only the translation, nothing else.`;
 
-            const result = await askClaude(prompt, {
+            const { text: result, model } = await askClaude(prompt, {
                 systemPrompt: `You are a professional translator. Provide accurate, natural-sounding translations. Preserve the tone and style of the original text. For idiomatic expressions, translate the meaning rather than word-for-word.`,
             });
 
@@ -123,7 +123,7 @@ export default {
                         inline: false,
                     },
                 ],
-                footer: getAiFooter(),
+                footer: getAiFooter('', model),
                 timestamp: new Date().toISOString(),
             };
 

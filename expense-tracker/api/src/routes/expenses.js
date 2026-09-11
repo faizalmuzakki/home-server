@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/init.js';
+import { getExcludeIds } from './stats.js';
 import {
   createExpenseValidators,
   updateExpenseValidators,
@@ -12,7 +13,7 @@ const router = Router();
 // Get all transactions (expenses and income) with optional filters
 router.get('/', listExpenseValidators, (req, res) => {
   try {
-    const { startDate, endDate, categoryId, type, search, limit = 50, offset = 0 } = req.query;
+    const { startDate, endDate, categoryId, excludeCategoryId, excludeCategory, excludeFromDashboard, type, search, limit = 50, offset = 0 } = req.query;
 
     let query = `
       SELECT e.*, c.name as category_name, c.icon as category_icon, c.color as category_color, c.type as category_type
@@ -33,6 +34,15 @@ router.get('/', listExpenseValidators, (req, res) => {
     if (categoryId) {
       query += ' AND e.category_id = ?';
       params.push(parseInt(categoryId));
+    }
+    const excludeIds = getExcludeIds(db, {
+      excludeCategoryId,
+      excludeCategory,
+      includeExcluded: excludeFromDashboard !== 'true'
+    });
+    if (excludeIds.length > 0) {
+      query += ` AND (e.category_id NOT IN (${excludeIds.map(() => '?').join(',')}) OR e.category_id IS NULL)`;
+      params.push(...excludeIds);
     }
     if (type && (type === 'expense' || type === 'income')) {
       query += ' AND e.type = ?';
@@ -81,12 +91,29 @@ router.post('/', createExpenseValidators, (req, res) => {
 
     // Validate type (already validated by middleware, but extra safety)
     const validType = type === 'income' ? 'income' : 'expense';
+    // Must match what INSERT stores, or the duplicate check compares TEXT to REAL and never hits
+    const finalAmount = parseFloat(amount);
+
+    if (req.query.force !== 'true') {
+      const duplicate = db.prepare(`
+        SELECT id FROM expenses
+        WHERE amount = ? AND date = ? AND COALESCE(vendor, '') = COALESCE(?, '')
+          AND created_at > datetime('now', '-5 minutes')
+      `).get(finalAmount, date, vendor || '');
+
+      if (duplicate) {
+        return res.status(409).json({
+          error: 'Duplicate expense detected within 5 minutes. Pass ?force=true to override.',
+          existing_id: duplicate.id
+        });
+      }
+    }
 
     const result = db.prepare(`
       INSERT INTO expenses (amount, description, vendor, category_id, date, type, source, image_url, raw_text)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      parseFloat(amount),
+      finalAmount,
       description || null,
       vendor || null,
       category_id ? parseInt(category_id) : null,
