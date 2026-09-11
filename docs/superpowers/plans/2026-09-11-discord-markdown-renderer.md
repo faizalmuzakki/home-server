@@ -838,9 +838,16 @@ non-integer, `Infinity` or `NaN` falls back to the default of 2000.
 
 - [ ] **Step 3b: Write the property test — this is not optional**
 
-Append to `scripts/check-markdown.js`, above the summary block. It is a
-permanent fixture, not a scratch probe: it is the only thing standing
-between this file and the failure mode that the hand-written version
+This goes in its OWN file, `scripts/check-markdown-fuzz.js`, because the
+main suite must run it in a child process. A regression in the chunker's
+budget arithmetic does not fail — it loops forever inside a single
+`chunkForDiscord` call, which no in-process guard can interrupt. Run
+in-process, such a regression hangs the whole suite with no output at all,
+which reads like a stalled terminal rather than a test failure. Both
+original Criticals behave that way, verified.
+
+It is a permanent fixture, not a scratch probe: it is the only thing
+standing between this file and the failure mode the hand-written version
 shipped.
 
 ```js
@@ -850,10 +857,19 @@ function chunkerViolations(text, limit, fenceRepresentable) {
     const chunks = chunkForDiscord(text, { limit });
     const problems = [];
 
-    // Invariant 1 is absolute and checked at every limit. It is the one
-    // that stops the Discord API rejecting a message.
+    // Invariants 1 and 4 are absolute and checked at every limit. Neither
+    // has anything to do with fences, so neither sits behind the gate
+    // below — putting the surrogate check there made it dead code, since
+    // the gate is never open at limit 1, the only limit that forces a
+    // hard cut through the generator's emoji.
     for (const chunk of chunks) {
         if (chunk.length > limit) problems.push(`over limit: ${chunk.length} > ${limit}`);
+        // At limit 1 a surrogate pair cannot fit at all, so invariant 1
+        // wins and the split is sanctioned. Everywhere else it is a defect.
+        if (limit > 1) {
+            if (/[\uD800-\uDBFF]$/.test(chunk)) problems.push('chunk ends on a high surrogate');
+            if (/^[\uDC00-\uDFFF]/.test(chunk)) problems.push('chunk starts on a low surrogate');
+        }
     }
 
     // Invariants 2 and 3 are conditional. When the limit cannot hold a
@@ -879,12 +895,6 @@ function chunkerViolations(text, limit, fenceRepresentable) {
 
     if (signature(chunks.join('\n')) !== signature(text.replace(/\r\n/g, '\n'))) {
         problems.push('content lost or duplicated');
-    }
-
-    // Surrogate pairs must survive a hard cut.
-    for (const chunk of chunks) {
-        if (/[\uD800-\uDBFF]$/.test(chunk)) problems.push('chunk ends on a high surrogate');
-        if (/^[\uDC00-\uDFFF]/.test(chunk)) problems.push('chunk starts on a low surrogate');
     }
 
     return problems;
@@ -934,34 +944,36 @@ function randomChunkerCase(seed) {
     return lines.join(pick(['\n', '\n', '\r\n']));
 }
 
-let fuzzFailures = 0;
-let firstFuzzFailure = '';
-const LIMITS = [1, 2, 3, 4, 5, 8, 10, 17, 20, 50, 100, 2000];
+export function runChunkerFuzz() {
+    let failures = 0;
+    let first = '';
+    const LIMITS = [1, 2, 3, 4, 5, 8, 10, 17, 20, 50, 100, 2000];
 
-for (let seed = 1; seed <= 2000; seed++) {
-    const text = randomChunkerCase(seed);
-    for (const limit of LIMITS) {
-        let problems;
-        try {
-            const representable = limit >= widestMarker(text) + 6;
-            problems = chunkerViolations(text, limit, representable);
-        } catch (error) {
-            problems = [`threw: ${error.message}`];
-        }
-        if (problems.length > 0) {
-            fuzzFailures++;
-            if (firstFuzzFailure === '') {
-                firstFuzzFailure = `seed ${seed} limit ${limit}: ${problems.join(', ')}`;
+    for (let seed = 1; seed <= 2000; seed++) {
+        const text = randomChunkerCase(seed);
+        for (const limit of LIMITS) {
+            let problems;
+            try {
+                const representable = limit >= widestMarker(text) + 6;
+                problems = chunkerViolations(text, limit, representable);
+            } catch (error) {
+                problems = [`threw: ${error.message}`];
+            }
+            if (problems.length > 0) {
+                failures++;
+                if (first === '') first = `seed ${seed} limit ${limit}: ${problems.join(', ')}`;
             }
         }
     }
+
+    return failures === 0 ? 'clean' : `${failures} failures, first: ${first}`;
 }
 
-check(
-    `chunker property fuzz over ${2000 * LIMITS.length} cases`,
-    fuzzFailures === 0 ? 'clean' : `${fuzzFailures} failures, first: ${firstFuzzFailure}`,
-    'clean'
-);
+// CLI entry: the parent suite spawns this file so a non-terminating loop
+// in the chunker surfaces as a killed child rather than a silent hang.
+if (process.argv[1] && process.argv[1].endsWith('check-markdown-fuzz.js')) {
+    console.log(runChunkerFuzz());
+}
 ```
 
 The limits list keeps 1 through 4 deliberately. Fence tracking cannot
@@ -973,10 +985,34 @@ Compute the gate as `limit >= widestMarker(text) + 6` — the marker, a
 newline, at least one content character, and the four characters of
 `\n\`\`\`` that close it.
 
-Run it with a hard timeout so a hang shows up as a hang:
+Then in `scripts/check-markdown.js`, above the summary block, drive it as
+a child process with a kill timer. There is no `timeout` binary on macOS,
+so the timer has to come from `spawnSync` itself:
+
+```js
+// --- chunker property fuzz (child process) ----------------------------
+
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const fuzzScript = join(dirname(fileURLToPath(import.meta.url)), 'check-markdown-fuzz.js');
+const fuzzRun = spawnSync(process.execPath, [fuzzScript], {
+    encoding: 'utf8',
+    timeout: 120000,
+});
+
+const fuzzOutcome = fuzzRun.signal || fuzzRun.error
+    ? `fuzz did not finish within 120s (signal ${fuzzRun.signal ?? 'none'}) — probable non-terminating loop in the chunker`
+    : (fuzzRun.stdout || '').trim() || `fuzz produced no output (exit ${fuzzRun.status})`;
+
+check('chunker property fuzz over 24000 cases', fuzzOutcome, 'clean');
+```
+
+Run the suite normally:
 
 ```bash
-cd palu-gada-bot && node --stack-size=4000 scripts/check-markdown.js
+cd palu-gada-bot && npm run check:markdown
 ```
 
 - [ ] **Step 4: Run it to verify it passes**
