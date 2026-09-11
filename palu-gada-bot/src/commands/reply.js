@@ -13,6 +13,48 @@ const TONES = {
 };
 
 /**
+ * Drafts the reply and sends it. Shared with the message context menu
+ * command in reply-context.js, which resolves its target the easy way.
+ */
+export async function draftReply(interaction, target, { tone, instructions, ephemeral }) {
+    const prompt = [
+        `Write a reply to this Discord message from ${target.author.username}:`,
+        '',
+        target.content,
+        '',
+        `Tone: ${TONES[tone]}`,
+        instructions ? `The reply must: ${instructions}` : '',
+        'Output only the reply itself — no preamble, no quotes around it, no explanation.',
+    ].filter(Boolean).join('\n');
+
+    const { text: draft, model } = await askClaude(prompt, {
+        systemPrompt: `You write short, natural chat replies as the user. Match the language of the message you are replying to. Keep it to a few sentences unless the message clearly needs more. ${DISCORD_FORMAT_PROMPT}`,
+    });
+
+    await sendAiReply(interaction, {
+        header: {
+            title: '💬 Suggested reply',
+            description: `Replying to [${target.author.username}'s message](${target.url}): ${target.content.slice(0, 200)}`,
+            timestamp: new Date().toISOString(),
+        },
+        body: draft,
+        footer: getAiFooter(`Tone: ${tone}`, model),
+        ephemeral,
+        mode: 'message',
+    });
+}
+
+/**
+ * Turns an API error into the line the user sees. Both /reply and the
+ * context menu command need the same three cases.
+ */
+export function replyErrorMessage(error) {
+    if (error.status === 401) return 'API key is invalid or not configured.';
+    if (error.status === 429) return 'Rate limited. Please try again later.';
+    return 'Failed to draft a reply with Claude AI.';
+}
+
+/**
  * A slash command carries no reply context of its own, so the target is
  * resolved in three steps, most explicit first:
  *   1. the `message` option — a message id or a Discord message link,
@@ -99,42 +141,10 @@ export default {
         }
 
         try {
-            const prompt = [
-                `Write a reply to this Discord message from ${target.author.username}:`,
-                '',
-                target.content,
-                '',
-                `Tone: ${TONES[tone]}`,
-                instructions ? `The reply must: ${instructions}` : '',
-                'Output only the reply itself — no preamble, no quotes around it, no explanation.',
-            ].filter(Boolean).join('\n');
-
-            const { text: draft, model } = await askClaude(prompt, {
-                systemPrompt: `You write short, natural chat replies as the user. Match the language of the message you are replying to. Keep it to a few sentences unless the message clearly needs more. ${DISCORD_FORMAT_PROMPT}`,
-            });
-
-            await sendAiReply(interaction, {
-                header: {
-                    title: '💬 Suggested reply',
-                    description: `Replying to [${target.author.username}'s message](${target.url}): ${target.content.slice(0, 200)}`,
-                    timestamp: new Date().toISOString(),
-                },
-                body: draft,
-                footer: getAiFooter(`Tone: ${tone}`, model),
-                ephemeral: isPrivate,
-                mode: 'message',
-            });
+            await draftReply(interaction, target, { tone, instructions, ephemeral: isPrivate });
         } catch (error) {
             await logCommandError(interaction, error, 'reply');
-
-            let errorMessage = 'Failed to draft a reply with Claude AI.';
-            if (error.status === 401) {
-                errorMessage = 'API key is invalid or not configured.';
-            } else if (error.status === 429) {
-                errorMessage = 'Rate limited. Please try again later.';
-            }
-
-            await interaction.editReply({ content: `❌ ${errorMessage}` });
+            await interaction.editReply({ content: `❌ ${replyErrorMessage(error)}` });
         }
     },
 };
