@@ -785,115 +785,199 @@ cd palu-gada-bot && npm run check:markdown
 
 Expected: `ERR_MODULE_NOT_FOUND` for `src/utils/discordChunker.js`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **Step 3: Write the implementation**
 
-Create `src/utils/discordChunker.js`:
+There is deliberately no reference implementation here. The first one in
+this plan was hand-written and failed its own primary invariant on 57% of
+random fenced inputs. What follows is the contract; derive the algorithm
+from it and let the property test in Step 3b prove it.
+
+Create `src/utils/discordChunker.js` exporting
+`chunkForDiscord(text, opts)`.
+
+**The contract, in priority order:**
+
+1. No returned chunk exceeds `limit`. Nothing else in this file matters
+   as much; this is what stops the Discord API rejecting a message.
+2. No chunk leaves a code fence open. A boundary inside a fence closes it
+   on the way out and reopens it with the same language tag on the way in.
+3. Joining the chunks recovers every input line, none lost, none
+   duplicated, none invented.
+4. Boundaries land on line breaks. A line longer than the available room
+   splits on spaces; only a single token longer than the room is cut
+   mid-token, and a cut never separates a surrogate pair.
+5. It never throws and never hangs, for any `text` and any `opts`.
+
+**The accounting that the first attempt got wrong, stated explicitly:**
+
+- The reopen marker costs its own length plus a newline, and it is part
+  of the chunk it opens. Budget for it before placing any line into a
+  reopened chunk, not after.
+- The closing fence costs a newline plus three backticks. Reserve it for
+  the whole time the chunk is inside a fence, including the chunk that
+  merely opens the fence — that chunk will need closing too if it flushes.
+- A line that opens a fence changes the reservation for the chunk it
+  lands in. Decide the post-line fence state BEFORE testing whether the
+  line fits, or the opener lands in a chunk with no room left to close it.
+- Reopening is not always possible. When the marker plus its closing
+  fence cannot fit inside `limit` at all, stop tracking the fence rather
+  than emitting an over-limit chunk. Invariant 1 outranks invariant 2.
+- Any per-line room calculation can go to zero or below once the
+  reservations are subtracted. Floor it at 1 before it reaches a loop that
+  advances by that amount, or the loop does not terminate.
+
+**Input normalisation:** convert `\r\n` to `\n` before splitting. A
+carriage return left on a fence marker line defeats fence detection
+entirely, because `.` in a JavaScript regex does not match `\r`. Line
+endings are not content for this purpose.
+
+**Degenerate `opts`:** guard with
+`opts && typeof opts === 'object' ? opts : {}` — a default parameter does
+not fire on an explicit `null`. A limit that is negative, zero,
+non-integer, `Infinity` or `NaN` falls back to the default of 2000.
+
+- [ ] **Step 3b: Write the property test — this is not optional**
+
+Append to `scripts/check-markdown.js`, above the summary block. It is a
+permanent fixture, not a scratch probe: it is the only thing standing
+between this file and the failure mode that the hand-written version
+shipped.
 
 ```js
-/**
- * Splits text for Discord's per-message limits without breaking words or
- * leaving a code fence open across a message boundary.
- *
- * Pure string -> string[]. Never throws.
- */
+// --- chunker properties -----------------------------------------------
 
-const FENCE_RE = /^\s*(`{3,})(.*)$/;
-const DEFAULT_LIMIT = 2000;
+function chunkerViolations(text, limit, fenceRepresentable) {
+    const chunks = chunkForDiscord(text, { limit });
+    const problems = [];
 
-/**
- * @param {string} text
- * @param {object} [opts]
- * @param {number} [opts.limit] - characters per chunk, default 2000
- * @returns {string[]} - empty when there is nothing to send
- */
-export function chunkForDiscord(text, opts = {}) {
-    if (typeof text !== 'string' || text.trim() === '') return [];
+    // Invariant 1 is absolute and checked at every limit. It is the one
+    // that stops the Discord API rejecting a message.
+    for (const chunk of chunks) {
+        if (chunk.length > limit) problems.push(`over limit: ${chunk.length} > ${limit}`);
+    }
 
-    const limit = Number.isFinite(opts.limit) && opts.limit > 0
-        ? Math.floor(opts.limit)
-        : DEFAULT_LIMIT;
+    // Invariants 2 and 3 are conditional. When the limit cannot hold a
+    // fence marker plus its closing fence, the contract says to stop
+    // tracking the fence rather than emit an over-limit chunk, so marker
+    // balance and marker-line accounting are not meaningful there.
+    if (!fenceRepresentable) return problems;
 
-    const chunks = [];
-    let buffer = [];
-    let length = 0;
-    let lang = null; // language tag of the fence we are inside, if any
+    for (const chunk of chunks) {
+        const markers = (chunk.match(/^\s*```/gm) || []).length;
+        if (markers % 2 !== 0) problems.push('unbalanced fence');
+    }
 
-    const flush = () => {
-        if (buffer.length === 0) return;
-        const reopened = lang !== null;
-        const body = buffer.join('\n');
-        chunks.push(reopened ? `${body}\n\`\`\`` : body);
-        buffer = [];
-        length = 0;
+    // Drop whole fence-marker lines before comparing: a reopened fence
+    // legitimately repeats its language tag, which is invariant 2 working,
+    // not duplicated content. Then ignore whitespace, because wrapping a
+    // long line inserts newlines the source did not have.
+    const signature = value => value
+        .split('\n')
+        .filter(line => !/^\s*```/.test(line))
+        .join('')
+        .replace(/\s/g, '');
+
+    if (signature(chunks.join('\n')) !== signature(text.replace(/\r\n/g, '\n'))) {
+        problems.push('content lost or duplicated');
+    }
+
+    // Surrogate pairs must survive a hard cut.
+    for (const chunk of chunks) {
+        if (/[\uD800-\uDBFF]$/.test(chunk)) problems.push('chunk ends on a high surrogate');
+        if (/^[\uDC00-\uDFFF]/.test(chunk)) problems.push('chunk starts on a low surrogate');
+    }
+
+    return problems;
+}
+
+/** Widest fence marker in the text, so the caller can gate invariants 2-3. */
+function widestMarker(text) {
+    let widest = 0;
+    // Normalise CRLF first. A carriage return left on a marker line makes
+    // the regex below fail to match, because `.` never matches \r — the
+    // same defect that made the chunker itself blind to CRLF fences. The
+    // helper would then report width 0 and open the gate too early.
+    for (const line of text.replace(/\r\n/g, '\n').split('\n')) {
+        const match = /^\s*(```.*)$/.exec(line);
+        if (match) widest = Math.max(widest, match[1].trimEnd().length);
+    }
+    return widest;
+}
+
+function randomChunkerCase(seed) {
+    // Deterministic PRNG so a failure is reproducible from its seed alone.
+    let state = seed;
+    const next = () => {
+        state = (state * 1103515245 + 12345) & 0x7fffffff;
+        return state / 0x7fffffff;
     };
+    const pick = list => list[Math.floor(next() * list.length)];
 
-    for (const rawLine of text.split('\n')) {
-        // Reserve room for the closing fence we may have to append.
-        const budget = lang === null ? limit : limit - 4;
-
-        for (const line of splitLongLine(rawLine, budget)) {
-            const cost = buffer.length === 0 ? line.length : line.length + 1;
-
-            if (length + cost > budget && buffer.length > 0) {
-                const carried = lang;
-                flush();
-                if (carried !== null) {
-                    buffer.push(`\`\`\`${carried}`);
-                    length = 3 + carried.length;
-                }
-            }
-
-            buffer.push(line);
-            length += buffer.length === 1 ? line.length : line.length + 1;
-
-            const fence = FENCE_RE.exec(line);
-            if (fence) lang = lang === null ? fence[2].trim() : null;
-        }
-    }
-
-    flush();
-    return chunks;
-}
-
-/** Splits one over-long line on spaces, hard-cutting only a long token. */
-function splitLongLine(line, limit) {
-    if (line.length <= limit) return [line];
-
-    const parts = [];
-    let current = '';
-
-    for (const word of line.split(' ')) {
-        if (word.length > limit) {
-            if (current !== '') {
-                parts.push(current);
-                current = '';
-            }
-            for (let i = 0; i < word.length; i += limit) {
-                parts.push(word.slice(i, i + limit));
-            }
-            continue;
-        }
-        const cost = current === '' ? word.length : word.length + 1;
-        if (current.length + cost > limit) {
-            parts.push(current);
-            current = word;
+    const lines = [];
+    const count = Math.floor(next() * 30);
+    let open = false;
+    for (let i = 0; i < count; i++) {
+        if (next() < 0.15) {
+            lines.push(open ? '```' : '```' + pick(['', 'js', 'python', 'x'.repeat(40)]));
+            open = !open;
         } else {
-            current = current === '' ? word : `${current} ${word}`;
+            lines.push(pick([
+                '',
+                'short',
+                'a '.repeat(20).trim(),
+                'z'.repeat(60),
+                'emoji \u{1F600} here',
+                'a\u0301 combining',
+            ]));
         }
     }
-
-    if (current !== '') parts.push(current);
-    return parts;
+    return lines.join(pick(['\n', '\n', '\r\n']));
 }
+
+let fuzzFailures = 0;
+let firstFuzzFailure = '';
+const LIMITS = [1, 2, 3, 4, 5, 8, 10, 17, 20, 50, 100, 2000];
+
+for (let seed = 1; seed <= 2000; seed++) {
+    const text = randomChunkerCase(seed);
+    for (const limit of LIMITS) {
+        let problems;
+        try {
+            const representable = limit >= widestMarker(text) + 6;
+            problems = chunkerViolations(text, limit, representable);
+        } catch (error) {
+            problems = [`threw: ${error.message}`];
+        }
+        if (problems.length > 0) {
+            fuzzFailures++;
+            if (firstFuzzFailure === '') {
+                firstFuzzFailure = `seed ${seed} limit ${limit}: ${problems.join(', ')}`;
+            }
+        }
+    }
+}
+
+check(
+    `chunker property fuzz over ${2000 * LIMITS.length} cases`,
+    fuzzFailures === 0 ? 'clean' : `${fuzzFailures} failures, first: ${firstFuzzFailure}`,
+    'clean'
+);
 ```
 
-Note on the spec: §3 lists a paragraph-break preference above a
-line-break preference. It is deliberately not implemented. Greedy line
-accumulation already ends every chunk at a line boundary, which is the
-guarantee that matters — never mid-word, never mid-fence. A paragraph
-preference on top of that only shifts a boundary up by a line or two,
-at the cost of wasting the rest of the chunk, and cannot be asserted
-distinctly from plain line-greedy behaviour. Do not add it back.
+The limits list keeps 1 through 4 deliberately. Fence tracking cannot
+survive there, and that is the point: invariant 1 must still hold when
+invariant 2 has been abandoned. The `fenceRepresentable` gate is what
+separates the two.
+
+Compute the gate as `limit >= widestMarker(text) + 6` — the marker, a
+newline, at least one content character, and the four characters of
+`\n\`\`\`` that close it.
+
+Run it with a hard timeout so a hang shows up as a hang:
+
+```bash
+cd palu-gada-bot && node --stack-size=4000 scripts/check-markdown.js
+```
 
 - [ ] **Step 4: Run it to verify it passes**
 
