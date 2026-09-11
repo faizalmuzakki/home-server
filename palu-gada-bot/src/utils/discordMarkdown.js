@@ -42,6 +42,11 @@ export function toDiscordMarkdown(text, opts) {
     let dropBlank = false; // a rule was just removed
 
     for (const line of lines) {
+        if (dropBlank) {
+            dropBlank = false;
+            if (line.trim() === '') continue;
+        }
+
         const fenceMatch = FENCE_RE.exec(line);
         if (fenceMatch) {
             out.push(...flushTable(table));
@@ -59,11 +64,6 @@ export function toDiscordMarkdown(text, opts) {
         if (fence !== null) {
             out.push(line);
             continue;
-        }
-
-        if (dropBlank) {
-            dropBlank = false;
-            if (line.trim() === '') continue;
         }
 
         if (ROW_RE.test(line)) {

@@ -172,6 +172,12 @@ check(
 );
 
 check(
+    'a rule followed by a fence drops the blank after the rule, not after the fence',
+    toDiscordMarkdown('---\n```\ncode\n```\n\nAfter.'),
+    '```\ncode\n```\n\nAfter.'
+);
+
+check(
     'a rule followed by a table drops the blank after the rule, not after the table',
     toDiscordMarkdown('---\n| a |\n|---|\n| b |\n\nAfter.'),
     '```\na\nb\n```\n\nAfter.'
