@@ -129,6 +129,14 @@ export default {
                 for (const chunk of chunks.slice(0, 5)) {
                     await interaction.followUp({ content: chunk, ephemeral: isPrivate });
                 }
+                // Say so rather than dropping the tail silently, matching
+                // how /fallacy reports omitted findings.
+                if (chunks.length > 5) {
+                    await interaction.followUp({
+                        content: '*Translation truncated due to length…*',
+                        ephemeral: isPrivate,
+                    });
+                }
             }
         } catch (error) {
             await logCommandError(interaction, error, 'translate');

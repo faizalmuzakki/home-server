@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { getAiFooter } from '../config/ai.js';
 import { toDiscordMarkdown } from '../utils/discordMarkdown.js';
 
 const MESSAGE_LIMIT = 50;
@@ -14,7 +14,7 @@ const COOLDOWN_MS = 2 * 60 * 1000;
 
 const channelCooldowns = new Map();
 
-const SYSTEM_PROMPT = `You are a logic and rhetoric analyst. Identify logical fallacies in Discord conversations. Be conservative — only flag clear, textbook fallacies that appear in the reasoning of a message. Casual chatter, jokes, unsupported opinions stated as opinions, and emotional expressions are not fallacies on their own; a fallacy requires flawed reasoning in support of a claim. ${DISCORD_FORMAT_PROMPT}`;
+const SYSTEM_PROMPT = 'You are a logic and rhetoric analyst. Identify logical fallacies in Discord conversations. Be conservative — only flag clear, textbook fallacies that appear in the reasoning of a message. Casual chatter, jokes, unsupported opinions stated as opinions, and emotional expressions are not fallacies on their own; a fallacy requires flawed reasoning in support of a claim.';
 
 function truncate(str, max) {
     if (str.length <= max) return str;
@@ -189,10 +189,13 @@ JSON:`;
         }
 
         const entries = resolved.map((f, i) => {
-            const quote = truncate(f.message.content, QUOTE_MAX_CHARS);
+            const quote = toDiscordMarkdown(truncate(f.message.content, QUOTE_MAX_CHARS), { headings: 'bold' })
+                .split('\n')
+                .map(line => `> ${line}`)
+                .join('\n');
             const fallacyName = toDiscordMarkdown(f.fallacy_name, { headings: 'bold' });
             const explanation = toDiscordMarkdown(f.explanation, { headings: 'bold' });
-            return `**${i + 1}. ${fallacyName}** — by **${f.message.author}** · [jump](${f.message.url})\n> ${quote}\n${explanation}`;
+            return `**${i + 1}. ${fallacyName}** — by **${f.message.author}** · [jump](${f.message.url})\n${quote}\n${explanation}`;
         });
 
         let description = entries.join('\n\n');
