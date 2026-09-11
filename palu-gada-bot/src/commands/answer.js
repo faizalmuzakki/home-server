@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter } from '../config/ai.js';
+import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { sendAiReply } from '../utils/aiReply.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -159,7 +160,9 @@ RESPONSE: [A natural response as ${targetName} would write it]
 Keep the response concise and conversational (1-3 sentences typically). Match their typing style.`;
             }
 
-            const aiResponse = await askClaude(prompt);
+            const aiResponse = await askClaude(prompt, {
+                systemPrompt: DISCORD_FORMAT_PROMPT,
+            });
 
             // Parse the response
             let questionText = questionMessage?.content || 'Auto-detected from conversation';
@@ -184,29 +187,24 @@ Keep the response concise and conversational (1-3 sentences typically). Match th
                 : questionText;
 
             // Send the answer
-            await interaction.editReply({
-                embeds: [{
-                    color: 0x5865F2,
+            await sendAiReply(interaction, {
+                header: {
                     author: {
                         name: `${targetName} might say...`,
                         icon_url: targetUser.displayAvatarURL({ dynamic: true }),
                     },
-                    description: answerText,
                     fields: [
-                        {
-                            name: 'Responding to',
-                            value: displayQuestion,
-                            inline: false,
-                        },
+                        { name: 'Responding to', value: displayQuestion, inline: false },
                         {
                             name: 'Context analyzed',
                             value: `${messages.length} messages from last ${hours}h`,
                             inline: true,
                         },
                     ],
-                    footer: getAiFooter('AI-generated response based on your conversation style'),
-                    timestamp: new Date().toISOString(),
-                }],
+                },
+                body: answerText,
+                footer: getAiFooter('AI-generated response based on your conversation style'),
+                mode: 'message',
             });
         } catch (error) {
             await logCommandError(interaction, error, 'answer');
