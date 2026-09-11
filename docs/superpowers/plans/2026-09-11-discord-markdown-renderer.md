@@ -520,6 +520,12 @@ check(
 );
 
 check(
+    'a rule followed by a table drops the blank after the rule, not after the table',
+    toDiscordMarkdown('---\n| a |\n|---|\n| b |\n\nAfter.'),
+    '```\na\nb\n```\n\nAfter.'
+);
+
+check(
     'indentation depth resets after prose',
     toDiscordMarkdown('- a\n    - b\n\nProse.\n\n- c'),
     '- a\n  - b\n\nProse.\n\n- c'
@@ -612,9 +618,24 @@ In `toDiscordMarkdown`, declare the state before the loop:
     let dropBlank = false; // a rule was just removed
 ```
 
-In the loop, add the rule branch AFTER the `ROW_RE` branch that Task 2
-added, not before it. A table alignment row then never reaches the rule
-test:
+Two branches go into the loop, at two DIFFERENT positions. Do not put
+them together — that is the defect this wording exists to prevent.
+
+**The `dropBlank` consumption goes BEFORE the `ROW_RE` branch**, directly
+after the inside-fence passthrough. If it sits after `ROW_RE`, a table
+following a rule buffers its rows and `continue`s past this check, so the
+flag survives the whole table and eats the blank line after it instead of
+the one after the rule:
+
+```js
+        if (dropBlank) {
+            dropBlank = false;
+            if (line.trim() === '') continue;
+        }
+```
+
+**The `RULE_RE` branch goes AFTER the `ROW_RE` branch.** A table
+alignment row then never reaches the rule test:
 
 ```js
         if (RULE_RE.test(line)) {
@@ -623,12 +644,11 @@ test:
             dropBlank = true;
             continue;
         }
-
-        if (dropBlank) {
-            dropBlank = false;
-            if (line.trim() === '') continue;
-        }
 ```
+
+The finished loop dispatches in this order: fence match, inside-fence
+passthrough, `dropBlank` consumption, `ROW_RE` buffering, `RULE_RE`,
+then flush plus `convertLine`.
 
 And change the final dispatch from `convertLine(line, headings)` to `convertLine(line, headings, indents)`.
 
@@ -639,7 +659,9 @@ defensive, but keep the order.
 
 The rule branch flushes any buffered table before dropping the line, so
 place it after `table.push(line); continue;` in source order but before
-the final `convertLine` dispatch.
+the final `convertLine` dispatch. The `dropBlank` consumption is the
+opposite: it must run before any branch that can `continue`, other than
+the fence ones.
 
 - [ ] **Step 4: Run it to verify it passes**
 
@@ -647,7 +669,7 @@ the final `convertLine` dispatch.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `25 passed, 0 failed`, exit 0.
+Expected: `26 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -867,7 +889,7 @@ distinctly from plain line-greedy behaviour. Do not add it back.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `42 passed, 0 failed`, exit 0.
+Expected: `43 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Add a guard that no chunk exceeds its limit**
 
@@ -892,7 +914,7 @@ check(
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `42 passed, 0 failed`.
+Expected: `43 passed, 0 failed`.
 
 - [ ] **Step 6: Commit**
 
@@ -1121,7 +1143,7 @@ Note: `header` is spread before `description` in embed mode, so a caller passing
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `47 passed, 0 failed`, exit 0.
+Expected: `48 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -1519,7 +1541,7 @@ Expected: two `ok` lines.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `47 passed, 0 failed`, exit 0.
+Expected: `48 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
