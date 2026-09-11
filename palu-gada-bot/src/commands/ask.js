@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter } from '../config/ai.js';
+import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { sendAiReply } from '../utils/aiReply.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -28,69 +29,22 @@ export default {
 
         try {
             const answer = await askClaude(question, {
-                systemPrompt: 'You are a helpful assistant in a Discord server. Keep your responses concise and friendly. Use Discord markdown formatting when appropriate. If the question is inappropriate or harmful, politely decline to answer.',
+                systemPrompt: `You are a helpful assistant in a Discord server. Keep your responses concise and friendly. If the question is inappropriate or harmful, politely decline to answer. ${DISCORD_FORMAT_PROMPT}`,
             });
 
-            // Split long responses - Discord has a 2000 character limit per message
-            if (answer.length > 2000) {
-                const chunks = answer.match(/.{1,2000}/gs) || [];
-
-                await interaction.editReply({
-                    embeds: [{
-                        color: 0x5865F2,
-                        author: {
-                            name: `${interaction.user.tag} asked:`,
-                            icon_url: interaction.user.displayAvatarURL({ dynamic: true }),
-                        },
-                        description: question.slice(0, 256) + (question.length > 256 ? '...' : ''),
-                    }],
-                });
-
-                for (let i = 0; i < Math.min(chunks.length, 5); i++) {
-                    await interaction.followUp({
-                        content: chunks[i],
-                        ephemeral: isPrivate,
-                    });
-                }
-
-                if (chunks.length > 5) {
-                    await interaction.followUp({
-                        content: '*Response truncated due to length...*',
-                        ephemeral: isPrivate,
-                    });
-                }
-            } else {
-                await interaction.editReply({
-                    embeds: [{
-                        color: 0x5865F2,
-                        author: {
-                            name: `${interaction.user.tag} asked:`,
-                            icon_url: interaction.user.displayAvatarURL({ dynamic: true }),
-                        },
-                        description: question.slice(0, 256) + (question.length > 256 ? '...' : ''),
-                        fields: [{
-                            name: 'Answer',
-                            value: answer.slice(0, 1024),
-                        }],
-                        footer: getAiFooter('', { smart: true }),
-                        timestamp: new Date().toISOString(),
-                    }],
-                });
-
-                // If answer is longer than 1024 chars, send the rest as follow-up(s)
-                // Discord's message limit is 2000 characters
-                if (answer.length > 1024) {
-                    const remaining = answer.slice(1024);
-                    const chunks = remaining.match(/.{1,2000}/gs) || [];
-
-                    for (const chunk of chunks) {
-                        await interaction.followUp({
-                            content: chunk,
-                            ephemeral: isPrivate,
-                        });
-                    }
-                }
-            }
+            await sendAiReply(interaction, {
+                header: {
+                    author: {
+                        name: `${interaction.user.tag} asked:`,
+                        icon_url: interaction.user.displayAvatarURL({ dynamic: true }),
+                    },
+                    description: question.slice(0, 256) + (question.length > 256 ? '...' : ''),
+                },
+                body: answer,
+                footer: getAiFooter('', { smart: true }),
+                ephemeral: isPrivate,
+                mode: 'message',
+            });
         } catch (error) {
             await logCommandError(interaction, error, 'ask');
 
