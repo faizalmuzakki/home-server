@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter } from '../config/ai.js';
+import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { sendAiReply } from '../utils/aiReply.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -108,14 +109,14 @@ Chat log from the last ${hours} hour(s):
 ${chatLog}
 ---
 
-Summary:`);
+Summary:`, {
+                systemPrompt: DISCORD_FORMAT_PROMPT,
+            });
 
             // Send the summary
-            await interaction.editReply({
-                embeds: [{
-                    color: 0x7289da,
-                    title: `📝 Chat Summary`,
-                    description: summary,
+            await sendAiReply(interaction, {
+                header: {
+                    title: '📝 Chat Summary',
                     fields: [
                         {
                             name: 'Channel',
@@ -133,9 +134,10 @@ Summary:`);
                             inline: true,
                         },
                     ],
-                    footer: getAiFooter('', { smart: true }),
-                    timestamp: new Date().toISOString(),
-                }],
+                },
+                body: summary,
+                footer: getAiFooter('', { smart: true }),
+                mode: 'message',
             });
         } catch (error) {
             await logCommandError(interaction, error, 'summarize');

@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter } from '../config/ai.js';
+import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { sendAiReply } from '../utils/aiReply.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -50,7 +51,7 @@ export default {
 
         try {
             const explanation = await askClaude(`${levelInstructions[level]}\n\nTopic to explain: ${topic}`, {
-                systemPrompt: 'You are an expert educator who excels at explaining complex topics. Use Discord markdown formatting for better readability (bold, italics, bullet points, code blocks where appropriate). Keep explanations focused and well-structured.',
+                systemPrompt: `You are an expert educator who excels at explaining complex topics. Keep explanations focused and well-structured. ${DISCORD_FORMAT_PROMPT}`,
             });
 
             const levelLabels = {
@@ -61,24 +62,13 @@ export default {
                 expert: 'Expert',
             };
 
-            const embed = {
-                color: 0x5865F2,
-                title: `📚 ${topic}`,
-                description: explanation.slice(0, 4096),
-                fields: [],
+            await sendAiReply(interaction, {
+                header: { title: `📚 ${topic}`.slice(0, 256) },
+                body: explanation,
                 footer: getAiFooter(`Level: ${levelLabels[level]}`, { smart: true }),
-                timestamp: new Date().toISOString(),
-            };
-
-            await interaction.editReply({ embeds: [embed] });
-
-            // If explanation is longer, send follow-up
-            if (explanation.length > 4096) {
-                await interaction.followUp({
-                    content: explanation.slice(4096),
-                    ephemeral: isPrivate,
-                });
-            }
+                ephemeral: isPrivate,
+                mode: 'message',
+            });
         } catch (error) {
             await logCommandError(interaction, error, 'explain');
 

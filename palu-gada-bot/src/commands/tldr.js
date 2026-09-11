@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter } from '../config/ai.js';
+import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { sendAiReply } from '../utils/aiReply.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -60,7 +61,7 @@ export default {
             }
 
             const summary = await askClaude(`${styleInstructions[style]}\n\nText to summarize:\n${contentToSummarize}`, {
-                systemPrompt: 'You are an expert at summarizing content. Be concise and capture the essential information. Use Discord markdown formatting. If the content is too short or unclear to summarize meaningfully, say so politely.',
+                systemPrompt: `You are an expert at summarizing content. Be concise and capture the essential information. If the content is too short or unclear to summarize meaningfully, say so politely. ${DISCORD_FORMAT_PROMPT}`,
             });
 
             const styleLabels = {
@@ -70,25 +71,22 @@ export default {
                 takeaways: 'Key Takeaways',
             };
 
-            const embed = {
-                color: 0x5865F2,
-                title: '📝 TL;DR',
-                description: summary,
-                fields: [],
-                footer: getAiFooter(`Style: ${styleLabels[style]}`),
-                timestamp: new Date().toISOString(),
-            };
-
-            // Show preview of original text
+            const header = { title: '📝 TL;DR' };
             if (!isUrl && text.length > 100) {
-                embed.fields.push({
+                header.fields = [{
                     name: 'Original (preview)',
                     value: text.slice(0, 200) + (text.length > 200 ? '...' : ''),
                     inline: false,
-                });
+                }];
             }
 
-            await interaction.editReply({ embeds: [embed] });
+            await sendAiReply(interaction, {
+                header,
+                body: summary,
+                footer: getAiFooter(`Style: ${styleLabels[style]}`),
+                ephemeral: isPrivate,
+                mode: 'message',
+            });
         } catch (error) {
             await logCommandError(interaction, error, 'tldr');
 
