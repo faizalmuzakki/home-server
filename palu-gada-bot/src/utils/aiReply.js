@@ -105,13 +105,22 @@ async function sendWithFooter(interaction, content, footerLine, ephemeral) {
     }
 
     await interaction.followUp({ content, ephemeral });
+    await interaction.followUp({ content: safeSlice(footerLine, MESSAGE_LIMIT), ephemeral });
+}
 
-    // A raw slice at MESSAGE_LIMIT can land mid surrogate-pair.
-    // chunkForDiscord already solves surrogate-safe cutting (and is
-    // fuzz-verified for it), so reuse its first chunk instead of
-    // hand-rolling the cut here.
-    const [footerHead] = chunkForDiscord(footerLine, { limit: MESSAGE_LIMIT });
-    if (footerHead) await interaction.followUp({ content: footerHead, ephemeral });
+/**
+ * Truncates to `limit` without bisecting a surrogate pair.
+ *
+ * Do NOT reach for `chunkForDiscord` here. It splits on word boundaries,
+ * and a footer is a single line whose only space follows the `-#` prefix,
+ * so its first chunk is the prefix alone and the whole footer is lost.
+ * This needs a character cut, not a word-aware split.
+ */
+function safeSlice(text, limit) {
+    if (text.length <= limit) return text;
+    const code = text.charCodeAt(limit - 1);
+    const end = code >= 0xD800 && code <= 0xDBFF ? limit - 1 : limit;
+    return text.slice(0, end);
 }
 
 async function sendEmbedMode(interaction, { header, body, footer, ephemeral, maxChunks }) {

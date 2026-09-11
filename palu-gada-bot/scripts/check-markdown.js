@@ -354,13 +354,20 @@ check(
             footer: { text: footer },
             mode: 'message',
         });
-        const bad = fake.calls
+        const contents = fake.calls
             .map(([, payload]) => payload.content)
-            .filter(content => typeof content === 'string')
-            .filter(content => /[\uD800-\uDBFF]$/.test(content) || /^[\uDC00-\uDFFF]/.test(content));
-        return String(bad.length);
+            .filter(content => typeof content === 'string');
+        const halves = contents.filter(
+            content => /[\uD800-\uDBFF]$/.test(content) || /^[\uDC00-\uDFFF]/.test(content)
+        );
+        // Assert the footer SURVIVES, not merely that it is not corrupt.
+        // An earlier fix passed the corruption check by discarding the
+        // footer entirely and sending the bare '-#' prefix.
+        const footerMessage = contents.find(content => content.startsWith('-#'));
+        const kept = footerMessage && footerMessage.length > 1900;
+        return `${halves.length} ${kept ? 'kept' : 'lost'}`;
     })(),
-    '0'
+    '0 kept'
 );
 
 check(
