@@ -84,6 +84,7 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 | `/urban <term>` | Look up a word on Urban Dictionary |
 | `/summarize [hours] [channel]` | Summarize chat history using Claude AI |
 | `/answer [hours]` | Reply to a question, AI answers on your behalf based on your conversation style |
+| `/reply [message] [tone] [instructions]` | Draft an AI reply to the message you replied to, or one you name by id/link |
 | `/tldr <text>` | Get a short summary of pasted text or a URL hint |
 | `/explain <topic>` | Get an explanation of a topic at different depth levels |
 | `/translate <text>` | Translate text between languages |
