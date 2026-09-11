@@ -18,7 +18,13 @@ export function register(client) {
             return;
         }
 
-        if (!interaction.isChatInputCommand()) return;
+        if (!interaction.isChatInputCommand() && !interaction.isMessageContextMenuCommand()) return;
+
+        // Context menu commands are named "Reply with AI", not "reply", so
+        // the disabled notice must not put a slash in front of them.
+        const commandLabel = interaction.isChatInputCommand()
+            ? `/${interaction.commandName}`
+            : interaction.commandName;
 
         if (interaction.guildId && !checkGuildAccess(interaction.guildId)) {
             return interaction.reply({
@@ -36,7 +42,7 @@ export function register(client) {
 
         if (interaction.guildId && !isCommandEnabled(interaction.guildId, interaction.commandName)) {
             return interaction.reply({
-                content: `The \`/${interaction.commandName}\` command is disabled in this server.`,
+                content: `The \`${commandLabel}\` command is disabled in this server.`,
                 flags: MessageFlags.Ephemeral,
             });
         }
@@ -59,7 +65,7 @@ export function register(client) {
                                     fields: [
                                         {
                                             name: 'Command',
-                                            value: `\`/${interaction.commandName}\``,
+                                            value: `\`${commandLabel}\``,
                                             inline: true,
                                         },
                                         {
@@ -87,7 +93,7 @@ export function register(client) {
                                 'COMMAND_ERROR',
                                 interaction.user.id,
                                 null,
-                                `Command /${interaction.commandName} failed: ${error.message?.slice(0, 500)}`
+                                `Command ${commandLabel} failed: ${error.message?.slice(0, 500)}`
                             );
                         }
                     }
