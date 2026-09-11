@@ -45,7 +45,7 @@ function chunkerViolations(text, limit, fenceRepresentable) {
     if (!fenceRepresentable) return problems;
 
     for (const chunk of chunks) {
-        const markers = (chunk.match(/^\s*```/gm) || []).length;
+        const markers = (chunk.match(/^\s*(?:```|~~~)/gm) || []).length;
         if (markers % 2 !== 0) problems.push('unbalanced fence');
     }
 
@@ -55,7 +55,7 @@ function chunkerViolations(text, limit, fenceRepresentable) {
     // long line inserts newlines the source did not have.
     const signature = value => value
         .split('\n')
-        .filter(line => !/^\s*```/.test(line))
+        .filter(line => !/^\s*(?:```|~~~)/.test(line))
         .join('')
         .replace(/\s/g, '');
 
@@ -74,7 +74,7 @@ function widestMarker(text) {
     // same defect that made the chunker itself blind to CRLF fences. The
     // helper would then report width 0 and open the gate too early.
     for (const line of text.replace(/\r\n/g, '\n').split('\n')) {
-        const match = /^\s*(```.*)$/.exec(line);
+        const match = /^\s*((?:```|~~~).*)$/.exec(line);
         if (match) widest = Math.max(widest, match[1].trimEnd().length);
     }
     return widest;
@@ -92,9 +92,19 @@ function randomChunkerCase(seed) {
     const lines = [];
     const count = Math.floor(next() * 30);
     let open = false;
+    // The marker character of the block currently open. A fence closes only
+    // on its own character, so the generator opens and closes with the same
+    // one -- covering ~~~ blocks, which the chunker used to split straight
+    // through because it only ever looked for backticks.
+    let openChar = '`';
     for (let i = 0; i < count; i++) {
         if (next() < 0.15) {
-            lines.push(open ? '```' : '```' + pick(['', 'js', 'python', 'x'.repeat(40)]));
+            if (open) {
+                lines.push(openChar.repeat(3));
+            } else {
+                openChar = pick(['`', '`', '~']);
+                lines.push(openChar.repeat(3) + pick(['', 'js', 'python', 'x'.repeat(40)]));
+            }
             open = !open;
         } else {
             lines.push(pick([

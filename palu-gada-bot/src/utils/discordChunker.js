@@ -5,7 +5,10 @@
  * Pure string -> string[]. Never throws, never hangs.
  */
 
-const FENCE_RE = /^\s*(`{3,})(.*)$/;
+// Both fence characters, matching the converter in discordMarkdown.js.
+// The converter passes a ~~~ block through verbatim, so a chunker that
+// only knew backticks split straight through one and left it unterminated.
+const FENCE_RE = /^\s*(`{3,}|~{3,})(.*)$/;
 const DEFAULT_LIMIT = 2000;
 
 function isHighSurrogate(code) {
@@ -108,6 +111,7 @@ export function chunkForDiscord(text, opts) {
 
     // Fence state as of the end of the buffer's last placed line.
     let lang = null;       // active fence's language tag, or null
+    let char = '`';        // active fence's marker character
     let trackable = false; // whether we're reserving/reopening for it
 
     const flush = () => {
@@ -125,7 +129,7 @@ export function chunkForDiscord(text, opts) {
         if (body.trim() === '') return;
 
         const closing = lang !== null && trackable;
-        chunks.push(closing ? `${body}\n\`\`\`` : body);
+        chunks.push(closing ? `${body}\n${char.repeat(3)}` : body);
     };
 
     for (const rawLine of normalized.split('\n')) {
@@ -135,6 +139,7 @@ export function chunkForDiscord(text, opts) {
         // -- used for any flush that happens before this line's pieces,
         // never for the state this line itself leaves behind.
         const carriedLang = lang;
+        const carriedChar = char;
         const carriedTrackable = trackable;
 
         // Decide the state this line will leave behind BEFORE testing
@@ -142,10 +147,15 @@ export function chunkForDiscord(text, opts) {
         // the chunk it lands in, and that has to apply to the opener's
         // own line too, not just the lines after it.
         let postLang = lang;
+        let postChar = char;
         let postTrackable = trackable;
         if (marker) {
+            // CommonMark closes a fence only on its own character, so a
+            // ~~~ line inside a backtick block is content, not a close.
+            const markerChar = marker[1][0];
             if (lang === null) {
                 const tag = marker[2].trim();
+                postChar = markerChar;
                 const markerLen = 3 + tag.length;
                 postLang = tag;
                 // Reopening is only worth attempting if the marker, at
@@ -159,7 +169,7 @@ export function chunkForDiscord(text, opts) {
                 // no room to spare, stop tracking this fence rather than
                 // risk an over-limit chunk later.
                 postTrackable = (markerLen + 6) <= limit;
-            } else {
+            } else if (markerChar === char) {
                 postLang = null;
                 postTrackable = false;
             }
@@ -186,7 +196,7 @@ export function chunkForDiscord(text, opts) {
             if (length + cost > lineBudget && buffer.length > 0) {
                 flush();
                 if (carriedLang !== null && carriedTrackable) {
-                    const reopen = `\`\`\`${carriedLang}`;
+                    const reopen = `${carriedChar.repeat(3)}${carriedLang}`;
                     buffer.push(reopen);
                     length = reopen.length;
                 }
@@ -212,6 +222,7 @@ export function chunkForDiscord(text, opts) {
         }
 
         lang = postLang;
+        char = postChar;
         trackable = postTrackable;
     }
 

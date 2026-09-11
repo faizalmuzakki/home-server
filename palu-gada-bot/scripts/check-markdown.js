@@ -272,6 +272,29 @@ check(
     'true'
 );
 
+// The converter accepts ~~~ as well as ```, and passes a tilde block
+// through verbatim. A chunker that only knew backticks split straight
+// through one, leaving an unterminated code block on Discord.
+const tilde = chunkForDiscord('~~~js\naaaa\nbbbb\ncccc\n~~~', { limit: 20 });
+
+function tildeBalance(chunk) {
+    return (chunk.match(/^\s*~~~/gm) || []).length % 2 === 0;
+}
+
+check('a tilde fence splits into more than one chunk', String(tilde.length > 1), 'true');
+check('every tilde chunk respects the limit', String(tilde.every(c => c.length <= 20)), 'true');
+check('no tilde chunk leaves a fence open', String(tilde.every(tildeBalance)), 'true');
+check(
+    'a tilde continuation reopens with a tilde marker and the language tag',
+    String(tilde.slice(1).every(c => c.startsWith('~~~js'))),
+    'true'
+);
+check(
+    'a backtick line inside a tilde fence does not close it',
+    String(chunkForDiscord('~~~\n```\naaaa\n~~~', { limit: 200 }).length),
+    '1'
+);
+
 // --- chunker property fuzz (child process) ----------------------------
 
 const fuzzScript = join(dirname(fileURLToPath(import.meta.url)), 'check-markdown-fuzz.js');
