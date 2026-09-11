@@ -80,6 +80,7 @@ client.once(Events.ClientReady, async (readyClient) => {
     const { start: startStats } = await import('./services/statsChannelUpdater.js');
     const { start: startBirthdays } = await import('./services/birthdayScheduler.js');
     const { start: startVoiceXp } = await import('./services/voiceXpTracker.js');
+    const { start: startSuggestions } = await import('./services/suggestionScheduler.js');
 
     startReminders(client);
     startMessages(client);
@@ -87,6 +88,7 @@ client.once(Events.ClientReady, async (readyClient) => {
     startStats(client);
     startBirthdays(client);
     startVoiceXp(client);
+    startSuggestions(client);
 });
 
 let loginCompleted = false;

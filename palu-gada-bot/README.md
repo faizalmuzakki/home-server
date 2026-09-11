@@ -156,6 +156,8 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 | `/confession send <message>` | Send an anonymous confession |
 | `/confession setup <channel>` | Set up confession channel (admin) |
 | `/poll <question>` | Create a yes/no or multi-option poll |
+| `/suggest <suggestion> [duration]` | Put a suggestion up for a timed 👍/👎 vote |
+| `/suggestions <subcommand>` | Tune, list or close suggestion votes (admin) |
 | `/trivia [category] [difficulty]` | Start a trivia game |
 | `/meme` | Fetch a random meme |
 | `/joke` | Fetch a random joke |
@@ -256,6 +258,9 @@ The bot uses SQLite for persistent storage. Data is stored in `data/bot.db`.
 - `giveaways` - Active giveaways
 - `giveaway_entries` - Giveaway participants
 - `confessions` - Anonymous confessions
+- `suggestions` - Suggestion votes and their verdicts
+- `suggestion_votes` - One row per member per suggestion
+- `suggestion_settings` - Per-server quorum and ratio thresholds
 
 ## Admin Panel
 

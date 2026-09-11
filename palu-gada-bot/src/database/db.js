@@ -464,6 +464,60 @@ function initDatabase() {
         )
     `);
 
+    // Suggestions table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS suggestions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            message_id TEXT,
+            author_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            ends_at DATETIME NOT NULL,
+            closed_at DATETIME,
+            vote_status TEXT,
+            active_members INTEGER,
+            required_votes INTEGER,
+            final_up INTEGER,
+            final_down INTEGER,
+            decided_by TEXT,
+            decided_at DATETIME,
+            decision_note TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_suggestions_open ON suggestions (status, ends_at)`);
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_suggestions_message ON suggestions (message_id)`);
+
+    // Suggestion votes table (one row per user per suggestion)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS suggestion_votes (
+            suggestion_id INTEGER NOT NULL,
+            user_id TEXT NOT NULL,
+            vote INTEGER NOT NULL,
+            voted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (suggestion_id, user_id)
+        )
+    `);
+
+    // Per-guild suggestion tuning
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS suggestion_settings (
+            guild_id TEXT PRIMARY KEY,
+            duration_hours INTEGER DEFAULT 48,
+            activity_window_days INTEGER DEFAULT 14,
+            participation_pct INTEGER DEFAULT 20,
+            min_votes INTEGER DEFAULT 3,
+            max_votes INTEGER DEFAULT 15,
+            pass_ratio_pct INTEGER DEFAULT 60,
+            reject_ratio_pct INTEGER DEFAULT 40,
+            staff_role_id TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     console.log('[INFO] Database initialized');
 }
 

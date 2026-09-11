@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "deploy": "node src/deploy-commands.js",
     "dev": "node --watch src/index.js",
+    "test": "node --test src/*/*.test.js",
     "check": "node scripts/check-markdown.js",
     "check:markdown": "node scripts/check-markdown.js"
   },
