@@ -63,7 +63,10 @@ export default {
             };
 
             await sendAiReply(interaction, {
-                header: { title: `📚 ${topic}`.slice(0, 256) },
+                header: {
+                    title: `📚 ${topic}`.slice(0, 256),
+                    timestamp: new Date().toISOString(),
+                },
                 body: explanation,
                 footer: getAiFooter(`Level: ${levelLabels[level]}`, { smart: true }),
                 ephemeral: isPrivate,

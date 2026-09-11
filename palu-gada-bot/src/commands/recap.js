@@ -99,6 +99,7 @@ Server recap:`, {
                         value: `${totalMessages} messages across ${channelDigests.length} channel(s)`,
                         inline: true,
                     }],
+                    timestamp: new Date().toISOString(),
                 },
                 body: digest,
                 footer: getAiFooter('', { smart: true }),

@@ -116,6 +116,9 @@ Summary:`, {
             // Send the summary
             await sendAiReply(interaction, {
                 header: {
+                    // Restored: this embed was 0x7289da before the send path
+                    // was factored out, and silently inherited the default.
+                    color: 0x7289da,
                     title: '📝 Chat Summary',
                     fields: [
                         {
@@ -134,6 +137,7 @@ Summary:`, {
                             inline: true,
                         },
                     ],
+                    timestamp: new Date().toISOString(),
                 },
                 body: summary,
                 footer: getAiFooter('', { smart: true }),

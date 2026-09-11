@@ -71,7 +71,10 @@ export default {
                 takeaways: 'Key Takeaways',
             };
 
-            const header = { title: '📝 TL;DR' };
+            const header = {
+                title: '📝 TL;DR',
+                timestamp: new Date().toISOString(),
+            };
             if (!isUrl && text.length > 100) {
                 header.fields = [{
                     name: 'Original (preview)',

@@ -204,6 +204,7 @@ Keep the response concise and conversational (1-3 sentences typically). Match th
                             inline: true,
                         },
                     ],
+                    timestamp: new Date().toISOString(),
                 },
                 body: answerText,
                 footer: getAiFooter('AI-generated response based on your conversation style'),

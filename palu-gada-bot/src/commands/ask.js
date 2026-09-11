@@ -39,6 +39,7 @@ export default {
                         icon_url: interaction.user.displayAvatarURL({ dynamic: true }),
                     },
                     description: question.slice(0, 256) + (question.length > 256 ? '...' : ''),
+                    timestamp: new Date().toISOString(),
                 },
                 body: answer,
                 footer: getAiFooter('', { smart: true }),
