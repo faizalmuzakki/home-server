@@ -1133,6 +1133,34 @@ check(
 const emptyBody = fakeInteraction();
 await sendAiReply(emptyBody, { header: { title: 'x' }, body: '', mode: 'message' });
 check(
+    'an oversized footer is cut without splitting a surrogate pair',
+    await (async () => {
+        const fake = fakeInteraction();
+        // Position an emoji so a raw 2000-character slice would bisect it.
+        const footer = 'f'.repeat(1996) + '😀' + 'f'.repeat(20);
+        await sendAiReply(fake, {
+            header: { title: 'x' },
+            body: 'short body',
+            footer: { text: footer },
+            mode: 'message',
+        });
+        const contents = fake.calls
+            .map(([, payload]) => payload.content)
+            .filter(content => typeof content === 'string');
+        const halves = contents.filter(
+            content => /[\uD800-\uDBFF]$/.test(content) || /^[\uDC00-\uDFFF]/.test(content)
+        );
+        // Assert the footer SURVIVES, not merely that it is not corrupt.
+        // An earlier fix passed the corruption check by discarding the
+        // footer entirely and sending the bare '-#' prefix.
+        const footerMessage = contents.find(content => content.startsWith('-#'));
+        const kept = footerMessage && footerMessage.length > 1900;
+        return `${halves.length} ${kept ? 'kept' : 'lost'}`;
+    })(),
+    '0 kept'
+);
+
+check(
     'a long footer on a truncated response does not exceed the message limit',
     await (async () => {
         const fake = fakeInteraction();
@@ -1275,7 +1303,22 @@ async function sendWithFooter(interaction, content, footerLine, ephemeral) {
     }
 
     await interaction.followUp({ content, ephemeral });
-    await interaction.followUp({ content: footerLine.slice(0, MESSAGE_LIMIT), ephemeral });
+    await interaction.followUp({ content: safeSlice(footerLine, MESSAGE_LIMIT), ephemeral });
+}
+
+/**
+ * Truncates to `limit` without bisecting a surrogate pair.
+ *
+ * Do NOT reach for `chunkForDiscord` here. It splits on word boundaries,
+ * and a footer is a single line whose only space follows the `-#` prefix,
+ * so its first chunk is the prefix alone and the whole footer is lost.
+ * This needs a character cut, not a word-aware split.
+ */
+function safeSlice(text, limit) {
+    if (text.length <= limit) return text;
+    const code = text.charCodeAt(limit - 1);
+    const end = code >= 0xD800 && code <= 0xDBFF ? limit - 1 : limit;
+    return text.slice(0, end);
 }
 
 async function sendEmbedMode(interaction, { header, body, footer, ephemeral, maxChunks }) {
@@ -1315,7 +1358,7 @@ Note: `header` is spread before `description` in embed mode, so a caller passing
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `50 passed, 0 failed`, exit 0.
+Expected: `51 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -1713,7 +1756,7 @@ Expected: two `ok` lines.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `50 passed, 0 failed`, exit 0.
+Expected: `51 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
