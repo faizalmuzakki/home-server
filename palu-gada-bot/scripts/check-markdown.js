@@ -302,7 +302,11 @@ function chunkerViolations(text, limit, fenceRepresentable) {
 /** Widest fence marker in the text, so the caller can gate invariants 2-3. */
 function widestMarker(text) {
     let widest = 0;
-    for (const line of text.split('\n')) {
+    // Normalise CRLF first. A carriage return left on a marker line makes
+    // the regex below fail to match, because `.` never matches \r -- the
+    // same defect that made the chunker itself blind to CRLF fences. The
+    // helper would then report width 0 and open the gate too early.
+    for (const line of text.replace(/\r\n/g, '\n').split('\n')) {
         const match = /^\s*(```.*)$/.exec(line);
         if (match) widest = Math.max(widest, match[1].trimEnd().length);
     }
