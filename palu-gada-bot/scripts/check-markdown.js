@@ -443,8 +443,17 @@ check(
     '1'
 );
 
+// An empty body must still SAY something. Asserting only that at least
+// one call happened passes when the followUp is deleted, because the
+// header editReply alone satisfies it -- so assert the exact call shape.
 const emptyBody = fakeInteraction();
 await sendAiReply(emptyBody, { header: { title: 'x' }, body: '', mode: 'message' });
+check(
+    'an empty body still sends a visible "no response" message',
+    JSON.stringify(emptyBody.calls.map(([kind, payload]) => [kind, payload.content ?? null])),
+    JSON.stringify([['edit', null], ['follow', '*No response.*']])
+);
+
 check(
     'an oversized footer is cut without splitting a surrogate pair',
     await (async () => {
@@ -473,6 +482,11 @@ check(
     '0 kept'
 );
 
+// An over-limit count of 0 is satisfied by sending NOTHING, so this
+// fixture also pins what actually went out: 8 chunks capped at 2, one
+// truncation notice, and the oversized footer in its own message =
+// 1 editReply + 2 chunks + notice + footer = 5 calls. That makes it fail
+// if the notice is dropped or the maxChunks cap is removed.
 check(
     'a long footer on a truncated response does not exceed the message limit',
     await (async () => {
@@ -484,18 +498,109 @@ check(
             mode: 'message',
             maxChunks: 2,
         });
-        const overLong = fake.calls
-            .filter(([, payload]) => typeof payload.content === 'string')
-            .filter(([, payload]) => payload.content.length > 2000);
-        return String(overLong.length);
+        const contents = fake.calls
+            .map(([, payload]) => payload.content)
+            .filter(content => typeof content === 'string');
+        const overLong = contents.filter(content => content.length > 2000);
+        const notices = contents.filter(content => content.includes('Response truncated'));
+        return `${overLong.length} ${notices.length} ${fake.calls.length}`;
     })(),
-    '0'
+    '0 1 5'
 );
 
+// The cap itself, stated plainly: a body long enough for 8 chunks sends
+// exactly maxChunks of them and then says it stopped.
 check(
-    'an empty body still produces a visible reply',
-    String(emptyBody.calls.length >= 1),
-    'true'
+    'message mode sends at most maxChunks chunks and announces the truncation',
+    await (async () => {
+        const fake = fakeInteraction();
+        await sendAiReply(fake, {
+            header: { title: 'x' },
+            body: 'word '.repeat(3000),
+            mode: 'message',
+            maxChunks: 3,
+        });
+        const contents = fake.calls
+            .map(([, payload]) => payload.content)
+            .filter(content => typeof content === 'string');
+        const notices = contents.filter(content => content.includes('Response truncated'));
+        return `${contents.length - notices.length} ${notices.length}`;
+    })(),
+    '3 1'
+);
+
+// A private /ask leaking into a public channel is the worst failure this
+// module can produce, so every followUp on every branch is pinned:
+// the chunk sends, the truncation notice, the split-off footer, and the
+// empty-body notice.
+check(
+    'every followUp of an ephemeral reply stays ephemeral',
+    await (async () => {
+        const long = fakeInteraction();
+        await sendAiReply(long, {
+            header: { title: 'x' },
+            body: 'word '.repeat(3000),
+            footer: { text: 'f'.repeat(1990) },
+            ephemeral: true,
+            mode: 'message',
+            maxChunks: 2,
+        });
+        const empty = fakeInteraction();
+        await sendAiReply(empty, {
+            header: { title: 'x' },
+            body: '',
+            ephemeral: true,
+            mode: 'message',
+        });
+        const embed = fakeInteraction();
+        await sendAiReply(embed, {
+            header: { title: 'x' },
+            body: 'word '.repeat(1600),
+            ephemeral: true,
+            mode: 'embed',
+            maxChunks: 1,
+        });
+        const follows = [...long.calls, ...empty.calls, ...embed.calls]
+            .filter(([kind]) => kind === 'follow');
+        const leaked = follows.filter(([, payload]) => payload.ephemeral !== true);
+        return `${follows.length} ${leaked.length}`;
+    })(),
+    '6 0'
+);
+
+// A public reply must stay public: the flag is forwarded, not hardcoded.
+check(
+    'a non-ephemeral reply forwards ephemeral false',
+    await (async () => {
+        const fake = fakeInteraction();
+        await sendAiReply(fake, {
+            header: { title: 'x' },
+            body: 'hello',
+            mode: 'message',
+        });
+        const follows = fake.calls.filter(([kind]) => kind === 'follow');
+        return `${follows.length} ${follows.every(([, payload]) => payload.ephemeral === false)}`;
+    })(),
+    '1 true'
+);
+
+// A continuation embed carries no header, so it has to re-apply
+// header.color explicitly or the reply changes colour mid-thread.
+check(
+    'a continuation embed keeps the header colour',
+    await (async () => {
+        const fake = fakeInteraction();
+        await sendAiReply(fake, {
+            header: { title: 'Long', color: 0x7289da },
+            body: 'word '.repeat(1600),
+            footer: { text: 'f' },
+            mode: 'embed',
+        });
+        const embeds = fake.calls.map(([, payload]) => payload.embeds[0]);
+        const wrongColor = embeds.filter(embed => embed.color !== 0x7289da);
+        return `${embeds.length} ${wrongColor.length}`;
+    })(),
+    '2 0'
 );
 
 // --- summary ----------------------------------------------------------
