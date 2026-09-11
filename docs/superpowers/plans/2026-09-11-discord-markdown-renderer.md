@@ -290,6 +290,18 @@ check(
 );
 
 check(
+    'a code span in a cell keeps its underscores and asterisks',
+    toDiscordMarkdown('| a |\n|---|\n| `foo_bar_baz` |'),
+    '```\na\nfoo_bar_baz\n```'
+);
+
+check(
+    'a code span in a cell keeps bracketed text',
+    toDiscordMarkdown('| a |\n|---|\n| `[x](y)` |'),
+    '```\na\n[x](y)\n```'
+);
+
+check(
     'prose resumes after a table',
     toDiscordMarkdown('| a |\n|---|\n| b |\n\nAfter.'),
     '```\na\nb\n```\n\nAfter.'
@@ -330,13 +342,23 @@ function splitRow(line) {
  * the asterisks in would just print them literally.
  */
 function stripInline(text) {
-    return text
+    // Code spans come out first and go back in last. Their contents are
+    // literal: a cell holding `snake_case_name` must not have _case_
+    // eaten by the italic rule.
+    const spans = [];
+    let result = text.replace(/`([^`]*)`/g, (_match, code) => {
+        spans.push(code);
+        return `\u0000${spans.length - 1}\u0000`;
+    });
+
+    result = result
         .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
         .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
         .replace(/(\*\*|__)(.*?)\1/g, '$2')
         .replace(/(\*|_)(.*?)\1/g, '$2')
-        .replace(/~~(.*?)~~/g, '$1')
-        .replace(/`([^`]*)`/g, '$1');
+        .replace(/~~(.*?)~~/g, '$1');
+
+    return result.replace(/\u0000(\d+)\u0000/g, (_match, i) => spans[Number(i)]);
 }
 
 /**
@@ -419,7 +441,7 @@ Then rewrite the loop body in `toDiscordMarkdown` so rows accumulate. Replace th
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `14 passed, 0 failed`, exit 0.
+Expected: `16 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -625,7 +647,7 @@ the final `convertLine` dispatch.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `23 passed, 0 failed`, exit 0.
+Expected: `25 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -845,7 +867,7 @@ distinctly from plain line-greedy behaviour. Do not add it back.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `38 passed, 0 failed`, exit 0.
+Expected: `42 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Add a guard that no chunk exceeds its limit**
 
@@ -870,7 +892,7 @@ check(
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `40 passed, 0 failed`.
+Expected: `42 passed, 0 failed`.
 
 - [ ] **Step 6: Commit**
 
@@ -1099,7 +1121,7 @@ Note: `header` is spread before `description` in embed mode, so a caller passing
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `45 passed, 0 failed`, exit 0.
+Expected: `47 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -1497,7 +1519,7 @@ Expected: two `ok` lines.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `45 passed, 0 failed`, exit 0.
+Expected: `47 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
