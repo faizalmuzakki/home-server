@@ -121,6 +121,62 @@ check(
     '```\na\nb\n```\n\nAfter.'
 );
 
+// --- rules, images, task lists, indentation ---------------------------
+
+check(
+    'horizontal rule and its trailing blank line are dropped',
+    toDiscordMarkdown('Before.\n\n---\n\nAfter.'),
+    'Before.\n\nAfter.'
+);
+
+check(
+    'asterisk and underscore rules are dropped too',
+    toDiscordMarkdown('a\n***\nb\n___\nc'),
+    'a\nb\nc'
+);
+
+check(
+    'a rule inside a fence survives',
+    toDiscordMarkdown('```\n---\n```'),
+    '```\n---\n```'
+);
+
+check(
+    'image becomes a link',
+    toDiscordMarkdown('![Diagram](https://e.com/d.png)'),
+    '[Diagram](https://e.com/d.png)'
+);
+
+check(
+    'image with no alt text becomes a bare url',
+    toDiscordMarkdown('![](https://e.com/d.png)'),
+    'https://e.com/d.png'
+);
+
+check(
+    'task list items become box characters',
+    toDiscordMarkdown('- [ ] todo\n- [x] done'),
+    '☐ todo\n☑ done'
+);
+
+check(
+    'four-space nesting normalises to two',
+    toDiscordMarkdown('- a\n    - b\n        - c'),
+    '- a\n  - b\n    - c'
+);
+
+check(
+    'two-space nesting is left as is',
+    toDiscordMarkdown('- a\n  - b'),
+    '- a\n  - b'
+);
+
+check(
+    'indentation depth resets after prose',
+    toDiscordMarkdown('- a\n    - b\n\nProse.\n\n- c'),
+    '- a\n  - b\n\nProse.\n\n- c'
+);
+
 // --- summary ----------------------------------------------------------
 
 console.log(`\n${passes} passed, ${failures} failed`);
