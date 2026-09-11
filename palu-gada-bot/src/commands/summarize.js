@@ -99,7 +99,7 @@ export default {
                 .map(m => `[${m.author}]: ${sanitize(m.content)}`)
                 .join('\n');
 
-            const summary = await askClaude(`Please summarize the following Discord chat conversation. Focus on:
+            const { text: summary, model } = await askClaude(`Please summarize the following Discord chat conversation. Focus on:
 - Main topics discussed
 - Key decisions or conclusions reached
 - Important questions asked
@@ -137,7 +137,7 @@ Summary:`);
                             inline: true,
                         },
                     ],
-                    footer: getAiFooter('', { smart: true }),
+                    footer: getAiFooter('', model),
                     timestamp: new Date().toISOString(),
                 }],
             });

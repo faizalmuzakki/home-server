@@ -77,7 +77,7 @@ export default {
             .join('\n\n');
 
         try {
-            const digest = await askClaude(`You are writing a casual daily recap for a Discord server covering the last ${hours} hour(s). For each channel that had meaningful activity, write 1-3 sentences describing what was discussed. Be friendly and conversational. Skip channels with only trivial chatter. Format each channel as:
+            const { text: digest, model } = await askClaude(`You are writing a casual daily recap for a Discord server covering the last ${hours} hour(s). For each channel that had meaningful activity, write 1-3 sentences describing what was discussed. Be friendly and conversational. Skip channels with only trivial chatter. Format each channel as:
 
 **#channel-name** — brief summary
 
@@ -104,7 +104,7 @@ Server recap:`);
                 const embed = {
                     color: 0x5865F2,
                     description: chunks[i],
-                    footer: getAiFooter('', { smart: true }),
+                    footer: getAiFooter('', model),
                 };
 
                 if (i === 0) {
