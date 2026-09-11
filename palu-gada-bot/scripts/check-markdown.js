@@ -343,6 +343,25 @@ check(
 const emptyBody = fakeInteraction();
 await sendAiReply(emptyBody, { header: { title: 'x' }, body: '', mode: 'message' });
 check(
+    'a long footer on a truncated response does not exceed the message limit',
+    await (async () => {
+        const fake = fakeInteraction();
+        await sendAiReply(fake, {
+            header: { title: 'x' },
+            body: 'word '.repeat(3000),
+            footer: { text: 'f'.repeat(1990) },
+            mode: 'message',
+            maxChunks: 2,
+        });
+        const overLong = fake.calls
+            .filter(([, payload]) => typeof payload.content === 'string')
+            .filter(([, payload]) => payload.content.length > 2000);
+        return String(overLong.length);
+    })(),
+    '0'
+);
+
+check(
     'an empty body still produces a visible reply',
     String(emptyBody.calls.length >= 1),
     'true'
