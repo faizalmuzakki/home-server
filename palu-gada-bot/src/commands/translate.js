@@ -2,6 +2,8 @@ import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
 import { getAiFooter } from '../config/ai.js';
+import { chunkForDiscord } from '../utils/discordChunker.js';
+import { toDiscordMarkdown } from '../utils/discordMarkdown.js';
 
 const LANGUAGES = [
     { name: 'English', value: 'english' },
@@ -80,7 +82,7 @@ export default {
                 : `Translate the following text from ${formatLang(sourceLang)} to ${formatLang(targetLang)}.\n\nText: ${text}\n\nRespond with only the translation, nothing else.`;
 
             const { text: result, model } = await askClaude(prompt, {
-                systemPrompt: 'You are a professional translator. Provide accurate, natural-sounding translations. Preserve the tone and style of the original text. For idiomatic expressions, translate the meaning rather than word-for-word.',
+                systemPrompt: `You are a professional translator. Provide accurate, natural-sounding translations. Preserve the tone and style of the original text. For idiomatic expressions, translate the meaning rather than word-for-word.`,
             });
 
             let detectedLang = sourceLang === 'auto' ? null : formatLang(sourceLang);
@@ -99,6 +101,13 @@ export default {
                 }
             }
 
+            // The embed field is the primary rendering for any translation
+            // that fits, so it has to be converted like everything else --
+            // a heading or table in a short translation used to render as
+            // literal syntax, the exact bug this converter exists to fix.
+            // Embeds render no headings at all, hence 'bold'.
+            const embedTranslation = toDiscordMarkdown(translation, { headings: 'bold' });
+
             const embed = {
                 color: 0x5865F2,
                 title: '🌐 Translation',
@@ -110,7 +119,7 @@ export default {
                     },
                     {
                         name: `${formatLang(targetLang)}`,
-                        value: translation.slice(0, 1024),
+                        value: embedTranslation.slice(0, 1024),
                         inline: false,
                     },
                 ],
@@ -122,10 +131,21 @@ export default {
 
             // Handle long translations
             if (translation.length > 1024) {
-                await interaction.followUp({
-                    content: `**Full translation:**\n${translation}`,
-                    ephemeral: isPrivate,
-                });
+                // This one lands in message content, not an embed, and
+                // Discord renders `#` headings there, so keep them.
+                const full = toDiscordMarkdown(translation, { headings: 'keep' });
+                const chunks = chunkForDiscord(`**Full translation:**\n${full}`, { limit: 2000 });
+                for (const chunk of chunks.slice(0, 5)) {
+                    await interaction.followUp({ content: chunk, ephemeral: isPrivate });
+                }
+                // Say so rather than dropping the tail silently, matching
+                // how /fallacy reports omitted findings.
+                if (chunks.length > 5) {
+                    await interaction.followUp({
+                        content: '*Translation truncated due to length…*',
+                        ephemeral: isPrivate,
+                    });
+                }
             }
         } catch (error) {
             await logCommandError(interaction, error, 'translate');

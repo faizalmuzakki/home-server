@@ -2,6 +2,7 @@ import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
 import { getAiFooter } from '../config/ai.js';
+import { toDiscordMarkdown } from '../utils/discordMarkdown.js';
 
 const MESSAGE_LIMIT = 50;
 const FETCH_CAP = 200;
@@ -18,6 +19,20 @@ const SYSTEM_PROMPT = 'You are a logic and rhetoric analyst. Identify logical fa
 function truncate(str, max) {
     if (str.length <= max) return str;
     return str.slice(0, max - 1).trimEnd() + '…';
+}
+
+/**
+ * Truncates to `limit` without bisecting a surrogate pair.
+ *
+ * The entry-dropping loop below stops at one entry, so a SINGLE finding
+ * whose explanation alone exceeds the cap left the description over-limit
+ * and Discord 400'd the whole reply. This is the hard backstop.
+ */
+function capToLimit(text, limit) {
+    if (text.length <= limit) return text;
+    const code = text.charCodeAt(limit - 1);
+    const end = code >= 0xD800 && code <= 0xDBFF ? limit - 1 : limit;
+    return text.slice(0, end);
 }
 
 function stripJsonFence(raw) {
@@ -189,8 +204,13 @@ JSON:`;
         }
 
         const entries = resolved.map((f, i) => {
-            const quote = truncate(f.message.content, QUOTE_MAX_CHARS);
-            return `**${i + 1}. ${f.fallacy_name}** — by **${f.message.author}** · [jump](${f.message.url})\n> ${quote}\n${f.explanation}`;
+            const quote = toDiscordMarkdown(truncate(f.message.content, QUOTE_MAX_CHARS), { headings: 'bold' })
+                .split('\n')
+                .map(line => `> ${line}`)
+                .join('\n');
+            const fallacyName = toDiscordMarkdown(f.fallacy_name, { headings: 'bold' });
+            const explanation = toDiscordMarkdown(f.explanation, { headings: 'bold' });
+            return `**${i + 1}. ${fallacyName}** — by **${f.message.author}** · [jump](${f.message.url})\n${quote}\n${explanation}`;
         });
 
         let description = entries.join('\n\n');
@@ -200,6 +220,7 @@ JSON:`;
             omitted++;
             description = entries.join('\n\n') + `\n\n…and ${omitted} more finding${omitted > 1 ? 's' : ''} omitted.`;
         }
+        description = capToLimit(description, EMBED_DESC_LIMIT);
 
         await interaction.editReply({
             embeds: [{

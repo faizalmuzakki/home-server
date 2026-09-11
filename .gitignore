@@ -64,3 +64,6 @@ Thumbs.db
 # ==== AI tooling ====
 .claude/
 .worktrees/
+
+# superpowers SDD scratch
+.superpowers/

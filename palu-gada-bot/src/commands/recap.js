@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType } from 'discord.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter } from '../config/ai.js';
+import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { sendAiReply } from '../utils/aiReply.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -86,45 +87,24 @@ Here is the server activity:
 ${chatLog}
 ---
 
-Server recap:`);
+Server recap:`, {
+                systemPrompt: DISCORD_FORMAT_PROMPT,
+            });
 
-            // Split into multiple embeds if the digest exceeds Discord's 4096 char limit
-            const MAX = 4000;
-            const chunks = [];
-            let remaining = digest;
-            while (remaining.length > 0) {
-                // Try to split at a newline near the limit
-                const slice = remaining.slice(0, MAX);
-                const splitAt = remaining.length > MAX ? slice.lastIndexOf('\n') : MAX;
-                chunks.push(remaining.slice(0, splitAt > 0 ? splitAt : MAX));
-                remaining = remaining.slice(splitAt > 0 ? splitAt : MAX).trimStart();
-            }
-
-            for (let i = 0; i < chunks.length; i++) {
-                const embed = {
-                    color: 0x5865F2,
-                    description: chunks[i],
-                    footer: getAiFooter('', model),
-                };
-
-                if (i === 0) {
-                    embed.title = `📰 Server Recap — Last ${hours}h`;
-                }
-                if (i === chunks.length - 1) {
-                    embed.fields = [{
+            await sendAiReply(interaction, {
+                header: {
+                    title: `📰 Server Recap — Last ${hours}h`,
+                    fields: [{
                         name: 'Stats',
                         value: `${totalMessages} messages across ${channelDigests.length} channel(s)`,
                         inline: true,
-                    }];
-                    embed.timestamp = new Date().toISOString();
-                }
-
-                if (i === 0) {
-                    await interaction.editReply({ embeds: [embed] });
-                } else {
-                    await interaction.followUp({ embeds: [embed] });
-                }
-            }
+                    }],
+                    timestamp: new Date().toISOString(),
+                },
+                body: digest,
+                footer: getAiFooter('', model),
+                mode: 'message',
+            });
         } catch (error) {
             console.error('[ERROR] Recap failed:', error);
             let msg = 'Failed to generate recap.';
