@@ -28,7 +28,13 @@ export function toDiscordMarkdown(text, opts) {
     // would slip past it and throw on the property read below.
     const options = opts && typeof opts === 'object' ? opts : {};
     const headings = options.headings === 'bold' ? 'bold' : 'keep';
-    const lines = text.split('\n');
+
+    // A carriage return left on the end of a line defeats every anchored
+    // regex here, because `.` in a JS regex never matches \r: FENCE_RE and
+    // HEADING_RE both fail on a \r-terminated line, so a CRLF heading was
+    // left raw and a CRLF fenced block had its inner table converted into
+    // a nested fence. Same defect the chunker already normalises away.
+    const lines = text.replace(/\r\n/g, '\n').split('\n');
     const out = [];
 
     // The opening fence while inside a block. CommonMark closes a fence

@@ -72,6 +72,20 @@ check(
     '````\n```\n##### still inside\n````'
 );
 
+// A \r left on a line makes every anchored regex here miss, because `.`
+// never matches \r. The heading used to survive raw into an embed.
+check(
+    'a CRLF heading is still converted',
+    toDiscordMarkdown('## Title\r\nbody', { headings: 'bold' }),
+    '**Title**\nbody'
+);
+
+check(
+    'a CRLF fenced block keeps its table verbatim',
+    toDiscordMarkdown('```\r\n| a | b |\r\n|---|---|\r\n| c | d |\r\n```'),
+    '```\n| a | b |\n|---|---|\n| c | d |\n```'
+);
+
 // --- tables -------------------------------------------------------------
 
 check(
