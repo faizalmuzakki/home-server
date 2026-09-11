@@ -95,13 +95,23 @@ function splitRow(line) {
  * the asterisks in would just print them literally.
  */
 function stripInline(text) {
-    return text
+    // Code spans come out first and go back in last. Their contents are
+    // literal: a cell holding `snake_case_name` must not have _case_
+    // eaten by the italic rule.
+    const spans = [];
+    let result = text.replace(/`([^`]*)`/g, (_match, code) => {
+        spans.push(code);
+        return `\u0000${spans.length - 1}\u0000`;
+    });
+
+    result = result
         .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
         .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
         .replace(/(\*\*|__)(.*?)\1/g, '$2')
         .replace(/(\*|_)(.*?)\1/g, '$2')
-        .replace(/~~(.*?)~~/g, '$1')
-        .replace(/`([^`]*)`/g, '$1');
+        .replace(/~~(.*?)~~/g, '$1');
+
+    return result.replace(/\u0000(\d+)\u0000/g, (_match, i) => spans[Number(i)]);
 }
 
 /**

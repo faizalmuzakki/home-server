@@ -104,6 +104,18 @@ check(
 );
 
 check(
+    'a code span in a cell keeps its underscores and asterisks',
+    toDiscordMarkdown('| a |\n|---|\n| `foo_bar_baz` |'),
+    '```\na\nfoo_bar_baz\n```'
+);
+
+check(
+    'a code span in a cell keeps bracketed text',
+    toDiscordMarkdown('| a |\n|---|\n| `[x](y)` |'),
+    '```\na\n[x](y)\n```'
+);
+
+check(
     'prose resumes after a table',
     toDiscordMarkdown('| a |\n|---|\n| b |\n\nAfter.'),
     '```\na\nb\n```\n\nAfter.'
