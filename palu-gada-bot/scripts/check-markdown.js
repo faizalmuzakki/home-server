@@ -68,6 +68,47 @@ check(
     '````\n```\n##### still inside\n````'
 );
 
+// --- tables -------------------------------------------------------------
+
+check(
+    'pipe table becomes an aligned fence',
+    toDiscordMarkdown(
+        '| Komponen | Estimasi Harga |\n' +
+        '|---|---|\n' +
+        '| 2x Xeon E5-2673 v4 | Rp 500rb - 1,2jt |\n' +
+        '| **Total Estimasi** | ~Rp 4jt - 10jt |'
+    ),
+    '```\n' +
+    'Komponen            Estimasi Harga\n' +
+    '2x Xeon E5-2673 v4  Rp 500rb - 1,2jt\n' +
+    'Total Estimasi      ~Rp 4jt - 10jt\n' +
+    '```'
+);
+
+check(
+    'a pipe block with no alignment row is not a table',
+    toDiscordMarkdown('| a | b |\n| c | d |'),
+    '| a | b |\n| c | d |'
+);
+
+check(
+    'ragged rows pad to the widest row',
+    toDiscordMarkdown('| a | b |\n|---|---|\n| c |'),
+    '```\na  b\nc\n```'
+);
+
+check(
+    'a table inside a fence is left alone',
+    toDiscordMarkdown('```\n| a | b |\n|---|---|\n```'),
+    '```\n| a | b |\n|---|---|\n```'
+);
+
+check(
+    'prose resumes after a table',
+    toDiscordMarkdown('| a |\n|---|\n| b |\n\nAfter.'),
+    '```\na\nb\n```\n\nAfter.'
+);
+
 // --- summary ----------------------------------------------------------
 
 console.log(`\n${passes} passed, ${failures} failed`);

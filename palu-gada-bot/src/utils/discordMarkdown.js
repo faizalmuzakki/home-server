@@ -7,6 +7,8 @@
 
 const FENCE_RE = /^\s*(`{3,}|~{3,})(.*)$/;
 const HEADING_RE = /^(#{1,6})\s+(.*)$/;
+const ROW_RE = /^\s*\|.*\|\s*$/;
+const ALIGN_CELL_RE = /^:?-{3,}:?$/;
 
 /**
  * @param {string} text - GitHub-flavoured Markdown
@@ -30,9 +32,13 @@ export function toDiscordMarkdown(text, opts) {
     // three-backtick line inside a four-backtick block is content.
     let fence = null; // { char, length } | null
 
+    let table = []; // consecutive pipe rows awaiting a flush
+
     for (const line of lines) {
         const fenceMatch = FENCE_RE.exec(line);
         if (fenceMatch) {
+            out.push(...flushTable(table));
+            table = [];
             const marker = fenceMatch[1];
             if (fence === null) {
                 fence = { char: marker[0], length: marker.length };
@@ -48,8 +54,17 @@ export function toDiscordMarkdown(text, opts) {
             continue;
         }
 
+        if (ROW_RE.test(line)) {
+            table.push(line);
+            continue;
+        }
+
+        out.push(...flushTable(table));
+        table = [];
         out.push(convertLine(line, headings));
     }
+
+    out.push(...flushTable(table));
 
     return out.join('\n');
 }
@@ -64,4 +79,62 @@ function convertLine(line, headings) {
     }
 
     return line;
+}
+
+/** Splits `| a | b |` into ['a', 'b']. */
+function splitRow(line) {
+    const trimmed = line.trim();
+    return trimmed
+        .slice(1, -1)
+        .split('|')
+        .map(cell => cell.trim());
+}
+
+/**
+ * Removes inline markup. Nothing renders inside a code fence, so leaving
+ * the asterisks in would just print them literally.
+ */
+function stripInline(text) {
+    return text
+        .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/(\*\*|__)(.*?)\1/g, '$2')
+        .replace(/(\*|_)(.*?)\1/g, '$2')
+        .replace(/~~(.*?)~~/g, '$1')
+        .replace(/`([^`]*)`/g, '$1');
+}
+
+/**
+ * Renders buffered pipe rows as an aligned monospace block.
+ * Returns the original lines when the buffer is not actually a table.
+ */
+function flushTable(buffer) {
+    if (buffer.length === 0) return [];
+
+    const rows = buffer.map(splitRow);
+    const alignAt = rows.findIndex(
+        row => row.length > 0 && row.every(cell => ALIGN_CELL_RE.test(cell))
+    );
+    if (alignAt === -1) return buffer;
+
+    const body = rows
+        .filter((_, i) => i !== alignAt)
+        .map(row => row.map(stripInline));
+    if (body.length === 0) return buffer;
+
+    const columns = Math.max(...body.map(row => row.length));
+    const widths = [];
+    for (let c = 0; c < columns; c++) {
+        widths.push(Math.max(...body.map(row => (row[c] ?? '').length)));
+    }
+
+    const rendered = body.map(row => {
+        const cells = [];
+        for (let c = 0; c < columns; c++) {
+            cells.push((row[c] ?? '').padEnd(widths[c]));
+        }
+        return cells.join('  ').trimEnd();
+    });
+
+    return ['```', ...rendered, '```'];
 }
