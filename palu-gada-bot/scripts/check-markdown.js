@@ -4,6 +4,7 @@
  * No test framework by design — run with: npm run check:markdown
  */
 import { toDiscordMarkdown } from '../src/utils/discordMarkdown.js';
+import { chunkForDiscord } from '../src/utils/discordChunker.js';
 
 let failures = 0;
 let passes = 0;
@@ -187,6 +188,82 @@ check(
     'indentation depth resets after prose',
     toDiscordMarkdown('- a\n    - b\n\nProse.\n\n- c'),
     '- a\n  - b\n\nProse.\n\n- c'
+);
+
+// --- chunking ---------------------------------------------------------
+
+const chunkCheck = (name, actual, expected) =>
+    check(name, JSON.stringify(actual), JSON.stringify(expected));
+
+chunkCheck('empty input yields no chunks', chunkForDiscord(''), []);
+chunkCheck('whitespace only yields no chunks', chunkForDiscord('   \n  '), []);
+chunkCheck('short text is one chunk', chunkForDiscord('hello'), ['hello']);
+
+chunkCheck(
+    'splits on a line boundary, never mid-word',
+    chunkForDiscord('aaaa\nbbbb\ncccc', { limit: 10 }),
+    ['aaaa\nbbbb', 'cccc']
+);
+
+chunkCheck(
+    'a single oversized line is split on a space',
+    chunkForDiscord('aaa bbb ccc ddd', { limit: 8 }),
+    ['aaa bbb', 'ccc ddd']
+);
+
+chunkCheck(
+    'a single oversized token is hard cut',
+    chunkForDiscord('aaaaaaaaaaaa', { limit: 5 }),
+    ['aaaaa', 'aaaaa', 'aa']
+);
+
+// Fence splitting is asserted by property, not by exact output. The
+// boundary depends on budget arithmetic that is easy to get off by one
+// while writing a plan, and an exact-string fixture would send the fix
+// loop after the fixture instead of the code. These are the properties
+// that actually matter.
+
+function fenceBalance(chunk) {
+    return (chunk.match(/^\s*```/gm) || []).length % 2 === 0;
+}
+
+const fenced = chunkForDiscord('```js\naaaa\nbbbb\ncccc\n```', { limit: 20 });
+
+check('a fenced block splits into more than one chunk', String(fenced.length > 1), 'true');
+check('every chunk respects the limit', String(fenced.every(c => c.length <= 20)), 'true');
+check('no chunk leaves a fence open', String(fenced.every(fenceBalance)), 'true');
+check(
+    'every continuation chunk reopens with the language tag',
+    String(fenced.slice(1).every(c => c.startsWith('```js'))),
+    'true'
+);
+check(
+    'no content line is lost or duplicated',
+    fenced.join('\n').split('\n').filter(l => !l.startsWith('```')).join(','),
+    'aaaa,bbbb,cccc'
+);
+
+const bare = chunkForDiscord('```\naaaa\nbbbb\ncccc\n```', { limit: 17 });
+
+check('a bare fence also splits', String(bare.length > 1), 'true');
+check('no bare chunk leaves a fence open', String(bare.every(fenceBalance)), 'true');
+check(
+    'a continuation of a bare fence carries no language tag',
+    String(bare.slice(1).every(c => c.split('\n')[0] === '```')),
+    'true'
+);
+
+const longDoc = Array.from({ length: 400 }, (_, i) => `Line ${i} of prose.`).join('\n');
+const produced = chunkForDiscord(longDoc, { limit: 2000 });
+check(
+    'no produced chunk exceeds the limit',
+    String(produced.every(c => c.length <= 2000)),
+    'true'
+);
+check(
+    'chunking loses no words',
+    produced.join('\n').replace(/\s+/g, ' ').trim(),
+    longDoc.replace(/\s+/g, ' ').trim()
 );
 
 // --- summary ----------------------------------------------------------
