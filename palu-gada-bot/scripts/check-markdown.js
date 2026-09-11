@@ -343,6 +343,27 @@ check(
 const emptyBody = fakeInteraction();
 await sendAiReply(emptyBody, { header: { title: 'x' }, body: '', mode: 'message' });
 check(
+    'an oversized footer is cut without splitting a surrogate pair',
+    await (async () => {
+        const fake = fakeInteraction();
+        // Position an emoji so a raw 2000-character slice would bisect it.
+        const footer = 'f'.repeat(1996) + '😀' + 'f'.repeat(20);
+        await sendAiReply(fake, {
+            header: { title: 'x' },
+            body: 'short body',
+            footer: { text: footer },
+            mode: 'message',
+        });
+        const bad = fake.calls
+            .map(([, payload]) => payload.content)
+            .filter(content => typeof content === 'string')
+            .filter(content => /[\uD800-\uDBFF]$/.test(content) || /^[\uDC00-\uDFFF]/.test(content));
+        return String(bad.length);
+    })(),
+    '0'
+);
+
+check(
     'a long footer on a truncated response does not exceed the message limit',
     await (async () => {
         const fake = fakeInteraction();

@@ -105,7 +105,13 @@ async function sendWithFooter(interaction, content, footerLine, ephemeral) {
     }
 
     await interaction.followUp({ content, ephemeral });
-    await interaction.followUp({ content: footerLine.slice(0, MESSAGE_LIMIT), ephemeral });
+
+    // A raw slice at MESSAGE_LIMIT can land mid surrogate-pair.
+    // chunkForDiscord already solves surrogate-safe cutting (and is
+    // fuzz-verified for it), so reuse its first chunk instead of
+    // hand-rolling the cut here.
+    const [footerHead] = chunkForDiscord(footerLine, { limit: MESSAGE_LIMIT });
+    if (footerHead) await interaction.followUp({ content: footerHead, ephemeral });
 }
 
 async function sendEmbedMode(interaction, { header, body, footer, ephemeral, maxChunks }) {
