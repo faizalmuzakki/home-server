@@ -108,6 +108,24 @@ check(
 check('empty input', toDiscordMarkdown(''), '');
 check('null input', toDiscordMarkdown(null), '');
 
+check(
+    'a null options argument does not throw',
+    toDiscordMarkdown('## Heading', null),
+    '## Heading'
+);
+
+check(
+    'a non-object options argument does not throw',
+    toDiscordMarkdown('## Heading', 42),
+    '## Heading'
+);
+
+check(
+    'a shorter run does not close a longer fence',
+    toDiscordMarkdown('````\n```\n##### still inside\n````'),
+    '````\n```\n##### still inside\n````'
+);
+
 // --- summary ----------------------------------------------------------
 
 console.log(`\n${passes} passed, ${failures} failed`);
@@ -144,22 +162,28 @@ const HEADING_RE = /^(#{1,6})\s+(.*)$/;
  *   'bold' for embeds, which render no headings at all.
  * @returns {string}
  */
-export function toDiscordMarkdown(text, opts = {}) {
+export function toDiscordMarkdown(text, opts) {
     if (typeof text !== 'string' || text === '') return '';
 
-    const headings = opts.headings === 'bold' ? 'bold' : 'keep';
+    // A default parameter only fires on undefined, so an explicit null
+    // would slip past it and throw on the property read below.
+    const options = opts && typeof opts === 'object' ? opts : {};
+    const headings = options.headings === 'bold' ? 'bold' : 'keep';
     const lines = text.split('\n');
     const out = [];
 
-    let fence = null; // the opening marker while inside a fenced block
+    // The opening fence while inside a block. CommonMark closes a fence
+    // only on the same character AT LEAST AS LONG as the opener, so a
+    // three-backtick line inside a four-backtick block is content.
+    let fence = null; // { char, length } | null
 
     for (const line of lines) {
         const fenceMatch = FENCE_RE.exec(line);
         if (fenceMatch) {
             const marker = fenceMatch[1];
             if (fence === null) {
-                fence = marker[0]; // ` or ~
-            } else if (marker[0] === fence) {
+                fence = { char: marker[0], length: marker.length };
+            } else if (marker[0] === fence.char && marker.length >= fence.length) {
                 fence = null;
             }
             out.push(line);
@@ -202,7 +226,7 @@ Add to `package.json` `scripts`, after `"check"`:
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `6 passed, 0 failed`, exit 0.
+Expected: `9 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -363,8 +387,8 @@ Then rewrite the loop body in `toDiscordMarkdown` so rows accumulate. Replace th
             table = [];
             const marker = fenceMatch[1];
             if (fence === null) {
-                fence = marker[0];
-            } else if (marker[0] === fence) {
+                fence = { char: marker[0], length: marker.length };
+            } else if (marker[0] === fence.char && marker.length >= fence.length) {
                 fence = null;
             }
             out.push(line);
@@ -395,7 +419,7 @@ Then rewrite the loop body in `toDiscordMarkdown` so rows accumulate. Replace th
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `11 passed, 0 failed`, exit 0.
+Expected: `14 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -601,7 +625,7 @@ the final `convertLine` dispatch.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `20 passed, 0 failed`, exit 0.
+Expected: `23 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -821,7 +845,7 @@ distinctly from plain line-greedy behaviour. Do not add it back.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `35 passed, 0 failed`, exit 0.
+Expected: `38 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Add a guard that no chunk exceeds its limit**
 
@@ -846,7 +870,7 @@ check(
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `37 passed, 0 failed`.
+Expected: `40 passed, 0 failed`.
 
 - [ ] **Step 6: Commit**
 
@@ -1075,7 +1099,7 @@ Note: `header` is spread before `description` in embed mode, so a caller passing
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `42 passed, 0 failed`, exit 0.
+Expected: `45 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -1473,7 +1497,7 @@ Expected: two `ok` lines.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `42 passed, 0 failed`, exit 0.
+Expected: `45 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
