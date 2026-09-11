@@ -14,6 +14,15 @@ export function register(client) {
                         console.error('[ERROR] Giveaway button error:', error);
                     }
                 }
+            } else if (interaction.customId.startsWith('suggest:')) {
+                const suggestCommand = client.commands.get('suggest');
+                if (suggestCommand && suggestCommand.handleButton) {
+                    try {
+                        await suggestCommand.handleButton(interaction);
+                    } catch (error) {
+                        console.error('[ERROR] Suggestion button error:', error);
+                    }
+                }
             }
             return;
         }

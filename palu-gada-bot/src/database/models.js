@@ -1,4 +1,5 @@
 import db from './db.js';
+import { DEFAULT_SUGGESTION_SETTINGS } from '../utils/suggestionVerdict.js';
 
 // Prepared statements for better performance
 const statements = {
@@ -185,6 +186,31 @@ const statements = {
     updateGithubWebhook: db.prepare('UPDATE github_webhooks SET channel_id = ?, organization = ?, repository = ?, events = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
     deleteGithubWebhook: db.prepare('DELETE FROM github_webhooks WHERE id = ? AND guild_id = ?'),
     toggleGithubWebhook: db.prepare('UPDATE github_webhooks SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND guild_id = ?'),
+
+    // Suggestions
+    createSuggestion: db.prepare('INSERT INTO suggestions (guild_id, channel_id, author_id, content, ends_at) VALUES (?, ?, ?, ?, ?)'),
+    setSuggestionMessage: db.prepare('UPDATE suggestions SET message_id = ? WHERE id = ?'),
+    getSuggestion: db.prepare('SELECT * FROM suggestions WHERE id = ?'),
+    getSuggestionByMessage: db.prepare('SELECT * FROM suggestions WHERE message_id = ?'),
+    getOpenSuggestions: db.prepare("SELECT * FROM suggestions WHERE guild_id = ? AND status = 'open' ORDER BY ends_at ASC"),
+    getGuildSuggestionsByStatus: db.prepare('SELECT * FROM suggestions WHERE guild_id = ? AND status = ? ORDER BY ends_at DESC LIMIT ?'),
+    getDueSuggestions: db.prepare("SELECT * FROM suggestions WHERE status = 'open' AND ends_at <= datetime('now')"),
+    closeSuggestion: db.prepare("UPDATE suggestions SET status = 'closed', closed_at = CURRENT_TIMESTAMP, vote_status = ?, active_members = ?, required_votes = ?, final_up = ?, final_down = ? WHERE id = ? AND status = 'open'"),
+    decideSuggestion: db.prepare("UPDATE suggestions SET status = ?, decided_by = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'closed'"),
+    withdrawSuggestion: db.prepare("UPDATE suggestions SET status = 'withdrawn', closed_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'open'"),
+
+    // Suggestion votes
+    castSuggestionVote: db.prepare('INSERT INTO suggestion_votes (suggestion_id, user_id, vote) VALUES (?, ?, ?) ON CONFLICT(suggestion_id, user_id) DO UPDATE SET vote = excluded.vote, voted_at = CURRENT_TIMESTAMP'),
+    clearSuggestionVote: db.prepare('DELETE FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?'),
+    getSuggestionVote: db.prepare('SELECT * FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?'),
+    getSuggestionTally: db.prepare('SELECT COALESCE(SUM(vote = 1), 0) AS up, COALESCE(SUM(vote = -1), 0) AS down FROM suggestion_votes WHERE suggestion_id = ?'),
+
+    // Suggestion settings
+    getSuggestionSettings: db.prepare('SELECT * FROM suggestion_settings WHERE guild_id = ?'),
+    createSuggestionSettings: db.prepare('INSERT OR IGNORE INTO suggestion_settings (guild_id) VALUES (?)'),
+
+    // Active members (drives the suggestion quorum)
+    countActiveMembers: db.prepare("SELECT COUNT(*) AS count FROM user_levels WHERE guild_id = ? AND last_xp_gain IS NOT NULL AND last_xp_gain >= datetime('now', ?)"),
 
     // Autoresponders
     addAutoresponder: db.prepare('INSERT OR REPLACE INTO autoresponders (guild_id, trigger, response, match_type, created_by) VALUES (?, ?, ?, ?, ?)'),
@@ -931,6 +957,124 @@ export function removeReactionRolesByMessage(guildId, messageId) {
     return statements.removeReactionRolesByMessage.run(guildId, messageId);
 }
 
+/**
+ * Suggestions
+ */
+export function createSuggestion(guildId, channelId, authorId, content, endsAt) {
+    const result = statements.createSuggestion.run(guildId, channelId, authorId, content, endsAt);
+    return statements.getSuggestion.get(result.lastInsertRowid);
+}
+
+export function setSuggestionMessage(id, messageId) {
+    return statements.setSuggestionMessage.run(messageId, id);
+}
+
+export function getSuggestion(id) {
+    return statements.getSuggestion.get(id);
+}
+
+export function getSuggestionByMessage(messageId) {
+    return statements.getSuggestionByMessage.get(messageId);
+}
+
+export function getOpenSuggestions(guildId) {
+    return statements.getOpenSuggestions.all(guildId);
+}
+
+export function getGuildSuggestionsByStatus(guildId, status, limit = 25) {
+    return statements.getGuildSuggestionsByStatus.all(guildId, status, limit);
+}
+
+export function getDueSuggestions() {
+    return statements.getDueSuggestions.all();
+}
+
+export function closeSuggestion(id, verdict) {
+    const result = statements.closeSuggestion.run(
+        verdict.status,
+        verdict.activeMembers,
+        verdict.required,
+        verdict.up,
+        verdict.down,
+        id
+    );
+    return result.changes > 0;
+}
+
+export function decideSuggestion(id, status, decidedBy) {
+    const result = statements.decideSuggestion.run(status, decidedBy, id);
+    return result.changes > 0;
+}
+
+export function withdrawSuggestion(id) {
+    return statements.withdrawSuggestion.run(id).changes > 0;
+}
+
+/**
+ * Suggestion votes. Voting the same way twice clears the vote, the opposite
+ * way flips it. Returns the vote the user now holds (1, -1 or 0).
+ */
+export function castSuggestionVote(suggestionId, userId, vote) {
+    const existing = statements.getSuggestionVote.get(suggestionId, userId);
+
+    if (existing && existing.vote === vote) {
+        statements.clearSuggestionVote.run(suggestionId, userId);
+        return 0;
+    }
+
+    statements.castSuggestionVote.run(suggestionId, userId, vote);
+    return vote;
+}
+
+export function getSuggestionTally(suggestionId) {
+    const row = statements.getSuggestionTally.get(suggestionId);
+    return { up: row?.up || 0, down: row?.down || 0 };
+}
+
+/**
+ * Suggestion settings, merged over the defaults so a guild that never ran
+ * /suggestions config still gets sensible numbers.
+ */
+export function getSuggestionSettings(guildId) {
+    statements.createSuggestionSettings.run(guildId);
+    const row = statements.getSuggestionSettings.get(guildId);
+    return { ...DEFAULT_SUGGESTION_SETTINGS, ...row };
+}
+
+const SUGGESTION_SETTING_COLUMNS = [
+    'duration_hours',
+    'activity_window_days',
+    'participation_pct',
+    'min_votes',
+    'max_votes',
+    'pass_ratio_pct',
+    'reject_ratio_pct',
+    'staff_role_id',
+];
+
+export function updateSuggestionSettings(guildId, updates) {
+    const fields = Object.keys(updates).filter(
+        key => SUGGESTION_SETTING_COLUMNS.includes(key) && updates[key] !== null && updates[key] !== undefined
+    );
+
+    if (fields.length === 0) return getSuggestionSettings(guildId);
+
+    statements.createSuggestionSettings.run(guildId);
+    const assignments = fields.map(field => `${field} = ?`).join(', ');
+    db.prepare(`UPDATE suggestion_settings SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?`)
+        .run(...fields.map(field => updates[field]), guildId);
+
+    return getSuggestionSettings(guildId);
+}
+
+/**
+ * Members who earned XP inside the activity window — the quorum base.
+ */
+export function countActiveMembers(guildId, windowDays) {
+    const days = Math.max(1, Math.floor(windowDays || 14));
+    return statements.countActiveMembers.get(guildId, `-${days} days`).count;
+}
+
 export default {
     getGuildSettings,
     setGuildSettings,
@@ -1041,4 +1185,19 @@ export default {
     getReactionRolesByGuild,
     removeReactionRole,
     removeReactionRolesByMessage,
+    createSuggestion,
+    setSuggestionMessage,
+    getSuggestion,
+    getSuggestionByMessage,
+    getOpenSuggestions,
+    getGuildSuggestionsByStatus,
+    getDueSuggestions,
+    closeSuggestion,
+    decideSuggestion,
+    withdrawSuggestion,
+    castSuggestionVote,
+    getSuggestionTally,
+    getSuggestionSettings,
+    updateSuggestionSettings,
+    countActiveMembers,
 };
