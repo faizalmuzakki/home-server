@@ -1133,6 +1133,25 @@ check(
 const emptyBody = fakeInteraction();
 await sendAiReply(emptyBody, { header: { title: 'x' }, body: '', mode: 'message' });
 check(
+    'a long footer on a truncated response does not exceed the message limit',
+    await (async () => {
+        const fake = fakeInteraction();
+        await sendAiReply(fake, {
+            header: { title: 'x' },
+            body: 'word '.repeat(3000),
+            footer: { text: 'f'.repeat(1990) },
+            mode: 'message',
+            maxChunks: 2,
+        });
+        const overLong = fake.calls
+            .filter(([, payload]) => typeof payload.content === 'string')
+            .filter(([, payload]) => payload.content.length > 2000);
+        return String(overLong.length);
+    })(),
+    '0'
+);
+
+check(
     'an empty body still produces a visible reply',
     String(emptyBody.calls.length >= 1),
     'true'
@@ -1166,6 +1185,8 @@ import { toDiscordMarkdown } from './discordMarkdown.js';
 import { chunkForDiscord } from './discordChunker.js';
 
 const MESSAGE_LIMIT = 2000;
+// Deliberately under Discord's real 4096 so a continuation embed's own
+// framing cannot push a payload over the edge. Not a drifted constant.
 const EMBED_DESC_LIMIT = 4000;
 const DEFAULT_COLOR = 0x5865F2;
 const TRUNCATED = '*Response truncated due to length…*';
@@ -1220,22 +1241,41 @@ async function sendMessageMode(interaction, { header, body, footer, ephemeral, m
         let content = shown[i];
         const isLast = i === shown.length - 1;
 
-        if (isLast && complete && footerLine !== '') {
-            if (content.length + footerLine.length + 1 <= MESSAGE_LIMIT) {
-                content = `${content}\n${footerLine}`;
-            } else {
-                await interaction.followUp({ content, ephemeral });
-                content = footerLine;
-            }
+        if (isLast && complete) {
+            await sendWithFooter(interaction, content, footerLine, ephemeral);
+            continue;
         }
 
         await interaction.followUp({ content, ephemeral });
     }
 
     if (!complete) {
-        const tail = footerLine === '' ? TRUNCATED : `${TRUNCATED}\n${footerLine}`;
-        await interaction.followUp({ content: tail, ephemeral });
+        await sendWithFooter(interaction, TRUNCATED, footerLine, ephemeral);
     }
+}
+
+/**
+ * Sends `content`, appending `footerLine` only when the result still fits
+ * in a message. Otherwise the footer goes in its own message.
+ *
+ * Both the last-chunk path and the truncation path need this. The first
+ * version of this file inlined the length check in one and not the other,
+ * so a long footer on a truncated response produced a 2029-character send
+ * against a 2000 limit.
+ */
+async function sendWithFooter(interaction, content, footerLine, ephemeral) {
+    if (footerLine === '') {
+        await interaction.followUp({ content, ephemeral });
+        return;
+    }
+
+    if (content.length + footerLine.length + 1 <= MESSAGE_LIMIT) {
+        await interaction.followUp({ content: `${content}\n${footerLine}`, ephemeral });
+        return;
+    }
+
+    await interaction.followUp({ content, ephemeral });
+    await interaction.followUp({ content: footerLine.slice(0, MESSAGE_LIMIT), ephemeral });
 }
 
 async function sendEmbedMode(interaction, { header, body, footer, ephemeral, maxChunks }) {
@@ -1275,7 +1315,7 @@ Note: `header` is spread before `description` in embed mode, so a caller passing
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `49 passed, 0 failed`, exit 0.
+Expected: `50 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -1673,7 +1713,7 @@ Expected: two `ok` lines.
 cd palu-gada-bot && npm run check:markdown
 ```
 
-Expected: `49 passed, 0 failed`, exit 0.
+Expected: `50 passed, 0 failed`, exit 0.
 
 - [ ] **Step 5: Commit**
 
