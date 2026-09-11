@@ -50,6 +50,24 @@ check(
 check('empty input', toDiscordMarkdown(''), '');
 check('null input', toDiscordMarkdown(null), '');
 
+check(
+    'a null options argument does not throw',
+    toDiscordMarkdown('## Heading', null),
+    '## Heading'
+);
+
+check(
+    'a non-object options argument does not throw',
+    toDiscordMarkdown('## Heading', 42),
+    '## Heading'
+);
+
+check(
+    'a shorter run does not close a longer fence',
+    toDiscordMarkdown('````\n```\n##### still inside\n````'),
+    '````\n```\n##### still inside\n````'
+);
+
 // --- summary ----------------------------------------------------------
 
 console.log(`\n${passes} passed, ${failures} failed`);

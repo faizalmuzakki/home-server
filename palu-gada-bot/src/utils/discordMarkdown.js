@@ -15,22 +15,28 @@ const HEADING_RE = /^(#{1,6})\s+(.*)$/;
  *   'bold' for embeds, which render no headings at all.
  * @returns {string}
  */
-export function toDiscordMarkdown(text, opts = {}) {
+export function toDiscordMarkdown(text, opts) {
     if (typeof text !== 'string' || text === '') return '';
 
-    const headings = opts.headings === 'bold' ? 'bold' : 'keep';
+    // A default parameter only fires on undefined, so an explicit null
+    // would slip past it and throw on the property read below.
+    const options = opts && typeof opts === 'object' ? opts : {};
+    const headings = options.headings === 'bold' ? 'bold' : 'keep';
     const lines = text.split('\n');
     const out = [];
 
-    let fence = null; // the opening marker while inside a fenced block
+    // The opening fence while inside a block. CommonMark closes a fence
+    // only on the same character AT LEAST AS LONG as the opener, so a
+    // three-backtick line inside a four-backtick block is content.
+    let fence = null; // { char, length } | null
 
     for (const line of lines) {
         const fenceMatch = FENCE_RE.exec(line);
         if (fenceMatch) {
             const marker = fenceMatch[1];
             if (fence === null) {
-                fence = marker[0]; // ` or ~
-            } else if (marker[0] === fence) {
+                fence = { char: marker[0], length: marker.length };
+            } else if (marker[0] === fence.char && marker.length >= fence.length) {
                 fence = null;
             }
             out.push(line);
