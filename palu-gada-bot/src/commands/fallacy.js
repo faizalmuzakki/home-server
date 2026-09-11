@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter } from '../config/ai.js';
+import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { toDiscordMarkdown } from '../utils/discordMarkdown.js';
 
 const MESSAGE_LIMIT = 50;
 const FETCH_CAP = 200;
@@ -13,7 +14,7 @@ const COOLDOWN_MS = 2 * 60 * 1000;
 
 const channelCooldowns = new Map();
 
-const SYSTEM_PROMPT = 'You are a logic and rhetoric analyst. Identify logical fallacies in Discord conversations. Be conservative — only flag clear, textbook fallacies that appear in the reasoning of a message. Casual chatter, jokes, unsupported opinions stated as opinions, and emotional expressions are not fallacies on their own; a fallacy requires flawed reasoning in support of a claim.';
+const SYSTEM_PROMPT = `You are a logic and rhetoric analyst. Identify logical fallacies in Discord conversations. Be conservative — only flag clear, textbook fallacies that appear in the reasoning of a message. Casual chatter, jokes, unsupported opinions stated as opinions, and emotional expressions are not fallacies on their own; a fallacy requires flawed reasoning in support of a claim. ${DISCORD_FORMAT_PROMPT}`;
 
 function truncate(str, max) {
     if (str.length <= max) return str;
@@ -189,7 +190,9 @@ JSON:`;
 
         const entries = resolved.map((f, i) => {
             const quote = truncate(f.message.content, QUOTE_MAX_CHARS);
-            return `**${i + 1}. ${f.fallacy_name}** — by **${f.message.author}** · [jump](${f.message.url})\n> ${quote}\n${f.explanation}`;
+            const fallacyName = toDiscordMarkdown(f.fallacy_name, { headings: 'bold' });
+            const explanation = toDiscordMarkdown(f.explanation, { headings: 'bold' });
+            return `**${i + 1}. ${fallacyName}** — by **${f.message.author}** · [jump](${f.message.url})\n> ${quote}\n${explanation}`;
         });
 
         let description = entries.join('\n\n');

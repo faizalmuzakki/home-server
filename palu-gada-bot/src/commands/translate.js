@@ -1,7 +1,9 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
-import { getAiFooter } from '../config/ai.js';
+import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
+import { chunkForDiscord } from '../utils/discordChunker.js';
+import { toDiscordMarkdown } from '../utils/discordMarkdown.js';
 
 const LANGUAGES = [
     { name: 'English', value: 'english' },
@@ -80,7 +82,7 @@ export default {
                 : `Translate the following text from ${formatLang(sourceLang)} to ${formatLang(targetLang)}.\n\nText: ${text}\n\nRespond with only the translation, nothing else.`;
 
             const result = await askClaude(prompt, {
-                systemPrompt: 'You are a professional translator. Provide accurate, natural-sounding translations. Preserve the tone and style of the original text. For idiomatic expressions, translate the meaning rather than word-for-word.',
+                systemPrompt: `You are a professional translator. Provide accurate, natural-sounding translations. Preserve the tone and style of the original text. For idiomatic expressions, translate the meaning rather than word-for-word. ${DISCORD_FORMAT_PROMPT}`,
             });
 
             let detectedLang = sourceLang === 'auto' ? null : formatLang(sourceLang);
@@ -122,10 +124,11 @@ export default {
 
             // Handle long translations
             if (translation.length > 1024) {
-                await interaction.followUp({
-                    content: `**Full translation:**\n${translation}`,
-                    ephemeral: isPrivate,
-                });
+                const full = toDiscordMarkdown(translation, { headings: 'bold' });
+                const chunks = chunkForDiscord(`**Full translation:**\n${full}`, { limit: 2000 });
+                for (const chunk of chunks.slice(0, 5)) {
+                    await interaction.followUp({ content: chunk, ephemeral: isPrivate });
+                }
             }
         } catch (error) {
             await logCommandError(interaction, error, 'translate');
