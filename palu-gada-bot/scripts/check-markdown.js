@@ -172,6 +172,12 @@ check(
 );
 
 check(
+    'a rule followed by a table drops the blank after the rule, not after the table',
+    toDiscordMarkdown('---\n| a |\n|---|\n| b |\n\nAfter.'),
+    '```\na\nb\n```\n\nAfter.'
+);
+
+check(
     'indentation depth resets after prose',
     toDiscordMarkdown('- a\n    - b\n\nProse.\n\n- c'),
     '- a\n  - b\n\nProse.\n\n- c'

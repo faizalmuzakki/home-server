@@ -61,6 +61,11 @@ export function toDiscordMarkdown(text, opts) {
             continue;
         }
 
+        if (dropBlank) {
+            dropBlank = false;
+            if (line.trim() === '') continue;
+        }
+
         if (ROW_RE.test(line)) {
             table.push(line);
             continue;
@@ -71,11 +76,6 @@ export function toDiscordMarkdown(text, opts) {
             table = [];
             dropBlank = true;
             continue;
-        }
-
-        if (dropBlank) {
-            dropBlank = false;
-            if (line.trim() === '') continue;
         }
 
         out.push(...flushTable(table));
