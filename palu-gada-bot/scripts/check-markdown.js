@@ -220,6 +220,22 @@ chunkCheck(
     ['aaaaa', 'aaaaa', 'aa']
 );
 
+// A blank first line used to sit alone in the buffer at length 0; the next
+// piece cost more than the budget, so the buffer flushed as ''. Discord
+// rejects that with "Cannot send an empty message".
+chunkCheck(
+    'a blank line before an over-long line emits no empty chunk',
+    chunkForDiscord('\n' + 'x'.repeat(10), { limit: 10 }),
+    ['xxxxxxxxxx']
+);
+
+check(
+    'no chunk is ever empty or whitespace-only',
+    String(chunkForDiscord('\n\n  \n' + 'y'.repeat(20) + '\n \n', { limit: 20 })
+        .every(c => c.trim() !== '')),
+    'true'
+);
+
 // Fence splitting is asserted by property, not by exact output. The
 // boundary depends on budget arithmetic that is easy to get off by one
 // while writing a plan, and an exact-string fixture would send the fix

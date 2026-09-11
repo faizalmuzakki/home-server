@@ -71,6 +71,18 @@ async function sendMessageMode(interaction, { header, body, footer, ephemeral, m
         const content = shown[i];
         const isLast = i === shown.length - 1;
 
+        // Belt and braces against the chunker: Discord 400s on an empty
+        // message, so never hand it one even if a chunk arrives blank.
+        // The footer still has to go out, so a blank last chunk falls
+        // through to the truncation/footer handling below rather than
+        // being sent.
+        if (content.trim() === '') {
+            if (isLast && complete && footerLine !== '') {
+                await interaction.followUp({ content: footerLine, ephemeral });
+            }
+            continue;
+        }
+
         if (isLast && complete) {
             await sendWithFooter(interaction, content, footerLine, ephemeral);
             continue;

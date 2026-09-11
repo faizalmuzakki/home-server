@@ -24,6 +24,12 @@ function chunkerViolations(text, limit, fenceRepresentable) {
     // hard cut through the generator's emoji.
     for (const chunk of chunks) {
         if (chunk.length > limit) problems.push(`over limit: ${chunk.length} > ${limit}`);
+        // Unconditional, like the over-limit check: Discord rejects an
+        // empty message, so a whitespace-only chunk is always a defect
+        // regardless of whether fences are representable at this limit.
+        // Leaving this behind the fence gate is what let the blank-first-
+        // line bug survive 24000 cases.
+        if (chunk.trim() === '') problems.push('empty or whitespace-only chunk');
         // At limit 1 a surrogate pair cannot fit at all, so invariant 1
         // wins and the split is sanctioned. Everywhere else it is a defect.
         if (limit > 1) {

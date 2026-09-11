@@ -112,11 +112,20 @@ export function chunkForDiscord(text, opts) {
 
     const flush = () => {
         if (buffer.length === 0) return;
-        const closing = lang !== null && trackable;
         const body = buffer.join('\n');
-        chunks.push(closing ? `${body}\n\`\`\`` : body);
         buffer = [];
         length = 0;
+
+        // Discord rejects an empty message outright ("Cannot send an empty
+        // message"), so a buffer holding nothing but whitespace must never
+        // become a chunk. This happens whenever a blank line sits alone in
+        // the buffer and the next piece costs more than the remaining
+        // budget -- a blank line followed by a line at least as long as the
+        // limit, such as a long URL.
+        if (body.trim() === '') return;
+
+        const closing = lang !== null && trackable;
+        chunks.push(closing ? `${body}\n\`\`\`` : body);
     };
 
     for (const rawLine of normalized.split('\n')) {
