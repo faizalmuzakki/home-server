@@ -253,6 +253,79 @@ check(
     'true'
 );
 
+// --- chunker properties -----------------------------------------------
+
+function chunkerViolations(text, limit) {
+    const chunks = chunkForDiscord(text, { limit });
+    const problems = [];
+
+    for (const chunk of chunks) {
+        if (chunk.length > limit) problems.push(`over limit: ${chunk.length} > ${limit}`);
+        const markers = (chunk.match(/^\s*```/gm) || []).length;
+        if (markers % 2 !== 0) problems.push('unbalanced fence');
+        if (/[\uD800-\uDBFF]$/.test(chunk)) problems.push('chunk ends on a high surrogate');
+        if (/^[\uDC00-\uDFFF]/.test(chunk)) problems.push('chunk starts on a low surrogate');
+    }
+
+    const strip = value => value.split('\n').filter(l => !/^\s*```/.test(l)).join('\n');
+    if (strip(chunks.join('\n')) !== strip(text.replace(/\r\n/g, '\n'))) {
+        problems.push('content lost or duplicated');
+    }
+
+    return problems;
+}
+
+function randomChunkerCase(seed) {
+    // Deterministic PRNG so a failure is reproducible from its seed.
+    let state = seed;
+    const next = () => {
+        state = (state * 1103515245 + 12345) & 0x7fffffff;
+        return state / 0x7fffffff;
+    };
+    const pick = list => list[Math.floor(next() * list.length)];
+
+    const lines = [];
+    const count = Math.floor(next() * 30);
+    let open = false;
+    for (let i = 0; i < count; i++) {
+        if (next() < 0.15) {
+            lines.push(open ? '```' : `\`\`\`${pick(['', 'js', 'python', 'x'.repeat(40)])}`);
+            open = !open;
+        } else {
+            lines.push(pick(['', 'short', 'a '.repeat(20).trim(), 'z'.repeat(60), 'emoji 😀 here', 'á combining']));
+        }
+    }
+    return lines.join(pick(['\n', '\n', '\r\n']));
+}
+
+let fuzzFailures = 0;
+let firstFuzzFailure = '';
+const LIMITS = [1, 2, 3, 4, 5, 8, 10, 17, 20, 50, 100, 2000];
+
+for (let seed = 1; seed <= 2000; seed++) {
+    const text = randomChunkerCase(seed);
+    for (const limit of LIMITS) {
+        let problems;
+        try {
+            problems = chunkerViolations(text, limit);
+        } catch (error) {
+            problems = [`threw: ${error.message}`];
+        }
+        if (problems.length > 0) {
+            fuzzFailures++;
+            if (firstFuzzFailure === '') {
+                firstFuzzFailure = `seed ${seed} limit ${limit}: ${problems.join(', ')}`;
+            }
+        }
+    }
+}
+
+check(
+    `chunker property fuzz over ${2000 * LIMITS.length} cases`,
+    fuzzFailures === 0 ? 'clean' : `${fuzzFailures} failures, first: ${firstFuzzFailure}`,
+    'clean'
+);
+
 const longDoc = Array.from({ length: 400 }, (_, i) => `Line ${i} of prose.`).join('\n');
 const produced = chunkForDiscord(longDoc, { limit: 2000 });
 check(
