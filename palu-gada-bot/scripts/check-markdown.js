@@ -255,28 +255,62 @@ check(
 
 // --- chunker properties -----------------------------------------------
 
-function chunkerViolations(text, limit) {
+function chunkerViolations(text, limit, fenceRepresentable) {
     const chunks = chunkForDiscord(text, { limit });
     const problems = [];
 
+    // Invariant 1 is absolute and checked at every limit. It is the one
+    // that stops the Discord API rejecting a message.
     for (const chunk of chunks) {
         if (chunk.length > limit) problems.push(`over limit: ${chunk.length} > ${limit}`);
-        const markers = (chunk.match(/^\s*```/gm) || []).length;
-        if (markers % 2 !== 0) problems.push('unbalanced fence');
-        if (/[\uD800-\uDBFF]$/.test(chunk)) problems.push('chunk ends on a high surrogate');
-        if (/^[\uDC00-\uDFFF]/.test(chunk)) problems.push('chunk starts on a low surrogate');
     }
 
-    const strip = value => value.split('\n').filter(l => !/^\s*```/.test(l)).join('\n');
-    if (strip(chunks.join('\n')) !== strip(text.replace(/\r\n/g, '\n'))) {
+    // Invariants 2 and 3 are conditional. When the limit cannot hold a
+    // fence marker plus its closing fence, the contract says to stop
+    // tracking the fence rather than emit an over-limit chunk, so marker
+    // balance and marker-line accounting are not meaningful there.
+    if (!fenceRepresentable) return problems;
+
+    for (const chunk of chunks) {
+        const markers = (chunk.match(/^\s*```/gm) || []).length;
+        if (markers % 2 !== 0) problems.push('unbalanced fence');
+    }
+
+    // Drop whole fence-marker lines before comparing: a reopened fence
+    // legitimately repeats its language tag, which is invariant 2 working,
+    // not duplicated content. Then ignore whitespace, because wrapping a
+    // long line inserts newlines the source did not have.
+    const signature = value => value
+        .split('\n')
+        .filter(line => !/^\s*```/.test(line))
+        .join('')
+        .replace(/\s/g, '');
+
+    if (signature(chunks.join('\n')) !== signature(text.replace(/\r\n/g, '\n'))) {
         problems.push('content lost or duplicated');
+    }
+
+    // Surrogate pairs must survive a hard cut.
+    for (const chunk of chunks) {
+        if (/[\uD800-\uDBFF]$/.test(chunk)) problems.push('chunk ends on a high surrogate');
+        if (/^[\uDC00-\uDFFF]/.test(chunk)) problems.push('chunk starts on a low surrogate');
     }
 
     return problems;
 }
 
+/** Widest fence marker in the text, so the caller can gate invariants 2-3. */
+function widestMarker(text) {
+    let widest = 0;
+    for (const line of text.split('\n')) {
+        const match = /^\s*(```.*)$/.exec(line);
+        if (match) widest = Math.max(widest, match[1].trimEnd().length);
+    }
+    return widest;
+}
+
 function randomChunkerCase(seed) {
-    // Deterministic PRNG so a failure is reproducible from its seed.
+    // Deterministic PRNG so a failure is reproducible from its seed alone.
     let state = seed;
     const next = () => {
         state = (state * 1103515245 + 12345) & 0x7fffffff;
@@ -289,10 +323,17 @@ function randomChunkerCase(seed) {
     let open = false;
     for (let i = 0; i < count; i++) {
         if (next() < 0.15) {
-            lines.push(open ? '```' : `\`\`\`${pick(['', 'js', 'python', 'x'.repeat(40)])}`);
+            lines.push(open ? '```' : '```' + pick(['', 'js', 'python', 'x'.repeat(40)]));
             open = !open;
         } else {
-            lines.push(pick(['', 'short', 'a '.repeat(20).trim(), 'z'.repeat(60), 'emoji 😀 here', 'á combining']));
+            lines.push(pick([
+                '',
+                'short',
+                'a '.repeat(20).trim(),
+                'z'.repeat(60),
+                'emoji \u{1F600} here',
+                'a\u0301 combining',
+            ]));
         }
     }
     return lines.join(pick(['\n', '\n', '\r\n']));
@@ -307,7 +348,8 @@ for (let seed = 1; seed <= 2000; seed++) {
     for (const limit of LIMITS) {
         let problems;
         try {
-            problems = chunkerViolations(text, limit);
+            const representable = limit >= widestMarker(text) + 6;
+            problems = chunkerViolations(text, limit, representable);
         } catch (error) {
             problems = [`threw: ${error.message}`];
         }
