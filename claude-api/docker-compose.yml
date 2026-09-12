@@ -18,7 +18,10 @@ services:
       - NODE_OPTIONS=--max-old-space-size=256
       - HOME=/home/claude
       # Fallback path when the CLI's OAuth token (Max subscription) is expired
-      # or otherwise unusable. Used automatically on CLI 401/403.
+      # or otherwise unusable. Used automatically on CLI 401/403/404, through the
+      # Messages API rather than the CLI: src/routes/prompt.js strips this key
+      # from the CLI's environment, because the CLI prefers it over the mounted
+      # claude.ai login and would bill the API on every prompt.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
       - workspace:/workspace:rw
