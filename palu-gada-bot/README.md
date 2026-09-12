@@ -269,10 +269,16 @@ The bot includes a web-based admin panel for managing servers and commands.
 ### Features
 
 - Discord OAuth2 login
-- View bot statistics (servers, users, uptime, memory)
-- Manage server allowlist (owner only)
-- Enable/disable commands per server
-- View all servers the bot is in
+- Health first: uptime, a heartbeat row of the last 40 `/api/health` samples,
+  and gateway latency, all served by `GET /api/stats/history`
+- Bot statistics (servers, members reached, heap)
+- Enable/disable commands per server, or globally (owner only)
+- Manage the server allowlist (owner only)
+- Turn the cost estimate in AI response footers on or off (owner only)
+- Per-server XP leaderboard
+
+The heartbeat series is sampled in-process every 30 seconds and only covers the
+time since the last restart. Longer history stays uptime-kuma's job.
 
 ### Architecture
 
