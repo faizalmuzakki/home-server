@@ -100,7 +100,7 @@ export default {
                 .map(m => `[${m.author}]: ${sanitize(m.content)}`)
                 .join('\n');
 
-            const { text: summary, model } = await askClaude(`Please summarize the following Discord chat conversation. Focus on:
+            const { text: summary, model, usage } = await askClaude(`Please summarize the following Discord chat conversation. Focus on:
 - Main topics discussed
 - Key decisions or conclusions reached
 - Important questions asked
@@ -144,7 +144,7 @@ Summary:`, {
                     timestamp: new Date().toISOString(),
                 },
                 body: summary,
-                footer: getAiFooter('', model),
+                footer: getAiFooter('', model, usage),
                 mode: 'message',
             });
         } catch (error) {

@@ -14,7 +14,8 @@ const CLAUDE_API_SECRET = process.env.CLAUDE_API_SECRET;
  * @param {string} [opts.systemPrompt] - System prompt
  * @param {string} [opts.model] - Model override
  * @param {number} [opts.maxTurns] - Max turns (default 1)
- * @returns {Promise<{text: string, model: string}>} The response text and the model claude-api used
+ * @returns {Promise<{text: string, model: string, usage: object|null}>} The response
+ *   text, the model claude-api used, and that model's token/cost counters
  */
 export async function askClaude(prompt, opts = {}) {
     const res = await fetch(`${CLAUDE_API_URL}/api/prompt`, {
@@ -45,12 +46,34 @@ export async function askClaude(prompt, opts = {}) {
     // result is the Claude Code JSON output with a .result field containing the text,
     // and modelUsage keyed by the model id that actually served the request.
     const model = Object.keys(data.result?.modelUsage ?? {})[0] ?? '';
+    const usage = toUsage(data.result?.modelUsage?.[model]);
 
     if (data.result?.result) {
-        return { text: data.result.result, model };
+        return { text: data.result.result, model, usage };
     }
     if (typeof data.result === 'string') {
-        return { text: data.result, model };
+        return { text: data.result, model, usage: null };
     }
     throw new Error('Unexpected response format from Claude API');
+}
+
+/**
+ * Normalises one modelUsage entry.
+ *
+ * costUSD is what Claude Code itself billed the call at list API rates —
+ * never recompute it from a local price table here. The account behind
+ * claude-api is a Max subscription, so the figure is what this traffic
+ * would have cost on the API, not a bill. cc-usage makes the same point
+ * about the same numbers.
+ */
+function toUsage(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    return {
+        inputTokens: num(entry.inputTokens),
+        outputTokens: num(entry.outputTokens),
+        cachedTokens: num(entry.cacheReadInputTokens) + num(entry.cacheCreationInputTokens),
+        costUSD: typeof entry.costUSD === 'number' ? entry.costUSD : null,
+    };
 }

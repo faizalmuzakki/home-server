@@ -13,7 +13,10 @@ import {
     getGlobalCommands,
     setGlobalCommand,
     getLeaderboard,
+    getConfig,
+    setConfig,
 } from '../../database/models.js';
+import { COST_FOOTER_KEY } from '../../config/ai.js';
 
 const router = Router();
 
@@ -150,6 +153,38 @@ router.patch('/global/commands/:commandName', (req, res) => {
 
     setGlobalCommand(commandName, enabled);
     res.json({ success: true, command: commandName, enabled });
+});
+
+/**
+ * GET /api/guilds/global/ai-cost
+ * Whether AI footers show the list-rate cost estimate (owner only)
+ * NOTE: defined before /:guildId for the same reason /global/commands is.
+ */
+router.get('/global/ai-cost', (req, res) => {
+    if (!req.user.isOwner) {
+        return res.status(403).json({ error: 'Owner only' });
+    }
+
+    res.json({ enabled: getConfig(COST_FOOTER_KEY, false) === true });
+});
+
+/**
+ * PATCH /api/guilds/global/ai-cost
+ * Turn the cost estimate in AI footers on or off (owner only)
+ */
+router.patch('/global/ai-cost', (req, res) => {
+    if (!req.user.isOwner) {
+        return res.status(403).json({ error: 'Owner only' });
+    }
+
+    const { enabled } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled must be a boolean' });
+    }
+
+    setConfig(COST_FOOTER_KEY, enabled);
+    res.json({ success: true, enabled });
 });
 
 /**

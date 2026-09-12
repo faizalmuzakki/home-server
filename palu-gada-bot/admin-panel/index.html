@@ -153,6 +153,20 @@
                     <div class="alert alert-warning">
                         <strong>Warning:</strong> Disabling a command here will disable it for ALL servers, regardless of per-server settings.
                     </div>
+                    <h2>AI response footers</h2>
+                    <p class="section-desc">Every AI reply shows its token counts. The cost is a list-rate estimate, not a bill — claude-api runs on a subscription — so it stays hidden unless you turn it on here.</p>
+                    <div class="command-item">
+                        <div>
+                            <div class="command-name">Show cost estimate</div>
+                            <div class="command-desc">Appends e.g. <code>~$0.0305</code> to the footer of every AI response.</div>
+                        </div>
+                        <label class="toggle">
+                            <input type="checkbox" id="ai-cost-toggle" onchange="toggleAiCost(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <h2>Commands</h2>
                     <div id="global-commands-list" class="commands-grid">
                         <!-- Global commands will be loaded here -->
                     </div>

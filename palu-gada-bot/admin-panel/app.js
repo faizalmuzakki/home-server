@@ -190,6 +190,7 @@ function showPage(page) {
             loadAllowlist();
             break;
         case 'global-commands':
+            loadAiCostToggle();
             loadGlobalCommands();
             break;
         case 'leaderboard':
@@ -451,6 +452,31 @@ async function loadGlobalCommands() {
     }
 }
 
+async function loadAiCostToggle() {
+    const input = document.getElementById('ai-cost-toggle');
+    if (!input) return;
+
+    try {
+        const { enabled } = await apiRequest('/api/guilds/global/ai-cost');
+        input.checked = enabled;
+    } catch (error) {
+        console.error('Failed to load AI cost setting:', error);
+    }
+}
+
+async function toggleAiCost(enabled) {
+    try {
+        await apiRequest('/api/guilds/global/ai-cost', {
+            method: 'PATCH',
+            body: JSON.stringify({ enabled }),
+        });
+    } catch (error) {
+        console.error('Failed to toggle AI cost footer:', error);
+        alert('Failed to update setting');
+        loadAiCostToggle();
+    }
+}
+
 async function toggleGlobalCommand(commandName, enabled) {
     try {
         await apiRequest(`/api/guilds/global/commands/${commandName}`, {
@@ -469,6 +495,7 @@ async function toggleGlobalCommand(commandName, enabled) {
 
 // Make global command functions available globally
 window.toggleGlobalCommand = toggleGlobalCommand;
+window.toggleAiCost = toggleAiCost;
 
 // Leaderboard Page
 async function loadLeaderboardPage() {

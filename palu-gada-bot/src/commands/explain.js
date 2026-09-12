@@ -50,7 +50,7 @@ export default {
         };
 
         try {
-            const { text: explanation, model } = await askClaude(`${levelInstructions[level]}\n\nTopic to explain: ${topic}`, {
+            const { text: explanation, model, usage } = await askClaude(`${levelInstructions[level]}\n\nTopic to explain: ${topic}`, {
                 systemPrompt: `You are an expert educator who excels at explaining complex topics. Keep explanations focused and well-structured. ${DISCORD_FORMAT_PROMPT}`,
             });
 
@@ -68,7 +68,7 @@ export default {
                     timestamp: new Date().toISOString(),
                 },
                 body: explanation,
-                footer: getAiFooter(`Level: ${levelLabels[level]}`, model),
+                footer: getAiFooter(`Level: ${levelLabels[level]}`, model, usage),
                 ephemeral: isPrivate,
                 mode: 'message',
             });
