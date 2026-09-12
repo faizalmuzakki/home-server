@@ -10,7 +10,7 @@ services:
       - ./homeassistant:/config
       - /run/dbus:/run/dbus:ro
     ports:
-      - "8123:8123"
+      - "127.0.0.1:8123:8123"
     networks:
       - traefik-public
       - homeassistant-network
@@ -30,8 +30,8 @@ services:
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
     ports:
-      - "1883:1883"
-      - "9001:9001"
+      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:9001:9001"
     networks:
       - homeassistant-network
 
@@ -47,7 +47,7 @@ services:
       - ./zigbee2mqtt:/app/data
       - /run/udev:/run/udev:ro
     ports:
-      - "8082:8080"
+      - "127.0.0.1:8082:8080"
     # Uncomment and set your Zigbee adapter device
     # devices:
     #   - /dev/ttyUSB0:/dev/ttyACM0

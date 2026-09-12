@@ -6,8 +6,8 @@ services:
     ports:
       - "53:53/tcp"
       - "53:53/udp"
-      - "3001:3000/tcp"  # Initial setup UI
-      - "8080:80/tcp"    # Admin panel (after setup)
+      - "127.0.0.1:3001:3000/tcp"  # Initial setup UI
+      - "127.0.0.1:8080:80/tcp"    # Admin panel (after setup)
       # - "443:443/tcp"  # DNS-over-HTTPS (disabled - Traefik uses 443)
       - "853:853/tcp"    # DNS-over-TLS
     volumes:
