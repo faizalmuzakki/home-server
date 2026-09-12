@@ -28,7 +28,9 @@ function takeSample() {
     if (samples.length > SAMPLE_COUNT) samples.shift();
 }
 
-takeSample();
+// Deferred: server.js is still evaluating when it imports this module, so an
+// inline first sample reads its `discordClient` binding before initialization.
+setTimeout(takeSample, 0).unref();
 setInterval(takeSample, SAMPLE_INTERVAL_MS).unref();
 
 /**
