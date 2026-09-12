@@ -8,8 +8,8 @@ services:
       - SYS_RAWIO
       - SYS_ADMIN
     volumes:
-      - ./config:/opt/scrutiny/config
-      - ./influxdb:/opt/scrutiny/influxdb
+      - /data/scrutiny/config:/opt/scrutiny/config
+      - /data/scrutiny/influxdb:/opt/scrutiny/influxdb
       - /run/udev:/run/udev:ro
       - /dev:/dev:ro
     networks:
