@@ -28,6 +28,7 @@ router.post('/', async (req, res) => {
   }
 
   if (activeSessions.size >= MAX_CONCURRENT) {
+    log('warn', { event: 'rejected', reason: 'max_concurrent', active: activeSessions.size, max: MAX_CONCURRENT, request_id: req.id });
     return res.status(429).json({ error: 'Too many concurrent requests. Try again later.' });
   }
 
@@ -35,7 +36,7 @@ router.post('/', async (req, res) => {
   activeSessions.set(sessionId, Date.now());
 
   try {
-    const result = await runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns });
+    const result = await runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, sessionId, requestId: req.id });
     res.json({ id: sessionId, result, duration_ms: Date.now() - activeSessions.get(sessionId) });
   } catch (err) {
     res.status(500).json({ id: sessionId, error: err.message });
@@ -58,11 +59,13 @@ router.post('/stream', async (req, res) => {
   }
 
   if (activeSessions.size >= MAX_CONCURRENT) {
+    log('warn', { event: 'rejected', reason: 'max_concurrent', active: activeSessions.size, max: MAX_CONCURRENT, request_id: req.id });
     return res.status(429).json({ error: 'Too many concurrent requests. Try again later.' });
   }
 
   const sessionId = randomUUID();
-  activeSessions.set(sessionId, Date.now());
+  const startedAt = Date.now();
+  activeSessions.set(sessionId, startedAt);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -80,17 +83,24 @@ router.post('/stream', async (req, res) => {
       if (proc) {
         try { proc.kill('SIGTERM'); } catch {}
       }
+      log('warn', { event: 'stream_aborted', session_id: sessionId, request_id: req.id, duration_ms: Date.now() - startedAt });
       activeSessions.delete(sessionId);
     }
   });
 
   try {
-    const args = buildArgs({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, outputFormat: 'stream-json' });
+    const resolvedModel = resolveModel(model);
+    const resolvedMaxTurns = resolveMaxTurns(maxTurns);
+    const args = buildArgs({ prompt, systemPrompt, allowedTools, model, maxTurns, outputFormat: 'stream-json' });
+    log('info', { event: 'cli_start', mode: 'stream', session_id: sessionId, request_id: req.id, model: resolvedModel, max_turns: resolvedMaxTurns, prompt_chars: prompt.length });
+
     proc = spawn('claude', args, {
-      env: { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
+      env: cliEnv(),
       cwd: workdir || '/tmp',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+
+    let stderr = '';
 
     proc.stdout.on('data', (chunk) => {
       const lines = chunk.toString().split('\n').filter(Boolean);
@@ -100,10 +110,33 @@ router.post('/stream', async (req, res) => {
     });
 
     proc.stderr.on('data', (chunk) => {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: chunk.toString() })}\n\n`);
+      const text = chunk.toString();
+      stderr += text;
+      // Advisory lines are noise on every run; don't surface them as errors.
+      const real = stripAdvisories(text);
+      if (real) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: real })}\n\n`);
+      }
     });
 
     proc.on('close', (code) => {
+      const duration = Date.now() - startedAt;
+      if (code === 0) {
+        log('info', { event: 'cli_done', mode: 'stream', session_id: sessionId, request_id: req.id, exit_code: code, duration_ms: duration });
+      } else {
+        log('error', {
+          event: 'cli_failed',
+          mode: 'stream',
+          session_id: sessionId,
+          request_id: req.id,
+          exit_code: code,
+          duration_ms: duration,
+          model: resolvedModel,
+          max_turns: resolvedMaxTurns,
+          stderr: stripAdvisories(stderr) || null,
+          advisories: advisoryLines(stderr),
+        });
+      }
       res.write(`data: ${JSON.stringify({ type: 'done', exit_code: code })}\n\n`);
       if (!res.writableEnded) {
         res.end();
@@ -111,6 +144,7 @@ router.post('/stream', async (req, res) => {
       activeSessions.delete(sessionId);
     });
   } catch (err) {
+    log('error', { event: 'cli_spawn_failed', mode: 'stream', session_id: sessionId, request_id: req.id, error: err.message });
     res.write(`data: ${JSON.stringify({ type: 'error', message: err.message })}\n\n`);
     if (!res.writableEnded) {
       res.end();
@@ -130,20 +164,93 @@ router.get('/active', (req, res) => {
   });
 });
 
-function buildArgs({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, outputFormat = 'json' }) {
+function log(level, fields) {
+  const line = JSON.stringify({ ts: new Date().toISOString(), level, svc: 'claude-api', ...fields });
+  if (level === 'error') console.error(line);
+  else console.log(line);
+}
+
+function resolveModel(model) {
+  return model || process.env.CLAUDE_MODEL || null;
+}
+
+function resolveMaxTurns(maxTurns) {
+  return maxTurns || parseInt(process.env.MAX_TURNS || '10', 10);
+}
+
+/**
+ * The CLI prints advisory lines (e.g. the claude.ai connectors notice) to stderr
+ * on every single run, successes included. Treating stderr as the failure detail
+ * therefore masked the real cause of every failure, so drop advisories and keep
+ * only genuine stderr output.
+ */
+function stripAdvisories(stderr) {
+  return (stderr || '')
+    .split('\n')
+    .filter(line => line.trim() && !line.trimStart().startsWith('⚠'))
+    .join('\n')
+    .trim();
+}
+
+function advisoryLines(stderr) {
+  const lines = (stderr || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.startsWith('⚠'));
+  return lines.length ? lines : null;
+}
+
+/**
+ * ANTHROPIC_API_KEY must not reach the CLI. The CLI prefers it over the mounted
+ * claude.ai OAuth login, so leaving it in the environment made every prompt bill
+ * the API instead of the subscription (and emitted the connectors advisory on
+ * each run). It stays on process.env for runAnthropicFallback.
+ */
+function cliEnv() {
+  const env = { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
+  delete env.ANTHROPIC_API_KEY;
+  return env;
+}
+
+/**
+ * Build a human-readable failure reason from the CLI's own JSON output, which is
+ * where the cause actually lives. `error_max_turns` in particular carries no
+ * `result` text, so it needs spelling out.
+ */
+function describeFailure({ parsed, stderr, code, maxTurns }) {
+  const subtype = parsed?.subtype;
+
+  if (subtype === 'error_max_turns') {
+    return `hit the ${maxTurns}-turn limit without answering (stop_reason: ${parsed?.stop_reason || 'unknown'}). Raise maxTurns so tool calls can finish.`;
+  }
+
+  const real = stripAdvisories(stderr);
+  if (real) return real;
+  if (parsed?.result) return String(parsed.result);
+  if (subtype) return `CLI reported ${subtype}`;
+  return `exited with code ${code}`;
+}
+
+function buildArgs({ prompt, systemPrompt, allowedTools, model, maxTurns, outputFormat = 'json' }) {
   const args = ['-p', prompt, '--output-format', outputFormat];
+
+  // The CLI rejects stream-json without --verbose ("When using --print,
+  // --output-format=stream-json requires --verbose"), so /api/prompt/stream
+  // failed on every call until the new diagnostics surfaced it.
+  if (outputFormat === 'stream-json') {
+    args.push('--verbose');
+  }
 
   if (systemPrompt) {
     args.push('--system-prompt', systemPrompt);
   }
 
-  const resolvedModel = model || process.env.CLAUDE_MODEL;
+  const resolvedModel = resolveModel(model);
   if (resolvedModel) {
     args.push('--model', resolvedModel);
   }
 
-  const resolvedMaxTurns = maxTurns || parseInt(process.env.MAX_TURNS || '10', 10);
-  args.push('--max-turns', String(resolvedMaxTurns));
+  args.push('--max-turns', String(resolveMaxTurns(maxTurns)));
 
   if (allowedTools && Array.isArray(allowedTools)) {
     for (const tool of allowedTools) {
@@ -154,11 +261,17 @@ function buildArgs({ prompt, systemPrompt, workdir, allowedTools, model, maxTurn
   return args;
 }
 
-function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns }) {
+function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, sessionId, requestId }) {
   return new Promise((resolve, reject) => {
-    const args = buildArgs({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns });
+    const resolvedModel = resolveModel(model);
+    const resolvedMaxTurns = resolveMaxTurns(maxTurns);
+    const args = buildArgs({ prompt, systemPrompt, allowedTools, model, maxTurns });
+    const startedAt = Date.now();
+
+    log('info', { event: 'cli_start', mode: 'json', session_id: sessionId, request_id: requestId, model: resolvedModel, max_turns: resolvedMaxTurns, prompt_chars: prompt.length });
+
     const proc = spawn('claude', args, {
-      env: { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
+      env: cliEnv(),
       cwd: workdir || '/tmp',
       // Close stdin — the CLI otherwise prints a "no stdin data received in 3s"
       // warning to stderr and adds a 3s startup delay.
@@ -172,8 +285,29 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurn
     proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
 
     proc.on('close', async (code) => {
+      const duration = Date.now() - startedAt;
       let parsed = null;
       try { parsed = JSON.parse(stdout); } catch { /* not JSON */ }
+
+      const diagnostics = {
+        session_id: sessionId,
+        request_id: requestId,
+        exit_code: code,
+        signal: proc.signalCode || null,
+        duration_ms: duration,
+        model: resolvedModel,
+        max_turns: resolvedMaxTurns,
+        prompt_chars: prompt.length,
+        subtype: parsed?.subtype || null,
+        stop_reason: parsed?.stop_reason || null,
+        terminal_reason: parsed?.terminal_reason || null,
+        api_error_status: parsed?.api_error_status || null,
+        num_turns: parsed?.num_turns ?? null,
+        stdout_bytes: stdout.length,
+        stdout_parsed: parsed !== null,
+        stderr: stripAdvisories(stderr) || null,
+        advisories: advisoryLines(stderr),
+      };
 
       // CLI errors the ANTHROPIC_API_KEY path may recover from: OAuth auth
       // failures (401/403, expired Max-subscription token) and model-not-found
@@ -181,28 +315,35 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurn
       // key can). Fall back to ANTHROPIC_API_KEY so the service keeps working.
       if (parsed && parsed.is_error && [401, 403, 404].includes(parsed.api_error_status)) {
         if (!anthropic) {
+          log('error', { event: 'cli_failed', reason: 'auth_no_fallback', ...diagnostics });
           return reject(new Error(`Claude CLI auth failed (${parsed.api_error_status}) and ANTHROPIC_API_KEY is not set: ${parsed.result || 'no detail'}`));
         }
+        log('warn', { event: 'cli_fallback', reason: `api_${parsed.api_error_status}`, ...diagnostics });
         try {
           const fallback = await runAnthropicFallback({ prompt, systemPrompt, model });
+          log('info', { event: 'fallback_ok', session_id: sessionId, request_id: requestId, duration_ms: Date.now() - startedAt });
           return resolve(fallback);
         } catch (fallbackErr) {
+          log('error', { event: 'fallback_failed', error: fallbackErr.message, ...diagnostics });
           return reject(new Error(`CLI auth failed (${parsed.api_error_status}) and API-key fallback failed: ${fallbackErr.message}`));
         }
       }
 
       if (code !== 0) {
-        // Surface the real reason. The CLI reports model/usage errors as JSON on
-        // stdout (parsed.result) with an empty stderr, so a bare "exited with
-        // code N" hid the actual cause (e.g. a retired model id) until now.
-        const detail = stderr.trim() || (parsed && parsed.result) || '';
-        const statusTag = parsed && parsed.api_error_status ? ` (api ${parsed.api_error_status})` : '';
-        return reject(new Error(detail ? `Claude CLI failed${statusTag}: ${detail}` : `Claude exited with code ${code}`));
+        const detail = describeFailure({ parsed, stderr, code, maxTurns: resolvedMaxTurns });
+        const statusTag = parsed?.api_error_status ? ` (api ${parsed.api_error_status})` : '';
+        log('error', { event: 'cli_failed', detail, ...diagnostics });
+        return reject(new Error(`Claude CLI failed${statusTag}: ${detail}`));
       }
+
+      log('info', { event: 'cli_done', session_id: sessionId, request_id: requestId, duration_ms: duration, model: resolvedModel, num_turns: parsed?.num_turns ?? null, cost_usd: parsed?.total_cost_usd ?? null });
       resolve(parsed ?? stdout.trim());
     });
 
-    proc.on('error', reject);
+    proc.on('error', (err) => {
+      log('error', { event: 'cli_spawn_failed', session_id: sessionId, request_id: requestId, error: err.message });
+      reject(err);
+    });
   });
 }
 

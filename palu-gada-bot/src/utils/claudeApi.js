@@ -4,6 +4,8 @@
  * which uses the Max subscription via OAuth.
  */
 
+import { randomUUID } from 'crypto';
+
 const CLAUDE_API_URL = process.env.CLAUDE_API_URL || 'http://claude-api:3100';
 const CLAUDE_API_SECRET = process.env.CLAUDE_API_SECRET;
 
@@ -13,23 +15,32 @@ const CLAUDE_API_SECRET = process.env.CLAUDE_API_SECRET;
  * @param {object} [opts]
  * @param {string} [opts.systemPrompt] - System prompt
  * @param {string} [opts.model] - Model override
- * @param {number} [opts.maxTurns] - Max turns (default 1)
+ * @param {number} [opts.maxTurns] - Max turns (default 6)
  * @returns {Promise<{text: string, model: string, usage: object|null}>} The response
  *   text, the model claude-api used, and that model's token/cost counters
  */
 export async function askClaude(prompt, opts = {}) {
+    // Shared with claude-api so a failure reported here can be matched to the
+    // CLI diagnostics it logged for the same call.
+    const requestId = randomUUID();
+
     const res = await fetch(`${CLAUDE_API_URL}/api/prompt`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${CLAUDE_API_SECRET}`,
+            'X-Request-Id': requestId,
         },
         body: JSON.stringify({
             prompt: opts.systemPrompt
                 ? `System instructions: ${opts.systemPrompt}\n\n${prompt}`
                 : prompt,
             model: opts.model,
-            maxTurns: opts.maxTurns ?? 1,
+            // Claude often needs a tool call before it can answer. With a
+            // 1-turn budget those runs died at the turn limit, which surfaced
+            // as a random "Claude CLI failed" on roughly any question that
+            // tempted a tool. 6 leaves room for a couple of tool round-trips.
+            maxTurns: opts.maxTurns ?? 6,
         }),
     });
 
@@ -37,6 +48,8 @@ export async function askClaude(prompt, opts = {}) {
         const body = await res.json().catch(() => ({}));
         const err = new Error(body.error || `Claude API returned ${res.status}`);
         err.status = res.status;
+        err.requestId = requestId;
+        err.sessionId = body.id;
         throw err;
     }
 
@@ -54,7 +67,9 @@ export async function askClaude(prompt, opts = {}) {
     if (typeof data.result === 'string') {
         return { text: data.result, model, usage: null };
     }
-    throw new Error('Unexpected response format from Claude API');
+    const err = new Error('Unexpected response format from Claude API');
+    err.requestId = requestId;
+    throw err;
 }
 
 /**

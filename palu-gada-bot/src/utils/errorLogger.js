@@ -7,8 +7,11 @@ import { getGuildSettings, addAuditLog } from '../database/models.js';
  * @param {string} commandName - Name of the command that failed
  */
 export async function logCommandError(interaction, error, commandName) {
-    // Always log to console
-    console.error(`[ERROR] ${commandName} command error:`, error);
+    // Always log to console. The request id, when the failure came from
+    // claude-api, matches the `request_id` on that service's diagnostic log
+    // line, so the two sides of a failed call can be lined up.
+    const ref = error.requestId ? ` [request ${error.requestId}]` : '';
+    console.error(`[ERROR] ${commandName} command error${ref}:`, error);
 
     // Log to guild's log channel if configured
     if (!interaction.guildId) return;
@@ -31,32 +34,42 @@ export async function logCommandError(interaction, error, commandName) {
             }
         }
 
+        const fields = [
+            {
+                name: 'Command',
+                value: `\`/${commandName}\``,
+                inline: true,
+            },
+            {
+                name: 'User',
+                value: `${interaction.user.tag} (${interaction.user.id})`,
+                inline: true,
+            },
+            {
+                name: 'Channel',
+                value: `<#${interaction.channelId}>`,
+                inline: true,
+            },
+            {
+                name: 'Error',
+                value: `\`\`\`${errorMessage.slice(0, 1000)}\`\`\``,
+                inline: false,
+            },
+        ];
+
+        if (error.requestId) {
+            fields.push({
+                name: 'Request',
+                value: `\`${error.requestId}\`${error.status ? ` · HTTP ${error.status}` : ''}`,
+                inline: false,
+            });
+        }
+
         await logChannel.send({
             embeds: [{
                 color: 0xED4245, // Red for errors
                 title: '⚠️ Command Error',
-                fields: [
-                    {
-                        name: 'Command',
-                        value: `\`/${commandName}\``,
-                        inline: true,
-                    },
-                    {
-                        name: 'User',
-                        value: `${interaction.user.tag} (${interaction.user.id})`,
-                        inline: true,
-                    },
-                    {
-                        name: 'Channel',
-                        value: `<#${interaction.channelId}>`,
-                        inline: true,
-                    },
-                    {
-                        name: 'Error',
-                        value: `\`\`\`${errorMessage.slice(0, 1000)}\`\`\``,
-                        inline: false,
-                    },
-                ],
+                fields,
                 timestamp: new Date().toISOString(),
             }],
         }).catch(err => {
@@ -69,7 +82,7 @@ export async function logCommandError(interaction, error, commandName) {
             'COMMAND_ERROR',
             interaction.user.id,
             null,
-            `Command /${commandName} failed: ${errorMessage.slice(0, 500)}`
+            `Command /${commandName} failed${ref}: ${errorMessage.slice(0, 500)}`
         );
     } catch (logError) {
         console.error('[ERROR] Failed to log error to guild channel:', logError);
