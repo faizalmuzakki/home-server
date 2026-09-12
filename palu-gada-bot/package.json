@@ -9,8 +9,9 @@
     "deploy": "node src/deploy-commands.js",
     "dev": "node --watch src/index.js",
     "test": "node --test src/*/*.test.js",
-    "check": "node scripts/check-markdown.js",
-    "check:markdown": "node scripts/check-markdown.js"
+    "check": "node scripts/check-markdown.js && DEPLOY_ONLY=true node scripts/check-ai-footer.js",
+    "check:markdown": "node scripts/check-markdown.js",
+    "check:footer": "DEPLOY_ONLY=true node scripts/check-ai-footer.js"
   },
   "keywords": [
     "discord",

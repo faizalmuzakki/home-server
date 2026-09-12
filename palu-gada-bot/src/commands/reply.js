@@ -27,7 +27,7 @@ export async function draftReply(interaction, target, { tone, instructions, ephe
         'Output only the reply itself — no preamble, no quotes around it, no explanation.',
     ].filter(Boolean).join('\n');
 
-    const { text: draft, model } = await askClaude(prompt, {
+    const { text: draft, model, usage } = await askClaude(prompt, {
         systemPrompt: `You write short, natural chat replies as the user. Match the language of the message you are replying to. Keep it to a few sentences unless the message clearly needs more. ${DISCORD_FORMAT_PROMPT}`,
     });
 
@@ -38,7 +38,7 @@ export async function draftReply(interaction, target, { tone, instructions, ephe
             timestamp: new Date().toISOString(),
         },
         body: draft,
-        footer: getAiFooter(`Tone: ${tone}`, model),
+        footer: getAiFooter(`Tone: ${tone}`, model, usage),
         ephemeral,
         mode: 'message',
     });

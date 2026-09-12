@@ -29,3 +29,7 @@ Thumbs.db
 # Build
 dist/
 build/
+
+# Impeccable review captures and fixtures (regenerated per run)
+.impeccable/review/
+.impeccable/hook.cache.json

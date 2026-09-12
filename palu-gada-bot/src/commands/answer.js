@@ -165,7 +165,7 @@ Keep the response concise and conversational (1-3 sentences typically). Match th
             // conversational sentences in the user's own typing style, which
             // the shared format prompt's "prefer short bullet lists"
             // directly contradicts.
-            const { text: aiResponse, model } = await askClaude(prompt);
+            const { text: aiResponse, model, usage } = await askClaude(prompt);
 
             // Parse the response
             let questionText = questionMessage?.content || 'Auto-detected from conversation';
@@ -207,7 +207,7 @@ Keep the response concise and conversational (1-3 sentences typically). Match th
                     timestamp: new Date().toISOString(),
                 },
                 body: answerText,
-                footer: getAiFooter('AI-generated response based on your conversation style', model),
+                footer: getAiFooter('AI-generated response based on your conversation style', model, usage),
                 mode: 'message',
             });
         } catch (error) {
