@@ -100,9 +100,14 @@ TARGETS=(
     "homepage-config:homepage/config"
     "syncthing:syncthing/config"
     "crowdsec-config:crowdsec/config"
+    "crowdsec-data:crowdsec/data"
     "tailscale-state:tailscale/data"
     "scrutiny-config:scrutiny/config"
     "scrutiny-influxdb:scrutiny/influxdb"
+    "scrutiny-data:/data/scrutiny"
+    "paperless-data:/data/paperless/data"
+    "paperless-media:/data/paperless/media"
+    "jellyfin-config:media/jellyfin/config"
 )
 
 ITEM_COUNT=0
@@ -173,7 +178,11 @@ for entry in "${TARGETS[@]}"; do
     if [ "$target" = "__mongodump__" ]; then
         backup_mongodump
     else
-        backup_path "$label" "${REPO_DIR}/${target}"
+        if [[ "$target" =~ ^/ ]]; then
+            backup_path "$label" "$target"
+        else
+            backup_path "$label" "${REPO_DIR}/${target}"
+        fi
     fi
 done
 
