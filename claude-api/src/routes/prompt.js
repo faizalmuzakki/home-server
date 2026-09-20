@@ -366,6 +366,18 @@ async function runAnthropicFallback({ prompt, systemPrompt, model }) {
     result: text,
     via: 'anthropic-api-fallback',
     usage: resp.usage,
+    // Same shape as the CLI's own modelUsage, so callers reading token counts
+    // (palu-gada-bot's AI footer) don't go blank whenever a call falls back.
+    // costUSD stays null: the CLI computes it, we don't keep a price table.
+    modelUsage: {
+      [resolvedModel]: {
+        inputTokens: resp.usage?.input_tokens ?? 0,
+        outputTokens: resp.usage?.output_tokens ?? 0,
+        cacheReadInputTokens: resp.usage?.cache_read_input_tokens ?? 0,
+        cacheCreationInputTokens: resp.usage?.cache_creation_input_tokens ?? 0,
+        costUSD: null,
+      },
+    },
   };
 }
 
