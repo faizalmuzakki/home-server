@@ -12,6 +12,9 @@ const TONES = {
     formal: 'Formal and polite.',
 };
 
+/** Renders text as a Discord blockquote, so the embed shows it as quoted. */
+const quote = (text) => text.split('\n').map(line => `> ${line}`).join('\n');
+
 /**
  * Drafts the reply and sends it. Shared with the message context menu
  * command in reply-context.js, which resolves its target the easy way.
@@ -34,7 +37,11 @@ export async function draftReply(interaction, target, { tone, instructions, ephe
     await sendAiReply(interaction, {
         header: {
             title: '💬 Suggested reply',
-            description: `Replying to [${target.author.username}'s message](${target.url}): ${target.content.slice(0, 200)}`,
+            description: [
+                `Replying to [${target.author.username}'s message](${target.url}):`,
+                quote(target.content.slice(0, 200)),
+                instructions ? `Instructions:\n${quote(instructions)}` : '',
+            ].filter(Boolean).join('\n'),
             timestamp: new Date().toISOString(),
         },
         body: draft,
