@@ -138,8 +138,10 @@ deploy_service() {
         # transient failure here (e.g. a network-stalled `apk add`) must not take
         # the service down, so cap the build with a timeout and, on failure, leave
         # the existing containers running instead of a half-finished recreate.
-        # (A hung build with no timeout is what caused the 2026-06-18 outage.)
-        if ! execute "timeout 600 docker compose build"; then
+        # (A hung build with no timeout is what caused the 2026-06-18 outage.) The cap
+        # must clear a COLD build: the Sunday `docker system prune` drops the cache,
+        # so palu-gada-bot rebuilds apt+ffmpeg+npm from scratch (~13 min on 2026-09-20).
+        if ! execute "timeout 1800 docker compose build"; then
             log "⚠️ Build failed/timed out for $service — keeping existing containers up"
             execute "docker compose up -d --remove-orphans" || true
             exit 1
