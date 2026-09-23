@@ -6,9 +6,11 @@ import {
     VoiceConnectionStatus,
     entersState,
     demuxProbe,
+    StreamType,
 } from '@discordjs/voice';
 import { spawn, execFile } from 'child_process';
 import { promisify } from 'util';
+import { once } from 'events';
 
 const execFileAsync = promisify(execFile);
 const YTDLP_BIN = process.env.YTDLP_PATH || 'yt-dlp';
@@ -274,11 +276,47 @@ async function createStreamResource(url, seekSeconds = null) {
     args.push(url);
 
     const proc = spawn(YTDLP_BIN, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    proc.on('error', (err) => {
-        console.error('[ERROR] yt-dlp child process error:', err);
+    let stderr = '';
+    proc.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+        if (stderr.length > 5000) stderr = stderr.slice(-5000);
     });
 
-    const probe = await demuxProbe(proc.stdout);
+    proc.on('error', (err) => {
+        console.error('[ERROR] yt-dlp process spawn error:', err);
+    });
+
+    const probePromise = demuxProbe(proc.stdout);
+    const closePromise = once(proc, 'close');
+
+    const result = await Promise.race([
+        probePromise.then((probe) => ({ kind: 'probe', probe })),
+        closePromise.then(([code]) => ({ kind: 'close', code })),
+    ]);
+
+    if (result.kind === 'close') {
+        const code = result.code;
+        if (code !== 0) {
+            const errMsg = stderr.trim().split('\n').filter(Boolean).pop() || `yt-dlp exited with code ${code}`;
+            throw new Error(errMsg.replace(/^ERROR:\s*/i, ''));
+        }
+        throw new Error('yt-dlp closed stream unexpectedly without audio data');
+    }
+
+    const { probe } = result;
+
+    if (probe.type === StreamType.Arbitrary) {
+        const closeOrTimeout = await Promise.race([
+            closePromise.then(([code]) => ({ closed: true, code })),
+            new Promise((r) => setTimeout(() => r({ closed: false }), 200)),
+        ]);
+
+        if (closeOrTimeout.closed && closeOrTimeout.code !== 0) {
+            const errMsg = stderr.trim().split('\n').filter(Boolean).pop() || `yt-dlp exited with code ${closeOrTimeout.code}`;
+            throw new Error(errMsg.replace(/^ERROR:\s*/i, ''));
+        }
+    }
+
     const resource = createAudioResource(probe.stream, {
         inputType: probe.type,
         inlineVolume: true,
