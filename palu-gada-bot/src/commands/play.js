@@ -12,11 +12,11 @@ import { getGuildSettings } from '../database/models.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('play')
-        .setDescription('Play a song from YouTube or Spotify')
+        .setDescription('Play audio from YouTube, YT Music, Spotify, or search query')
         .addStringOption(option =>
             option
                 .setName('query')
-                .setDescription('YouTube/Spotify URL or search query')
+                .setDescription('URL (YouTube, YT Music, Spotify, SoundCloud) or search query')
                 .setRequired(true)
         ),
 

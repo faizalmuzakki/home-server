@@ -1,10 +1,10 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import { getQueue } from '../utils/musicPlayer.js';
+import { getQueue, getCurrentPlaybackTime, createProgressBar } from '../utils/musicPlayer.js';
 
 export default {
     data: new SlashCommandBuilder()
         .setName('nowplaying')
-        .setDescription('Show the currently playing song'),
+        .setDescription('Show the currently playing song and playback progress'),
 
     async execute(interaction) {
         const queue = getQueue(interaction.guildId);
@@ -17,6 +17,32 @@ export default {
         }
 
         const song = queue.songs[0];
+        const currentSeconds = getCurrentPlaybackTime(queue);
+        const progressBar = createProgressBar(currentSeconds, song.durationInSec);
+
+        const sourceLabel = song.source === 'spotify' ? '🟢 Spotify'
+            : song.source === 'soundcloud' ? '🟠 SoundCloud'
+            : song.source === 'bandcamp' ? '🔵 Bandcamp'
+            : '🔴 YouTube';
+
+        const nextSong = queue.songs[1];
+
+        const fields = [
+            { name: 'Progress', value: progressBar, inline: false },
+            { name: 'Requested by', value: song.requestedBy || 'Unknown', inline: true },
+            { name: 'Source', value: sourceLabel, inline: true },
+            { name: 'Volume', value: `🔊 ${queue.volume}%`, inline: true },
+            { name: 'Loop', value: queue.loop ? '🔁 Enabled' : '❌ Disabled', inline: true },
+            { name: 'Queue', value: `${queue.songs.length} song(s)`, inline: true },
+        ];
+
+        if (nextSong) {
+            fields.push({
+                name: 'Next Up',
+                value: `**[${nextSong.title}](${nextSong.url})** [${nextSong.duration}]`,
+                inline: false,
+            });
+        }
 
         await interaction.reply({
             embeds: [{
@@ -24,13 +50,7 @@ export default {
                 title: '🎵 Now Playing',
                 description: `**[${song.title}](${song.url})**`,
                 thumbnail: song.thumbnail ? { url: song.thumbnail } : undefined,
-                fields: [
-                    { name: 'Duration', value: song.duration || 'Unknown', inline: true },
-                    { name: 'Requested by', value: song.requestedBy || 'Unknown', inline: true },
-                    { name: 'Source', value: song.source === 'spotify' ? '🟢 Spotify' : '🔴 YouTube', inline: true },
-                    { name: 'Loop', value: queue.loop ? '🔁 Enabled' : '❌ Disabled', inline: true },
-                    { name: 'Queue', value: `${queue.songs.length} song(s)`, inline: true },
-                ],
+                fields,
             }],
         });
     },
