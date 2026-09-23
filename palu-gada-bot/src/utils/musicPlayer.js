@@ -5,9 +5,13 @@ import {
     AudioPlayerStatus,
     VoiceConnectionStatus,
     entersState,
-    getVoiceConnection,
+    demuxProbe,
 } from '@discordjs/voice';
-import play from 'play-dl';
+import { spawn, execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
+const YTDLP_BIN = process.env.YTDLP_PATH || 'yt-dlp';
 
 // Store queues for each guild
 const queues = new Map();
@@ -22,15 +26,18 @@ export function getQueue(guildId) {
 /**
  * Create a new queue for a guild
  */
-export function createQueue(guildId, voiceChannel, textChannel) {
+export function createQueue(guildId, voiceChannel, textChannel, initialVolume = 100) {
     const queue = {
         guildId,
         voiceChannel,
         textChannel,
         connection: null,
         player: null,
+        resource: null,
+        process: null,
+        idleTimer: null,
         songs: [],
-        volume: 100,
+        volume: initialVolume,
         playing: false,
         loop: false,
     };
@@ -45,131 +52,192 @@ export function createQueue(guildId, voiceChannel, textChannel) {
 export function deleteQueue(guildId) {
     const queue = queues.get(guildId);
     if (queue) {
+        if (queue.idleTimer) {
+            clearTimeout(queue.idleTimer);
+            queue.idleTimer = null;
+        }
+        if (queue.process) {
+            try { queue.process.kill('SIGTERM'); } catch {}
+            queue.process = null;
+        }
         if (queue.player) {
-            queue.player.stop();
+            try { queue.player.stop(true); } catch {}
         }
         if (queue.connection) {
-            queue.connection.destroy();
+            try { queue.connection.destroy(); } catch {}
         }
         queues.delete(guildId);
     }
 }
 
 /**
- * Parse a URL and get song info
+ * Format duration from seconds to MM:SS or HH:MM:SS
+ */
+export function formatDuration(seconds) {
+    if (!seconds || isNaN(seconds)) return 'Unknown';
+
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Execute yt-dlp to extract metadata JSON
+ */
+async function runYtdlp(args) {
+    const defaultArgs = ['--no-warnings'];
+    const { stdout } = await execFileAsync(YTDLP_BIN, [...defaultArgs, ...args], {
+        maxBuffer: 10 * 1024 * 1024,
+    });
+    return stdout;
+}
+
+function parseYtdlpItem(item) {
+    let url = item.webpage_url || item.url;
+    if (!url && item.id) {
+        url = `https://www.youtube.com/watch?v=${item.id}`;
+    }
+    let thumbnail = item.thumbnail;
+    if (!thumbnail && Array.isArray(item.thumbnails) && item.thumbnails.length > 0) {
+        thumbnail = item.thumbnails[item.thumbnails.length - 1].url;
+    }
+
+    return {
+        title: item.title,
+        url,
+        duration: item.duration_string || formatDuration(item.duration),
+        durationInSec: item.duration || 0,
+        thumbnail,
+        requestedBy: null,
+        source: item.extractor || 'youtube',
+    };
+}
+
+/**
+ * Resolve single track using yt-dlp search
+ */
+async function searchSingleTrack(query, source = 'youtube') {
+    const stdout = await runYtdlp(['--dump-json', '--no-playlist', `ytsearch1:${query}`]);
+    const lines = stdout.trim().split('\n').filter(Boolean);
+    if (lines.length === 0) {
+        throw new Error(`No results found for "${query}"`);
+    }
+    const song = parseYtdlpItem(JSON.parse(lines[0]));
+    if (source) song.source = source;
+    return song;
+}
+
+/**
+ * Parse a URL or search query and get song info
  */
 export async function getSongInfo(query) {
+    const trimmed = query.trim();
+
     try {
-        // Check if it's a Spotify URL
-        if (play.is_expired()) {
-            await play.refreshToken();
-        }
+        // Spotify URL handling
+        if (trimmed.includes('spotify.com')) {
+            if (trimmed.includes('/track/')) {
+                let title = '';
+                let artist = '';
+                let thumbnail = null;
 
-        // Spotify URL
-        if (query.includes('spotify.com')) {
-            const spotifyType = play.sp_validate(query);
-
-            if (spotifyType === 'track') {
-                const spotifyData = await play.spotify(query);
-                // Search for the song on YouTube
-                const searched = await play.search(`${spotifyData.name} ${spotifyData.artists[0]?.name || ''}`, {
-                    limit: 1,
-                    source: { youtube: 'video' },
-                });
-
-                if (searched.length === 0) {
-                    throw new Error('Could not find this Spotify track on YouTube');
+                // 1. oEmbed lookup for track title & thumbnail
+                try {
+                    const oembedRes = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(trimmed)}`);
+                    if (oembedRes.ok) {
+                        const oembed = await oembedRes.json();
+                        title = oembed.title || '';
+                        thumbnail = oembed.thumbnail_url || null;
+                    }
+                } catch (err) {
+                    console.warn('[WARN] Spotify oEmbed failed:', err.message);
                 }
 
-                return {
-                    title: spotifyData.name,
-                    url: searched[0].url,
-                    duration: formatDuration(searched[0].durationInSec),
-                    thumbnail: spotifyData.thumbnail?.url || searched[0].thumbnails[0]?.url,
-                    requestedBy: null,
-                    source: 'spotify',
-                };
-            } else if (spotifyType === 'playlist' || spotifyType === 'album') {
-                const spotifyPlaylist = await play.spotify(query);
-                const tracks = await spotifyPlaylist.all_tracks();
+                // 2. Fetch track page for artist from og:description
+                try {
+                    const pageRes = await fetch(trimmed, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                    if (pageRes.ok) {
+                        const html = await pageRes.text();
+                        const ogDesc = html.match(/<meta property="og:description" content="([^"]+)"/);
+                        if (ogDesc && ogDesc[1]) {
+                            artist = ogDesc[1].split('·')[0].split('•')[0].trim();
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[WARN] Spotify HTML scrape failed:', err.message);
+                }
+
+                const searchString = `${title} ${artist}`.trim() || trimmed;
+                const song = await searchSingleTrack(searchString, 'spotify');
+                if (thumbnail) song.thumbnail = thumbnail;
+                return song;
+            }
+
+            if (trimmed.includes('/playlist/') || trimmed.includes('/album/')) {
+                // Fetch embed page containing __NEXT_DATA__ tracklist
+                const embedUrl = trimmed.replace('open.spotify.com/', 'open.spotify.com/embed/');
+                const embedRes = await fetch(embedUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                if (!embedRes.ok) {
+                    throw new Error(`Failed to load Spotify embed (HTTP ${embedRes.status})`);
+                }
+                const html = await embedRes.text();
+                const match = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
+                if (!match) {
+                    throw new Error('Could not parse Spotify playlist structure.');
+                }
+                const data = JSON.parse(match[1]);
+                const trackList = data.props?.pageProps?.state?.data?.entity?.trackList;
+                if (!trackList || trackList.length === 0) {
+                    throw new Error('Spotify playlist or album is empty.');
+                }
 
                 const songs = [];
-                for (const track of tracks.slice(0, 50)) { // Limit to 50 tracks
+                for (const track of trackList.slice(0, 50)) {
                     try {
-                        const searched = await play.search(`${track.name} ${track.artists[0]?.name || ''}`, {
-                            limit: 1,
-                            source: { youtube: 'video' },
-                        });
-
-                        if (searched.length > 0) {
-                            songs.push({
-                                title: track.name,
-                                url: searched[0].url,
-                                duration: formatDuration(searched[0].durationInSec),
-                                thumbnail: track.thumbnail?.url || searched[0].thumbnails[0]?.url,
-                                requestedBy: null,
-                                source: 'spotify',
-                            });
-                        }
+                        const search = `${track.title} ${track.subtitle || ''}`.trim();
+                        const song = await searchSingleTrack(search, 'spotify');
+                        songs.push(song);
                     } catch {
-                        // Skip tracks that can't be found
+                        // Skip tracks not found on YouTube
                     }
                 }
 
+                if (songs.length === 0) {
+                    throw new Error('Could not find tracks from Spotify playlist on YouTube.');
+                }
                 return songs;
             }
         }
 
-        // YouTube URL
-        if (query.includes('youtube.com') || query.includes('youtu.be')) {
-            const ytType = play.yt_validate(query);
+        const isUrl = /^https?:\/\//i.test(trimmed);
+        const isYtPlaylist = trimmed.includes('youtube.com/playlist');
 
-            if (ytType === 'video') {
-                const videoInfo = await play.video_info(query);
-                const video = videoInfo.video_details;
-
-                return {
-                    title: video.title,
-                    url: video.url,
-                    duration: formatDuration(video.durationInSec),
-                    thumbnail: video.thumbnails[0]?.url,
-                    requestedBy: null,
-                    source: 'youtube',
-                };
-            } else if (ytType === 'playlist') {
-                const playlist = await play.playlist_info(query, { incomplete: true });
-                const videos = await playlist.all_videos();
-
-                return videos.slice(0, 50).map(video => ({
-                    title: video.title,
-                    url: video.url,
-                    duration: formatDuration(video.durationInSec),
-                    thumbnail: video.thumbnails[0]?.url,
-                    requestedBy: null,
-                    source: 'youtube',
-                }));
+        if (isYtPlaylist) {
+            const stdout = await runYtdlp(['--dump-json', '--flat-playlist', trimmed]);
+            const lines = stdout.trim().split('\n').filter(Boolean);
+            if (lines.length === 0) {
+                throw new Error('Playlist is empty or unavailable.');
             }
+            return lines.slice(0, 50).map(l => parseYtdlpItem(JSON.parse(l)));
         }
 
-        // Search query - search on YouTube
-        const searched = await play.search(query, {
-            limit: 1,
-            source: { youtube: 'video' },
-        });
-
-        if (searched.length === 0) {
-            throw new Error('No results found for your search');
+        if (isUrl) {
+            // Single URL (pass --no-playlist in case of radio/mix lists)
+            const stdout = await runYtdlp(['--dump-json', '--no-playlist', trimmed]);
+            const lines = stdout.trim().split('\n').filter(Boolean);
+            if (lines.length === 0) {
+                throw new Error('Could not retrieve media info for this URL.');
+            }
+            return parseYtdlpItem(JSON.parse(lines[0]));
         }
 
-        const video = searched[0];
-        return {
-            title: video.title,
-            url: video.url,
-            duration: formatDuration(video.durationInSec),
-            thumbnail: video.thumbnails[0]?.url,
-            requestedBy: null,
-            source: 'youtube',
-        };
+        // Search query
+        return await searchSingleTrack(trimmed, 'youtube');
     } catch (error) {
         console.error('[ERROR] Error getting song info:', error);
         throw error;
@@ -196,13 +264,39 @@ export async function connectToChannel(voiceChannel) {
 }
 
 /**
+ * Spawn yt-dlp and create Discord audio resource
+ */
+async function createStreamResource(url, seekSeconds = null) {
+    const args = ['-o', '-', '-f', 'ba/b', '--quiet', '--no-warnings'];
+    if (seekSeconds && seekSeconds > 0) {
+        args.unshift('--download-sections', `*${seekSeconds}-inf`);
+    }
+    args.push(url);
+
+    const proc = spawn(YTDLP_BIN, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    proc.on('error', (err) => {
+        console.error('[ERROR] yt-dlp child process error:', err);
+    });
+
+    const probe = await demuxProbe(proc.stdout);
+    const resource = createAudioResource(probe.stream, {
+        inputType: probe.type,
+        inlineVolume: true,
+    });
+
+    return { resource, proc };
+}
+
+/**
  * Play a song in the queue
  */
 export async function playSong(queue) {
     if (queue.songs.length === 0) {
         queue.playing = false;
+        queue.resource = null;
+        if (queue.idleTimer) clearTimeout(queue.idleTimer);
         // Leave after 5 minutes of inactivity
-        setTimeout(() => {
+        queue.idleTimer = setTimeout(() => {
             const currentQueue = getQueue(queue.guildId);
             if (currentQueue && !currentQueue.playing && currentQueue.songs.length === 0) {
                 deleteQueue(queue.guildId);
@@ -212,28 +306,42 @@ export async function playSong(queue) {
         return;
     }
 
+    if (queue.idleTimer) {
+        clearTimeout(queue.idleTimer);
+        queue.idleTimer = null;
+    }
+
     const song = queue.songs[0];
     queue.playing = true;
 
     try {
-        // Get audio stream
-        const stream = await play.stream(song.url);
+        if (queue.process) {
+            try { queue.process.kill('SIGTERM'); } catch {}
+            queue.process = null;
+        }
 
-        const resource = createAudioResource(stream.stream, {
-            inputType: stream.type,
-        });
+        const { resource, proc } = await createStreamResource(song.url);
+        queue.process = proc;
+        queue.resource = resource;
+
+        if (resource.volume) {
+            resource.volume.setVolume(queue.volume / 100);
+        }
 
         // Create player if it doesn't exist
         if (!queue.player) {
             queue.player = createAudioPlayer();
 
-            // Handle player state changes
             queue.player.on(AudioPlayerStatus.Idle, () => {
+                if (queue.process) {
+                    try { queue.process.kill('SIGTERM'); } catch {}
+                    queue.process = null;
+                }
+                queue.resource = null;
+
                 if (queue.loop) {
-                    // Replay the same song
                     playSong(queue);
                 } else {
-                    // Move to next song
                     queue.songs.shift();
                     playSong(queue);
                 }
@@ -241,19 +349,22 @@ export async function playSong(queue) {
 
             queue.player.on('error', (error) => {
                 console.error('[ERROR] Audio player error:', error);
+                if (queue.process) {
+                    try { queue.process.kill('SIGTERM'); } catch {}
+                    queue.process = null;
+                }
+                queue.resource = null;
                 queue.songs.shift();
                 playSong(queue);
             });
         }
 
-        // Subscribe connection to player
         if (queue.connection) {
             queue.connection.subscribe(queue.player);
         }
 
         queue.player.play(resource);
 
-        // Send now playing message
         await queue.textChannel.send({
             embeds: [{
                 color: 0x00ff00,
@@ -268,6 +379,11 @@ export async function playSong(queue) {
         });
     } catch (error) {
         console.error('[ERROR] Error playing song:', error);
+        if (queue.process) {
+            try { queue.process.kill('SIGTERM'); } catch {}
+            queue.process = null;
+        }
+        queue.resource = null;
         await queue.textChannel.send(`Error playing **${song.title}**: ${error.message}`);
         queue.songs.shift();
         playSong(queue);
@@ -275,27 +391,16 @@ export async function playSong(queue) {
 }
 
 /**
- * Format duration from seconds to MM:SS or HH:MM:SS
- */
-function formatDuration(seconds) {
-    if (!seconds || isNaN(seconds)) return 'Unknown';
-
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-
-    if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-}
-
-/**
  * Skip the current song
  */
 export function skipSong(queue) {
     if (queue.player) {
-        queue.loop = false; // Disable loop when skipping
+        queue.loop = false;
+        if (queue.process) {
+            try { queue.process.kill('SIGTERM'); } catch {}
+            queue.process = null;
+        }
+        queue.resource = null;
         queue.player.stop();
     }
 }
@@ -323,6 +428,11 @@ export function resumeSong(queue) {
  */
 export function clearQueue(queue) {
     queue.songs = [];
+    if (queue.process) {
+        try { queue.process.kill('SIGTERM'); } catch {}
+        queue.process = null;
+    }
+    queue.resource = null;
     if (queue.player) {
         queue.player.stop();
     }
@@ -351,14 +461,24 @@ export function toggleLoop(queue) {
 }
 
 /**
- * Seek to a specific position in the current song by rebuilding the audio resource.
- * play-dl supports a `seek` option on stream() that starts the stream at the given offset.
+ * Seek to a specific position in the current song
  */
 export async function seekSong(queue, seconds) {
     const song = queue.songs[0];
     if (!song || !queue.player) return;
 
-    const stream = await play.stream(song.url, { seek: seconds });
-    const resource = createAudioResource(stream.stream, { inputType: stream.type });
+    if (queue.process) {
+        try { queue.process.kill('SIGTERM'); } catch {}
+        queue.process = null;
+    }
+
+    const { resource, proc } = await createStreamResource(song.url, seconds);
+    queue.process = proc;
+    queue.resource = resource;
+
+    if (resource.volume) {
+        resource.volume.setVolume(queue.volume / 100);
+    }
+
     queue.player.play(resource);
 }
