@@ -7,6 +7,7 @@ import {
     connectToChannel,
     playSong,
 } from '../utils/musicPlayer.js';
+import { getGuildSettings } from '../database/models.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -51,7 +52,9 @@ export default {
             let queue = getQueue(interaction.guildId);
 
             if (!queue) {
-                queue = createQueue(interaction.guildId, voiceChannel, interaction.channel);
+                const settings = getGuildSettings(interaction.guildId);
+                const initialVolume = settings?.volume ?? 100;
+                queue = createQueue(interaction.guildId, voiceChannel, interaction.channel, initialVolume);
 
                 // Connect to voice channel
                 queue.connection = await connectToChannel(voiceChannel);

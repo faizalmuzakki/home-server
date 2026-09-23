@@ -54,10 +54,11 @@ export default {
         updateGuildSetting(interaction.guildId, 'volume', newVolume);
 
         // Apply volume to current player if playing
-        if (queue && queue.resource) {
-            // Note: Volume control with @discordjs/voice requires an inline volume transformer
-            // which needs to be set up when creating the audio resource
-            // For now, we'll save the setting for future playback
+        if (queue) {
+            queue.volume = newVolume;
+            if (queue.resource?.volume) {
+                queue.resource.volume.setVolume(newVolume / 100);
+            }
         }
 
         const volumeBar = createVolumeBar(newVolume);
