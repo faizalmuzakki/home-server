@@ -70,10 +70,11 @@ http:
     compress:
       compress: {}
 
-    # Chain: secure defaults (headers + rate limit)
+    # Chain: secure defaults (headers + rate limit + CrowdSec bouncer)
     secure-defaults:
       chain:
         middlewares:
+          - crowdsec-bouncer@docker
           - secure-headers
           - rate-limit
           - compress
