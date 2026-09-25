@@ -38,6 +38,9 @@ export function createQueue(guildId, voiceChannel, textChannel, initialVolume = 
         resource: null,
         process: null,
         idleTimer: null,
+        playbackStartedAt: null,
+        playbackSeekOffset: 0,
+        pausedAt: null,
         songs: [],
         volume: initialVolume,
         playing: false,
@@ -76,16 +79,50 @@ export function deleteQueue(guildId) {
  * Format duration from seconds to MM:SS or HH:MM:SS
  */
 export function formatDuration(seconds) {
-    if (!seconds || isNaN(seconds)) return 'Unknown';
+    if (seconds === null || seconds === undefined || isNaN(seconds)) return 'Unknown';
 
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
+    const totalSecs = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(totalSecs / 3600);
+    const minutes = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
 
     if (hours > 0) {
         return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Calculate current playback position in seconds
+ */
+export function getCurrentPlaybackTime(queue) {
+    if (!queue || !queue.playing || !queue.playbackStartedAt) return 0;
+    const now = queue.pausedAt || Date.now();
+    const elapsed = Math.max(0, (now - queue.playbackStartedAt) / 1000);
+    return Math.floor(elapsed + (queue.playbackSeekOffset || 0));
+}
+
+/**
+ * Create a visual progress bar for playback status
+ */
+export function createProgressBar(currentSeconds, totalSeconds, length = 15) {
+    if (!totalSeconds || isNaN(totalSeconds) || totalSeconds <= 0) {
+        return `[🔘${'─'.repeat(length - 1)}] \`${formatDuration(currentSeconds)} / Live\``;
+    }
+    const progress = Math.min(Math.max(currentSeconds / totalSeconds, 0), 1);
+    const progressIndex = Math.round(progress * (length - 1));
+    const before = '─'.repeat(progressIndex);
+    const after = '─'.repeat(length - 1 - progressIndex);
+    return `[${before}🔘${after}] \`${formatDuration(currentSeconds)} / ${formatDuration(totalSeconds)}\``;
+}
+
+/**
+ * Calculate total duration of all tracks in the queue
+ */
+export function getTotalQueueDuration(queue) {
+    if (!queue || queue.songs.length === 0) return '0:00';
+    const totalSecs = queue.songs.reduce((acc, song) => acc + (song.durationInSec || 0), 0);
+    return formatDuration(totalSecs);
 }
 
 /**
@@ -109,14 +146,18 @@ function parseYtdlpItem(item) {
         thumbnail = item.thumbnails[item.thumbnails.length - 1].url;
     }
 
+    const durationInSec = typeof item.duration === 'number' ? Math.floor(item.duration) : 0;
+    let source = String(item.extractor || 'youtube').toLowerCase();
+    if (source.includes('youtube')) source = 'youtube';
+
     return {
-        title: item.title,
+        title: item.title || 'Unknown Title',
         url,
-        duration: item.duration_string || formatDuration(item.duration),
-        durationInSec: item.duration || 0,
+        duration: item.duration_string || (durationInSec ? formatDuration(durationInSec) : 'Unknown'),
+        durationInSec,
         thumbnail,
         requestedBy: null,
-        source: item.extractor || 'youtube',
+        source,
     };
 }
 
@@ -135,12 +176,46 @@ async function searchSingleTrack(query, source = 'youtube') {
 }
 
 /**
+ * Batch resolve multiple track queries on YouTube concurrently
+ */
+async function resolveTracksBatch(tracks, source = 'spotify', batchSize = 6) {
+    const results = [];
+    for (let i = 0; i < tracks.length; i += batchSize) {
+        const chunk = tracks.slice(i, i + batchSize);
+        const resolved = await Promise.all(
+            chunk.map(async (t) => {
+                try {
+                    const search = `${t.title} ${t.subtitle || ''}`.trim();
+                    return await searchSingleTrack(search, source);
+                } catch {
+                    return null;
+                }
+            })
+        );
+        for (const s of resolved) {
+            if (s) results.push(s);
+        }
+    }
+    return results;
+}
+
+/**
  * Parse a URL or search query and get song info
  */
 export async function getSongInfo(query) {
-    const trimmed = query.trim();
+    let trimmed = query.trim();
 
     try {
+        // Expand Spotify shortened links (e.g. spotify.link/...)
+        if (/^https?:\/\/(spotify\.link|spotify\.app\.link)\//i.test(trimmed)) {
+            try {
+                const headRes = await fetch(trimmed, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
+                if (headRes.url) trimmed = headRes.url;
+            } catch (err) {
+                console.warn('[WARN] Spotify link expansion failed:', err.message);
+            }
+        }
+
         // Spotify URL handling
         if (trimmed.includes('spotify.com')) {
             if (trimmed.includes('/track/')) {
@@ -180,7 +255,7 @@ export async function getSongInfo(query) {
                 return song;
             }
 
-            if (trimmed.includes('/playlist/') || trimmed.includes('/album/')) {
+            if (trimmed.includes('/playlist/') || trimmed.includes('/album/') || trimmed.includes('/artist/')) {
                 // Fetch embed page containing __NEXT_DATA__ tracklist
                 const embedUrl = trimmed.replace('open.spotify.com/', 'open.spotify.com/embed/');
                 const embedRes = await fetch(embedUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -190,46 +265,41 @@ export async function getSongInfo(query) {
                 const html = await embedRes.text();
                 const match = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
                 if (!match) {
-                    throw new Error('Could not parse Spotify playlist structure.');
+                    throw new Error('Could not parse Spotify structure.');
                 }
                 const data = JSON.parse(match[1]);
                 const trackList = data.props?.pageProps?.state?.data?.entity?.trackList;
                 if (!trackList || trackList.length === 0) {
-                    throw new Error('Spotify playlist or album is empty.');
+                    throw new Error('Spotify playlist, album, or artist track list is empty.');
                 }
 
-                const songs = [];
-                for (const track of trackList.slice(0, 50)) {
-                    try {
-                        const search = `${track.title} ${track.subtitle || ''}`.trim();
-                        const song = await searchSingleTrack(search, 'spotify');
-                        songs.push(song);
-                    } catch {
-                        // Skip tracks not found on YouTube
-                    }
-                }
+                const songs = await resolveTracksBatch(trackList.slice(0, 50), 'spotify');
 
                 if (songs.length === 0) {
-                    throw new Error('Could not find tracks from Spotify playlist on YouTube.');
+                    throw new Error('Could not find tracks from Spotify on YouTube.');
                 }
                 return songs;
             }
         }
 
         const isUrl = /^https?:\/\//i.test(trimmed);
-        const isYtPlaylist = trimmed.includes('youtube.com/playlist');
+        const isYtPlaylistOrMix = isUrl && (
+            trimmed.includes('youtube.com/playlist') ||
+            trimmed.includes('music.youtube.com/playlist') ||
+            (/[?&]list=/i.test(trimmed) && (trimmed.includes('youtube.com') || trimmed.includes('youtu.be') || trimmed.includes('music.youtube.com')))
+        );
 
-        if (isYtPlaylist) {
+        if (isYtPlaylistOrMix) {
             const stdout = await runYtdlp(['--dump-json', '--flat-playlist', trimmed]);
             const lines = stdout.trim().split('\n').filter(Boolean);
             if (lines.length === 0) {
                 throw new Error('Playlist is empty or unavailable.');
             }
-            return lines.slice(0, 50).map(l => parseYtdlpItem(JSON.parse(l)));
+            return lines.slice(0, 50).map((l) => parseYtdlpItem(JSON.parse(l)));
         }
 
         if (isUrl) {
-            // Single URL (pass --no-playlist in case of radio/mix lists)
+            // Single URL (pass --no-playlist in case of radio/mix lists or fallback)
             const stdout = await runYtdlp(['--dump-json', '--no-playlist', trimmed]);
             const lines = stdout.trim().split('\n').filter(Boolean);
             if (lines.length === 0) {
@@ -332,6 +402,9 @@ export async function playSong(queue) {
     if (queue.songs.length === 0) {
         queue.playing = false;
         queue.resource = null;
+        queue.playbackStartedAt = null;
+        queue.playbackSeekOffset = 0;
+        queue.pausedAt = null;
         if (queue.idleTimer) clearTimeout(queue.idleTimer);
         // Leave after 5 minutes of inactivity
         queue.idleTimer = setTimeout(() => {
@@ -361,6 +434,9 @@ export async function playSong(queue) {
         const { resource, proc } = await createStreamResource(song.url);
         queue.process = proc;
         queue.resource = resource;
+        queue.playbackStartedAt = Date.now();
+        queue.playbackSeekOffset = 0;
+        queue.pausedAt = null;
 
         if (resource.volume) {
             resource.volume.setVolume(queue.volume / 100);
@@ -376,6 +452,9 @@ export async function playSong(queue) {
                     queue.process = null;
                 }
                 queue.resource = null;
+                queue.playbackStartedAt = null;
+                queue.playbackSeekOffset = 0;
+                queue.pausedAt = null;
 
                 if (queue.loop) {
                     playSong(queue);
@@ -392,6 +471,9 @@ export async function playSong(queue) {
                     queue.process = null;
                 }
                 queue.resource = null;
+                queue.playbackStartedAt = null;
+                queue.playbackSeekOffset = 0;
+                queue.pausedAt = null;
                 queue.songs.shift();
                 playSong(queue);
             });
@@ -422,6 +504,9 @@ export async function playSong(queue) {
             queue.process = null;
         }
         queue.resource = null;
+        queue.playbackStartedAt = null;
+        queue.playbackSeekOffset = 0;
+        queue.pausedAt = null;
         await queue.textChannel.send(`Error playing **${song.title}**: ${error.message}`);
         queue.songs.shift();
         playSong(queue);
@@ -444,10 +529,28 @@ export function skipSong(queue) {
 }
 
 /**
+ * Skip to a specific track index in the queue
+ */
+export function skipToTrack(queue, index) {
+    if (!queue || !queue.player || index < 1 || index >= queue.songs.length) return false;
+    queue.loop = false;
+    // Remove intermediate songs so target song becomes next (index 1 -> index 0 on stop)
+    queue.songs.splice(1, index - 1);
+    if (queue.process) {
+        try { queue.process.kill('SIGTERM'); } catch {}
+        queue.process = null;
+    }
+    queue.resource = null;
+    queue.player.stop();
+    return true;
+}
+
+/**
  * Pause playback
  */
 export function pauseSong(queue) {
     if (queue.player) {
+        if (!queue.pausedAt) queue.pausedAt = Date.now();
         queue.player.pause();
     }
 }
@@ -457,6 +560,12 @@ export function pauseSong(queue) {
  */
 export function resumeSong(queue) {
     if (queue.player) {
+        if (queue.pausedAt) {
+            if (queue.playbackStartedAt) {
+                queue.playbackStartedAt += (Date.now() - queue.pausedAt);
+            }
+            queue.pausedAt = null;
+        }
         queue.player.unpause();
     }
 }
@@ -471,6 +580,9 @@ export function clearQueue(queue) {
         queue.process = null;
     }
     queue.resource = null;
+    queue.playbackStartedAt = null;
+    queue.playbackSeekOffset = 0;
+    queue.pausedAt = null;
     if (queue.player) {
         queue.player.stop();
     }
@@ -513,6 +625,9 @@ export async function seekSong(queue, seconds) {
     const { resource, proc } = await createStreamResource(song.url, seconds);
     queue.process = proc;
     queue.resource = resource;
+    queue.playbackStartedAt = Date.now();
+    queue.playbackSeekOffset = seconds;
+    queue.pausedAt = null;
 
     if (resource.volume) {
         resource.volume.setVolume(queue.volume / 100);
