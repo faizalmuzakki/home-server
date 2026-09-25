@@ -10,8 +10,6 @@ if [ -f "${SCRIPT_DIR}/../.env" ]; then
     source "${SCRIPT_DIR}/../.env"
 fi
 
-MONGO_USER="${MONGO_ROOT_USERNAME:-admin}"
-MONGO_PASS="${MONGO_ROOT_PASSWORD:-}"
 SHARED_PATH="/shared/imports"
 
 # Parse arguments
@@ -31,11 +29,6 @@ if [ -z "$DB_NAME" ]; then
     exit 1
 fi
 
-if [ -z "$MONGO_PASS" ]; then
-    echo "❌ Error: MONGO_ROOT_PASSWORD not set. Check your .env file."
-    exit 1
-fi
-
 echo "🔄 Importing database: ${DB_NAME}"
 echo "   From: /shared/imports/${DB_NAME}"
 echo "   Drop existing: ${DROP_FLAG:-no}"
@@ -51,8 +44,6 @@ fi
 
 # Run mongorestore
 docker exec mongodb mongorestore \
-    --uri="mongodb://${MONGO_USER}:${MONGO_PASS}@localhost:27017" \
-    --authenticationDatabase=admin \
     --nsInclude="${DB_NAME}.*" \
     ${DROP_FLAG} \
     "/shared/imports/${DB_NAME}"
@@ -60,4 +51,4 @@ docker exec mongodb mongorestore \
 echo "✅ Import complete!"
 echo ""
 echo "Verify with:"
-echo "  docker exec mongodb mongosh -u ${MONGO_USER} -p --eval 'use ${DB_NAME}; db.getCollectionNames()'"
+echo "  docker exec mongodb mongosh --eval 'use ${DB_NAME}; db.getCollectionNames()'"

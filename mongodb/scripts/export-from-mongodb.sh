@@ -10,8 +10,6 @@ if [ -f "${SCRIPT_DIR}/../.env" ]; then
     source "${SCRIPT_DIR}/../.env"
 fi
 
-MONGO_USER="${MONGO_ROOT_USERNAME:-admin}"
-MONGO_PASS="${MONGO_ROOT_PASSWORD:-}"
 EXPORT_PATH="/shared/exports"
 
 DB_NAME="${1:-}"
@@ -20,12 +18,7 @@ if [ -z "$DB_NAME" ]; then
     echo "Usage: $0 <database_name>"
     echo ""
     echo "Available databases:"
-    docker exec mongodb mongosh -u "${MONGO_USER}" -p "${MONGO_PASS}" --quiet --eval 'db.adminCommand("listDatabases").databases.forEach(d => print("  - " + d.name))'
-    exit 1
-fi
-
-if [ -z "$MONGO_PASS" ]; then
-    echo "❌ Error: MONGO_ROOT_PASSWORD not set. Check your .env file."
+    docker exec mongodb mongosh --quiet --eval 'db.adminCommand("listDatabases").databases.forEach(d => print("  - " + d.name))'
     exit 1
 fi
 
@@ -40,8 +33,6 @@ docker exec mongodb mkdir -p "${EXPORT_DIR}"
 
 # Run mongodump
 docker exec mongodb mongodump \
-    --uri="mongodb://${MONGO_USER}:${MONGO_PASS}@localhost:27017" \
-    --authenticationDatabase=admin \
     --db="${DB_NAME}" \
     --out="${EXPORT_DIR}"
 

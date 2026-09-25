@@ -2,10 +2,8 @@ services:
   mongodb:
     image: mongo:8.0
     container_name: mongodb
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    restart: always
+    # No auth on purpose: bound to 127.0.0.1 so `mongorestore . --drop` works without creds.
     ports:
       - "127.0.0.1:27017:27017"
     volumes:
@@ -14,7 +12,6 @@ services:
       - ${SHARED_DATA_PATH:-/data/shared}:/shared
     networks:
       - mongodb_network
-      - traefik-public
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 30s
@@ -27,5 +24,3 @@ services:
 networks:
   mongodb_network:
     driver: bridge
-  traefik-public:
-    external: true
