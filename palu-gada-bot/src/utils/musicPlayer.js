@@ -147,15 +147,13 @@ function parseYtdlpItem(item) {
     }
 
     const durationInSec = typeof item.duration === 'number' ? Math.floor(item.duration) : 0;
-    let source = item.extractor || 'youtube';
-    if (typeof source === 'string' && source.toLowerCase().includes('youtube')) {
-        source = 'youtube';
-    }
+    let source = String(item.extractor || 'youtube').toLowerCase();
+    if (source.includes('youtube')) source = 'youtube';
 
     return {
         title: item.title || 'Unknown Title',
         url,
-        duration: item.duration_string || formatDuration(durationInSec),
+        duration: item.duration_string || (durationInSec ? formatDuration(durationInSec) : 'Unknown'),
         durationInSec,
         thumbnail,
         requestedBy: null,
@@ -209,7 +207,7 @@ export async function getSongInfo(query) {
 
     try {
         // Expand Spotify shortened links (e.g. spotify.link/...)
-        if (trimmed.includes('spotify.link') || trimmed.includes('spotify.app.link')) {
+        if (/^https?:\/\/(spotify\.link|spotify\.app\.link)\//i.test(trimmed)) {
             try {
                 const headRes = await fetch(trimmed, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
                 if (headRes.url) trimmed = headRes.url;
