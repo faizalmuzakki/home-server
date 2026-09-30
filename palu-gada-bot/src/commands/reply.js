@@ -3,6 +3,7 @@ import { logCommandError } from '../utils/errorLogger.js';
 import { askClaude } from '../utils/claudeApi.js';
 import { getAiFooter, DISCORD_FORMAT_PROMPT } from '../config/ai.js';
 import { sendAiReply } from '../utils/aiReply.js';
+import { MAX_MESSAGE_REFS, parseMessageRefs } from '../utils/messageRefs.js';
 
 const TONES = {
     friendly: 'Warm and friendly, but not sappy.',
@@ -16,14 +17,19 @@ const TONES = {
 const quote = (text) => text.split('\n').map(line => `> ${line}`).join('\n');
 
 /**
- * Drafts the reply and sends it. Shared with the message context menu
- * command in reply-context.js, which resolves its target the easy way.
+ * Drafts one reply to one or more messages and sends it. Shared with the
+ * message context menu command in reply-context.js, which resolves its
+ * single target the easy way.
  */
-export async function draftReply(interaction, target, { tone, instructions, ephemeral }) {
+export async function draftReply(interaction, targets, { tone, instructions, ephemeral }) {
+    const messages = targets.length === 1
+        ? [`Write a reply to this Discord message from ${targets[0].author.username}:`, '', targets[0].content]
+        : [
+            `Write one reply that responds to all ${targets.length} of these Discord messages:`,
+            ...targets.flatMap((t, i) => ['', `Message ${i + 1}, from ${t.author.username}:`, t.content]),
+        ];
     const prompt = [
-        `Write a reply to this Discord message from ${target.author.username}:`,
-        '',
-        target.content,
+        ...messages,
         '',
         `Tone: ${TONES[tone]}`,
         instructions ? `The reply must: ${instructions}` : '',
@@ -38,8 +44,11 @@ export async function draftReply(interaction, target, { tone, instructions, ephe
         header: {
             title: '💬 Suggested reply',
             description: [
-                `Replying to [${target.author.username}'s message](${target.url}):`,
-                quote(target.content.slice(0, 200)),
+                // ponytail: 200 chars × MAX_MESSAGE_REFS stays well under the 4096 embed description cap
+                ...targets.flatMap(t => [
+                    `Replying to [${t.author.username}'s message](${t.url}):`,
+                    quote(t.content.slice(0, 200)),
+                ]),
                 instructions ? `Instructions:\n${quote(instructions)}` : '',
             ].filter(Boolean).join('\n'),
             timestamp: new Date().toISOString(),
@@ -62,39 +71,38 @@ export function replyErrorMessage(error) {
 }
 
 /**
- * A slash command carries no reply context of its own, so the target is
+ * A slash command carries no reply context of its own, so the targets are
  * resolved in three steps, most explicit first:
- *   1. the `message` option — a message id or a Discord message link,
+ *   1. the `message` option — up to MAX_MESSAGE_REFS message ids or
+ *      Discord message links, space- or comma-separated,
  *   2. the message you most recently replied to in this channel,
  *   3. the last message in the channel that is not yours.
  * Step 2 is the same trick /answer uses: find your own recent message
  * that has a `reference` and follow it.
  */
-async function resolveTarget(interaction, input) {
+async function resolveTargets(interaction, ids) {
     const channel = interaction.channel;
 
-    if (input) {
-        // Accepts a bare id or a .../channels/<guild>/<channel>/<message> link.
-        const id = input.trim().split('/').pop();
-        return channel.messages.fetch(id);
-    }
+    // One missing id rejects the whole lot; the caller reports it.
+    if (ids.length) return Promise.all(ids.map(id => channel.messages.fetch(id)));
 
     const recent = await channel.messages.fetch({ limit: 25 });
 
     const ownReply = recent.find(m => m.author.id === interaction.user.id && m.reference?.messageId);
-    if (ownReply) return channel.messages.fetch(ownReply.reference.messageId);
+    if (ownReply) return [await channel.messages.fetch(ownReply.reference.messageId)];
 
-    return recent.find(m => m.author.id !== interaction.user.id && m.content.trim() !== '') ?? null;
+    const last = recent.find(m => m.author.id !== interaction.user.id && m.content.trim() !== '');
+    return last ? [last] : [];
 }
 
 export default {
     data: new SlashCommandBuilder()
         .setName('reply')
-        .setDescription('Draft an AI reply to a message you replied to, or to one you name by id/link')
+        .setDescription('Draft an AI reply to a message you replied to, or to messages you name by id/link')
         .addStringOption(option =>
             option
                 .setName('message')
-                .setDescription('Message id or link (default: the message you last replied to here)')
+                .setDescription(`Up to ${MAX_MESSAGE_REFS} message ids/links, space-separated (default: the one you last replied to)`)
                 .setRequired(false)
         )
         .addStringOption(option =>
@@ -125,30 +133,38 @@ export default {
 
     async execute(interaction) {
         const input = interaction.options.getString('message');
+        const ids = input ? parseMessageRefs(input) : [];
         const tone = interaction.options.getString('tone') || 'friendly';
         const instructions = interaction.options.getString('instructions');
         const isPrivate = interaction.options.getBoolean('private') || false;
 
         await interaction.deferReply({ ephemeral: isPrivate });
 
-        let target;
-        try {
-            target = await resolveTarget(interaction, input);
-        } catch {
-            target = null;
+        if (ids.length > MAX_MESSAGE_REFS) {
+            await interaction.editReply({
+                content: `❌ Too many messages: ${ids.length}. /reply takes at most ${MAX_MESSAGE_REFS}.`,
+            });
+            return;
         }
 
-        if (!target || target.content.trim() === '') {
+        let targets;
+        try {
+            targets = await resolveTargets(interaction, ids);
+        } catch {
+            targets = [];
+        }
+
+        if (!targets.length || targets.some(t => t.content.trim() === '')) {
             await interaction.editReply({
                 content: input
-                    ? '❌ No message with that id or link in this channel.'
+                    ? '❌ One or more of those ids/links is not a text message in this channel.'
                     : '❌ No message to reply to. Reply to one here first, or pass its id or link.',
             });
             return;
         }
 
         try {
-            await draftReply(interaction, target, { tone, instructions, ephemeral: isPrivate });
+            await draftReply(interaction, targets, { tone, instructions, ephemeral: isPrivate });
         } catch (error) {
             await logCommandError(interaction, error, 'reply');
             await interaction.editReply({ content: `❌ ${replyErrorMessage(error)}` });

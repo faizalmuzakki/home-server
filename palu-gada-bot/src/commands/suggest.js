@@ -19,6 +19,21 @@ function canDecide(interaction) {
         || interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
 }
 
+/**
+ * The server's #suggestions channel, when there is one the bot can post in,
+ * so votes live in one place. Also used by scripts/backfill-suggestions.js.
+ */
+export function findSuggestionChannel(guild) {
+    // ponytail: matched by name, add a suggestion_settings column if a server wants another channel
+    const channel = guild?.channels.cache.find(c => c.name === 'suggestions' && c.isTextBased());
+    const canPost = channel?.permissionsFor(guild.members.me)?.has([
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.EmbedLinks,
+    ]);
+    return canPost ? channel : null;
+}
+
 async function dmSuggester(client, suggestion, approved) {
     const link = `https://discord.com/channels/${suggestion.guild_id}/${suggestion.channel_id}/${suggestion.message_id}`;
 
@@ -82,23 +97,37 @@ export default {
             durationMs = parsed;
         }
 
+        // No #suggestions, or already in it: post where /suggest was run.
+        const found = findSuggestionChannel(interaction.guild);
+        const target = found && found.id !== interaction.channelId ? found : null;
         const endsAt = toDbDate(new Date(Date.now() + durationMs));
         const suggestion = createSuggestion(
             interaction.guildId,
-            interaction.channelId,
+            target?.id ?? interaction.channelId,
             interaction.user.id,
             content,
             endsAt
         );
 
         const tally = { up: 0, down: 0 };
-        const message = await interaction.reply({
+        const post = {
             embeds: [buildSuggestionEmbed(suggestion, tally, interaction.user)],
             components: buildSuggestionComponents(suggestion, tally),
-            fetchReply: true,
-        });
+        };
 
+        if (!target) {
+            const message = await interaction.reply({ ...post, fetchReply: true });
+            setSuggestionMessage(suggestion.id, message.id);
+            return;
+        }
+
+        const message = await target.send(post);
         setSuggestionMessage(suggestion.id, message.id);
+
+        return interaction.reply({
+            content: `Suggestion #${suggestion.id} posted in ${target}: ${message.url}`,
+            flags: MessageFlags.Ephemeral,
+        });
     },
 
     async handleButton(interaction) {
