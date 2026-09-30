@@ -56,6 +56,12 @@ check(
     'Powered by Claude Sonnet 5 • 5 in / 6 out'
 );
 
+check(
+    'effort follows the model name',
+    formatAiFooter({ extraText: 'Tone: friendly', model: 'claude-sonnet-5', effort: 'high', usage }).text,
+    'Tone: friendly • Powered by Claude Sonnet 5 • high effort • 2 in / 10 out / 29.2k cached'
+);
+
 if (failures > 0) {
     console.error(`\n${failures} footer check(s) failed.`);
     process.exit(1);
