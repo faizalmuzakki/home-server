@@ -15,7 +15,7 @@ const CLAUDE_API_SECRET = process.env.CLAUDE_API_SECRET;
  * @param {object} [opts]
  * @param {string} [opts.systemPrompt] - System prompt
  * @param {string} [opts.model] - Model override (default: the `sonnet` alias)
- * @param {string} [opts.effort] - Effort level (default high)
+ * @param {string} [opts.effort] - Effort level (default medium)
  * @param {number} [opts.maxTurns] - Max turns (default 6)
  * @returns {Promise<{text: string, model: string, effort: string|null, usage: object|null}>}
  *   The response text, the model claude-api used, the effort it ran at, and
@@ -40,9 +40,8 @@ export async function askClaude(prompt, opts = {}) {
             // ponytail: an alias, not an id — the CLI resolves it to the newest
             // Sonnet, so a new release is picked up without a code change.
             model: opts.model ?? 'sonnet',
-            // Explicit, so the footer can say what it was. High is also what an
-            // unset effort means on the API, so this changes nothing on its own.
-            effort: opts.effort ?? 'high',
+            // Explicit, so the footer can say what it was.
+            effort: opts.effort ?? 'medium',
             // Claude often needs a tool call before it can answer. With a
             // 1-turn budget those runs died at the turn limit, which surfaced
             // as a random "Claude CLI failed" on roughly any question that
