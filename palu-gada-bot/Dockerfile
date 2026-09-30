@@ -25,12 +25,18 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-# Install dependencies with network resilience
-RUN npm config set fetch-retries 5 && \
+# Install dependencies with network resilience. fetch-retries does not cover a
+# tarball download reset mid-stream (ECONNRESET "network aborted", 2026-09-30),
+# so retry the whole `npm ci`; the cache mount lets each attempt reuse what the
+# previous one already fetched.
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
-    npm ci --only=production
+    for attempt in 1 2 3; do \
+        npm ci --only=production && exit 0; \
+        echo "npm ci failed (attempt $attempt/3), retrying in 15s"; sleep 15; \
+    done; exit 1
 
 # Copy source code
 COPY . .
