@@ -26,7 +26,7 @@ export default {
         }
 
         try {
-            await draftReply(interaction, target, { tone: 'friendly', instructions: null, ephemeral: true });
+            await draftReply(interaction, [target], { tone: 'friendly', instructions: null, ephemeral: true });
         } catch (error) {
             await logCommandError(interaction, error, 'Reply with AI');
             await interaction.editReply({ content: `❌ ${replyErrorMessage(error)}` });

@@ -84,7 +84,7 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 | `/urban <term>` | Look up a word on Urban Dictionary |
 | `/summarize [hours] [channel]` | Summarize chat history using Claude AI |
 | `/answer [hours]` | Reply to a question, AI answers on your behalf based on your conversation style |
-| `/reply [message] [tone] [instructions]` | Draft an AI reply to the message you replied to, or one you name by id/link |
+| `/reply [message] [tone] [instructions]` | Draft an AI reply to the message you replied to, or up to 5 you name by id/link (space-separated) |
 | `Apps → Reply with AI` | Right-click any message to draft a reply to exactly that message (ephemeral) |
 | `/tldr <text>` | Get a short summary of pasted text or a URL hint |
 | `/explain <topic>` | Get an explanation of a topic at different depth levels |
@@ -156,7 +156,7 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 | `/confession send <message>` | Send an anonymous confession |
 | `/confession setup <channel>` | Set up confession channel (admin) |
 | `/poll <question>` | Create a yes/no or multi-option poll |
-| `/suggest <suggestion> [duration]` | Put a suggestion up for a timed 👍/👎 vote |
+| `/suggest <suggestion> [duration]` | Put a suggestion up for a timed 👍/👎 vote, posted in #suggestions when the server has one |
 | `/suggestions <subcommand>` | Tune, list or close suggestion votes (admin) |
 | `/trivia [category] [difficulty]` | Start a trivia game |
 | `/meme` | Fetch a random meme |
