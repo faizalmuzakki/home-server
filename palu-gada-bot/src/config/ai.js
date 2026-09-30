@@ -29,10 +29,14 @@ const formatCost = (usd) => `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`;
  * reading the opt-in.
  * @returns {{text: string}} The footer object
  */
-export const formatAiFooter = ({ extraText = '', model = '', usage = null, showCost = false }) => {
+export const formatAiFooter = ({ extraText = '', model = '', effort = null, usage = null, showCost = false }) => {
     // ponytail: the model is whatever claude-api actually used — never hardcode a
     // name here, the footer lied about the model for months that way.
-    const parts = [extraText, `Powered by ${model ? prettyModel(model) : 'Claude'}`];
+    const parts = [
+        extraText,
+        `Powered by ${model ? prettyModel(model) : 'Claude'}`,
+        effort ? `${effort} effort` : '',
+    ];
 
     if (usage) {
         const tokens = [
@@ -57,12 +61,14 @@ export const formatAiFooter = ({ extraText = '', model = '', usage = null, showC
  * @param {string} [extraText] - Optional text to precede the attribution.
  * @param {string} [model] - Model id reported by claude-api for this call.
  * @param {object} [usage] - Token counters from askClaude, when available.
+ * @param {string} [effort] - Effort level claude-api ran the call at.
  * @returns {{text: string}} The footer object
  */
-export const getAiFooter = (extraText = '', model = '', usage = null) =>
+export const getAiFooter = (extraText = '', model = '', usage = null, effort = null) =>
     formatAiFooter({
         extraText,
         model,
+        effort,
         usage,
         showCost: getConfig(COST_FOOTER_KEY, false) === true,
     });

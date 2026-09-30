@@ -17,11 +17,11 @@ const anthropic = process.env.ANTHROPIC_API_KEY
  * POST /api/prompt
  * Send a prompt to Claude Code and get a JSON response.
  *
- * Body: { prompt: string, systemPrompt?: string, workdir?: string, allowedTools?: string[], model?: string, maxTurns?: number }
+ * Body: { prompt: string, systemPrompt?: string, workdir?: string, allowedTools?: string[], model?: string, effort?: string, maxTurns?: number }
  * Response: { id, result, duration_ms }
  */
 router.post('/', async (req, res) => {
-  const { prompt, systemPrompt, workdir, allowedTools, model, maxTurns } = req.body;
+  const { prompt, systemPrompt, workdir, allowedTools, model, effort, maxTurns } = req.body;
 
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'prompt is required and must be a string' });
@@ -36,7 +36,7 @@ router.post('/', async (req, res) => {
   activeSessions.set(sessionId, Date.now());
 
   try {
-    const result = await runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, sessionId, requestId: req.id });
+    const result = await runClaude({ prompt, systemPrompt, workdir, allowedTools, model, effort, maxTurns, sessionId, requestId: req.id });
     res.json({ id: sessionId, result, duration_ms: Date.now() - activeSessions.get(sessionId) });
   } catch (err) {
     res.status(500).json({ id: sessionId, error: err.message });
@@ -49,10 +49,10 @@ router.post('/', async (req, res) => {
  * POST /api/prompt/stream
  * Send a prompt to Claude Code and stream the response as SSE.
  *
- * Body: { prompt: string, systemPrompt?: string, workdir?: string, allowedTools?: string[], model?: string, maxTurns?: number }
+ * Body: { prompt: string, systemPrompt?: string, workdir?: string, allowedTools?: string[], model?: string, effort?: string, maxTurns?: number }
  */
 router.post('/stream', async (req, res) => {
-  const { prompt, systemPrompt, workdir, allowedTools, model, maxTurns } = req.body;
+  const { prompt, systemPrompt, workdir, allowedTools, model, effort, maxTurns } = req.body;
 
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'prompt is required and must be a string' });
@@ -91,7 +91,7 @@ router.post('/stream', async (req, res) => {
   try {
     const resolvedModel = resolveModel(model);
     const resolvedMaxTurns = resolveMaxTurns(maxTurns);
-    const args = buildArgs({ prompt, systemPrompt, allowedTools, model, maxTurns, outputFormat: 'stream-json' });
+    const args = buildArgs({ prompt, systemPrompt, allowedTools, model, effort, maxTurns, outputFormat: 'stream-json' });
     log('info', { event: 'cli_start', mode: 'stream', session_id: sessionId, request_id: req.id, model: resolvedModel, max_turns: resolvedMaxTurns, prompt_chars: prompt.length });
 
     proc = spawn('claude', args, {
@@ -231,7 +231,7 @@ function describeFailure({ parsed, stderr, code, maxTurns }) {
   return `exited with code ${code}`;
 }
 
-function buildArgs({ prompt, systemPrompt, allowedTools, model, maxTurns, outputFormat = 'json' }) {
+function buildArgs({ prompt, systemPrompt, allowedTools, model, effort, maxTurns, outputFormat = 'json' }) {
   const args = ['-p', prompt, '--output-format', outputFormat];
 
   // The CLI rejects stream-json without --verbose ("When using --print,
@@ -250,6 +250,10 @@ function buildArgs({ prompt, systemPrompt, allowedTools, model, maxTurns, output
     args.push('--model', resolvedModel);
   }
 
+  if (effort) {
+    args.push('--effort', effort);
+  }
+
   args.push('--max-turns', String(resolveMaxTurns(maxTurns)));
 
   if (allowedTools && Array.isArray(allowedTools)) {
@@ -261,11 +265,11 @@ function buildArgs({ prompt, systemPrompt, allowedTools, model, maxTurns, output
   return args;
 }
 
-function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurns, sessionId, requestId }) {
+function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, effort, maxTurns, sessionId, requestId }) {
   return new Promise((resolve, reject) => {
     const resolvedModel = resolveModel(model);
     const resolvedMaxTurns = resolveMaxTurns(maxTurns);
-    const args = buildArgs({ prompt, systemPrompt, allowedTools, model, maxTurns });
+    const args = buildArgs({ prompt, systemPrompt, allowedTools, model, effort, maxTurns });
     const startedAt = Date.now();
 
     log('info', { event: 'cli_start', mode: 'json', session_id: sessionId, request_id: requestId, model: resolvedModel, max_turns: resolvedMaxTurns, prompt_chars: prompt.length });
@@ -337,6 +341,10 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurn
       }
 
       log('info', { event: 'cli_done', session_id: sessionId, request_id: requestId, duration_ms: duration, model: resolvedModel, num_turns: parsed?.num_turns ?? null, cost_usd: parsed?.total_cost_usd ?? null });
+      // The CLI's JSON never reports effort, so echo what it was run with —
+      // callers (palu-gada-bot's AI footer) show it. The API fallback leaves it
+      // unset because it doesn't apply it.
+      if (parsed && effort) parsed.effort = effort;
       resolve(parsed ?? stdout.trim());
     });
 
@@ -351,7 +359,7 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, maxTurn
 // CLI-only features (allowedTools, multi-turn), which none of the current
 // callers (parse-text, whatsapp-bot ai.js) rely on.
 async function runAnthropicFallback({ prompt, systemPrompt, model }) {
-  const resolvedModel = model || process.env.CLAUDE_MODEL || 'claude-sonnet-5';
+  const resolvedModel = await resolveApiModel(model || process.env.CLAUDE_MODEL || 'claude-sonnet-5');
   const resp = await anthropic.messages.create({
     model: resolvedModel,
     max_tokens: 4096,
@@ -379,6 +387,17 @@ async function runAnthropicFallback({ prompt, systemPrompt, model }) {
       },
     },
   };
+}
+
+// CLI aliases (sonnet, opus, haiku) track the newest model, but the Messages
+// API only knows full ids. /v1/models lists newest first, so the first id of
+// that family is what the alias would have picked.
+async function resolveApiModel(model) {
+  if (model.startsWith('claude-')) return model;
+  const { data } = await anthropic.get('/v1/models', { query: { limit: 100 } });
+  const match = data.find(m => m.id.includes(`-${model}-`));
+  if (!match) throw new Error(`no Messages API model matches alias "${model}"`);
+  return match.id;
 }
 
 export default router;
