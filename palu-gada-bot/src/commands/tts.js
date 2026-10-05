@@ -18,14 +18,14 @@ export default {
         .addStringOption(option =>
             option
                 .setName('language')
-                .setDescription('Language code (e.g. en, id, ja, es). Default: en')
+                .setDescription('Language code (e.g. id, en, ja, es). Default: id')
                 .setRequired(false)
         ),
 
     async execute(interaction) {
         const rawText = interaction.options.getString('text') ?? '';
         const text = rawText.trim();
-        const lang = (interaction.options.getString('language') ?? 'en').trim();
+        const lang = (interaction.options.getString('language') ?? 'id').trim();
         const voiceChannel = interaction.member?.voice?.channel;
 
         if (!voiceChannel) {
