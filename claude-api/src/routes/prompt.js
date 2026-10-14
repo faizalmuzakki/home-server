@@ -367,6 +367,14 @@ async function runAnthropicFallback({ prompt, systemPrompt, model }) {
     messages: [{ role: 'user', content: prompt }],
   });
   const text = resp.content.filter(b => b.type === 'text').map(b => b.text).join('');
+  // An empty text (e.g. stop_reason "refusal") used to resolve as success and
+  // surface in callers as "Unexpected response format"; fail with the reason.
+  // stop_details (category + explanation) is only set on refusals.
+  if (!text) {
+    const d = resp.stop_details;
+    const why = d ? `, category: ${d.category ?? 'none'}, explanation: ${d.explanation ?? 'none'}` : '';
+    throw new Error(`Messages API returned no text (stop_reason: ${resp.stop_reason}${why})`);
+  }
   return {
     type: 'result',
     subtype: 'success',
