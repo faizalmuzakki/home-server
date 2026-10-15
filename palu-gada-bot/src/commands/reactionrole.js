@@ -382,7 +382,7 @@ export default {
 };
 
 // Helper function to update the reaction role embed with current mappings
-async function updateReactionRoleEmbed(message, guildId) {
+export async function updateReactionRoleEmbed(message, guildId) {
     const mappings = getReactionRolesByMessage(guildId, message.id);
 
     if (message.embeds.length === 0) return;
