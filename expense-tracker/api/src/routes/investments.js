@@ -1,5 +1,6 @@
 import express from 'express';
 import { db } from '../db/init.js';
+import { localDate } from '../localDate.js';
 
 const router = express.Router();
 
@@ -283,7 +284,7 @@ router.post('/contributions', (req, res) => {
 
     db.prepare(`
       INSERT INTO investment_contributions (type, amount, date, notes) VALUES (?, ?, ?, ?)
-    `).run(type, amount, date || new Date().toISOString().split('T')[0], notes);
+    `).run(type, amount, date || localDate(), notes);
 
     const existing = db.prepare('SELECT * FROM investment_holdings WHERE type = ?').get(type);
 

@@ -16,6 +16,7 @@ import dotenv from 'dotenv';
 import { handleMessage } from './handlers/message.js';
 import { initDatabase, getDb } from './database.js';
 import { notifyQrCode } from './services/discord.js';
+import { localDate } from './utils/message.js';
 
 dotenv.config();
 
@@ -139,7 +140,7 @@ function startSchedulers(sock) {
   setInterval(async () => {
     try {
       const today = new Date();
-      const key = today.toISOString().slice(0, 10);
+      const key = localDate(today);
       const alreadySent = db.prepare('SELECT id FROM audit_logs WHERE action = ? AND details = ? LIMIT 1').get('birthday_announcement', key);
       if (alreadySent) return;
 

@@ -1,5 +1,5 @@
 import { createCalorieEntry, uploadImage } from '../services/api.js';
-import { reply } from '../utils/message.js';
+import { localDate, reply } from '../utils/message.js';
 import { formatFoodReply } from './calorieFormat.js';
 
 const MAX_REASONABLE_KCAL = 20000;
@@ -30,7 +30,7 @@ export async function handleFoodImage(sock, msg, jid, parsed, base64, senderId, 
     items: Array.isArray(parsed.items) ? parsed.items : null,
     confidence: parsed.confidence ?? null,
     image_url: imageUrl,
-    date: parsed.date || new Date().toISOString().split('T')[0]
+    date: parsed.date || localDate()
   }, meta);
 
   await reply(sock, jid, formatFoodReply({ name: senderName, parsed, imageSaved: !!imageUrl }), msg);

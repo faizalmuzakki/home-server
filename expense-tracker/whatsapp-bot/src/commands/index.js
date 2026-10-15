@@ -10,6 +10,7 @@ import {
   parseDateTime,
   parseDuration,
   getSenderId,
+  localDate,
   reply
 } from '../utils/message.js';
 import {
@@ -186,7 +187,7 @@ export const commands = [
     category: 'Finance',
     description: "Show today's calorie total from your food photos",
     async execute(ctx) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = localDate();
       const senderId = getSenderId(ctx.msg);
       const meta = { sender: ctx.jid, messagePreview: '(/calories)' };
       const summary = await getCalorieSummary(

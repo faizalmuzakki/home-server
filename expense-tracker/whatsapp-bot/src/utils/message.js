@@ -1,3 +1,8 @@
+// YYYY-MM-DD in the process time zone (TZ=Asia/Jakarta in docker-compose);
+// toISOString() is UTC and gives yesterday before 07:00 WIB.
+export const localDate = (d = new Date()) =>
+  new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
 export function getText(msg) {
   return msg.message?.conversation ||
     msg.message?.extendedTextMessage?.text ||
