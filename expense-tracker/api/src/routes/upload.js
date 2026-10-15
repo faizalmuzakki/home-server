@@ -3,6 +3,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
+import { randomUUID } from 'crypto';
 import { uploadValidators, sanitizeBase64Image } from '../middleware/validators.js';
 
 const router = Router();
@@ -20,7 +21,7 @@ async function ensureUploadDir() {
 // Upload image and return URL
 router.post('/', sanitizeBase64Image, uploadValidators, async (req, res) => {
     try {
-        const { image, filename } = req.body; // base64 encoded image
+        const { image } = req.body; // base64 encoded image
 
         if (!image) {
             return res.status(400).json({ error: 'Image is required (base64)' });
@@ -28,10 +29,9 @@ router.post('/', sanitizeBase64Image, uploadValidators, async (req, res) => {
 
         await ensureUploadDir();
 
-        // Generate unique filename
-        const timestamp = Date.now();
-        const ext = detectExtension(image);
-        const finalFilename = filename || `receipt_${timestamp}.${ext}`;
+        // Always name the file server-side: a client filename like "../../src/x.js"
+        // would write outside UPLOAD_DIR, and a bare timestamp collides within a millisecond.
+        const finalFilename = `receipt_${Date.now()}_${randomUUID()}.${detectExtension(image)}`;
         const filepath = path.join(UPLOAD_DIR, finalFilename);
 
         // Decode and save
