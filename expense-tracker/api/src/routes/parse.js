@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db/init.js';
+import { localDate } from '../localDate.js';
 import { parseTextValidators, parseImageValidators, sanitizeBase64Image } from '../middleware/validators.js';
 
 const router = Router();
@@ -100,7 +101,7 @@ Return ONLY valid JSON:
   "description": "<string>",
   "vendor": "<string or null>",
   "category_id": <number from appropriate category list above>,
-  "date": "<YYYY-MM-DD, use today if not specified: ${new Date().toISOString().split('T')[0]}>",
+  "date": "<YYYY-MM-DD, use today if not specified: ${localDate()}>",
   "confidence": <0-1 how confident you are>
 }
 
@@ -173,7 +174,7 @@ If kind is "expense", return ONLY this JSON:
   "description": "<brief description>",
   "vendor": "<store/sender name>",
   "category_id": <number from the appropriate category list above>,
-  "date": "<YYYY-MM-DD from image, or today: ${new Date().toISOString().split('T')[0]}>",
+  "date": "<YYYY-MM-DD from image, or today: ${localDate()}>",
   "items": ["<item1>", "<item2>"],
   "confidence": <0-1>
 }
@@ -187,7 +188,7 @@ If kind is "food", estimate nutrition and return ONLY this JSON:
   "carbs_g": <number grams>,
   "fat_g": <number grams>,
   "items": [{"name": "<food>", "calories": <integer>, "portion": "<e.g. 1 plate>"}],
-  "date": "${new Date().toISOString().split('T')[0]}",
+  "date": "${localDate()}",
   "confidence": <0-1>
 }
 

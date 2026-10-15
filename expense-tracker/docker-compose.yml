@@ -23,6 +23,7 @@ services:
       - API_AUTH_SECRET=${API_AUTH_SECRET}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - NODE_ENV=production
+      - TZ=Asia/Jakarta
     volumes:
       - ./api/data:/app/data:rw
     ports:
@@ -70,6 +71,7 @@ services:
       - ALLOWED_GROUPS=${ALLOWED_GROUPS}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - NODE_ENV=production
+      - TZ=Asia/Jakarta
       - HEALTH_PORT=3004
     volumes:
       - ./whatsapp-bot/auth_info:/app/auth_info:rw
