@@ -6,6 +6,7 @@ const API_URL = process.env.API_URL || 'http://api:3000';
 const api = axios.create({
   baseURL: API_URL,
   timeout: 60000, // 60s for Claude API calls
+  headers: { 'X-Api-Key': process.env.API_AUTH_SECRET || '' },
 });
 
 api.interceptors.response.use(
