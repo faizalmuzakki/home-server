@@ -117,12 +117,17 @@ router.get('/', listTravelExpenseValidators, (req, res) => {
 
 router.get('/trips', (_req, res) => {
   try {
+    // Single-currency fields are null when a trip mixes currencies;
+    // totals_by_currency always carries the per-currency sums.
     const trips = db.prepare(`
-      SELECT trip_name, currency,
+      SELECT trip_name,
+        CASE WHEN COUNT(DISTINCT currency) = 1 THEN MIN(currency) END as currency,
         COUNT(*) as expense_count,
-        SUM(amount) as total_amount,
-        SUM(converted_amount) as total_converted,
-        converted_currency,
+        CASE WHEN COUNT(DISTINCT currency) = 1 THEN SUM(amount) END as total_amount,
+        CASE WHEN COUNT(DISTINCT CASE WHEN converted_amount IS NOT NULL THEN converted_currency END) <= 1
+          THEN SUM(converted_amount) END as total_converted,
+        CASE WHEN COUNT(DISTINCT CASE WHEN converted_amount IS NOT NULL THEN converted_currency END) = 1
+          THEN MIN(CASE WHEN converted_amount IS NOT NULL THEN converted_currency END) END as converted_currency,
         MIN(date) as start_date,
         MAX(date) as end_date
       FROM travel_expenses
@@ -130,6 +135,20 @@ router.get('/trips', (_req, res) => {
       GROUP BY trip_name
       ORDER BY MAX(date) DESC
     `).all();
+
+    const byCurrency = db.prepare(`
+      SELECT trip_name, currency, SUM(amount) as total_amount, COUNT(*) as expense_count
+      FROM travel_expenses
+      WHERE trip_name IS NOT NULL
+      GROUP BY trip_name, currency
+      ORDER BY currency
+    `).all();
+    for (const trip of trips) {
+      trip.totals_by_currency = byCurrency
+        .filter(r => r.trip_name === trip.trip_name)
+        .map(({ currency, total_amount, expense_count }) => ({ currency, total_amount, expense_count }));
+    }
+
     res.json(trips);
   } catch (error) {
     console.error('List trips error:', error);

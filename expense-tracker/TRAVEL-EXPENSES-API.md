@@ -240,10 +240,18 @@ Returns all trips with aggregated totals.
     "total_converted": 30210000,
     "converted_currency": "IDR",
     "start_date": "2026-01-10",
-    "end_date": "2026-01-20"
+    "end_date": "2026-01-20",
+    "totals_by_currency": [
+      { "currency": "JPY", "total_amount": 285000, "expense_count": 42 }
+    ]
   }
 ]
 ```
+
+`totals_by_currency` lists the sum per original currency. When a trip mixes
+currencies, `currency` and `total_amount` are `null` (they cannot be summed into
+one figure); likewise `total_converted` and `converted_currency` are `null` when
+the converted amounts are in more than one currency.
 
 ### Get Summary
 
