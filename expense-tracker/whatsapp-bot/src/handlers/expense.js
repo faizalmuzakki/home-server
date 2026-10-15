@@ -3,7 +3,7 @@ const { downloadMediaMessage } = pkg;
 
 import { createExpense, getCategories, parseImage, parseText, uploadImage } from '../services/api.js';
 import { handleFoodImage } from './calories.js';
-import { formatCurrency, getSenderId, getSenderName, reply } from '../utils/message.js';
+import { formatCurrency, getSenderId, getSenderName, isGroupMessage, reply } from '../utils/message.js';
 
 export async function sendCategories(sock, jid, msg) {
   const meta = { sender: jid, messagePreview: '(category list request)' };
@@ -24,7 +24,12 @@ export async function sendCategories(sock, jid, msg) {
 }
 
 export async function sendPin(sock, jid, msg) {
-  const pin = process.env.DASHBOARD_PIN || '123456';
+  // Groups skip the ALLOWED_NUMBERS check, so any member could read the PIN there.
+  if (isGroupMessage(jid)) {
+    return reply(sock, jid, 'Ask me for the PIN in a private chat.', msg);
+  }
+  const pin = process.env.DASHBOARD_PIN;
+  if (!pin) return reply(sock, jid, 'Dashboard PIN is not configured.', msg);
   await reply(
     sock,
     jid,
