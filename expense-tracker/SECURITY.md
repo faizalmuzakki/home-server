@@ -56,6 +56,7 @@ The API uses Helmet.js to set security headers including:
 | `ANTHROPIC_API_KEY` | AI API key | Keep secret, never commit |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Tunnel authentication | Keep secret, never commit |
 | `DASHBOARD_PIN` | Dashboard access PIN | Use a strong PIN |
+| `API_AUTH_SECRET` | Signs dashboard tokens; X-Api-Key for the bots | `openssl rand -hex 32`, required |
 
 ### Production Deployment Checklist
 

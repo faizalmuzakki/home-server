@@ -3,7 +3,7 @@ const BASE_URL = process.env.EXPENSE_API_URL || 'http://expense-tracker-api:3000
 async function apiFetch(path, opts = {}) {
     const url = `${BASE_URL}${path}`;
     const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Api-Key': process.env.EXPENSE_API_KEY || '' },
         ...opts,
     });
     if (!res.ok) {

@@ -20,6 +20,7 @@ services:
       - CLAUDE_API_SECRET=${CLAUDE_API_SECRET}
       - DASHBOARD_EMAIL=${DASHBOARD_EMAIL}
       - DASHBOARD_PIN=${DASHBOARD_PIN}
+      - API_AUTH_SECRET=${API_AUTH_SECRET}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - NODE_ENV=production
     volumes:
@@ -62,6 +63,7 @@ services:
     environment:
       - API_URL=http://api:3000
       - ALLOWED_NUMBERS=${ALLOWED_NUMBERS}
+      - API_AUTH_SECRET=${API_AUTH_SECRET}
       - DASHBOARD_PIN=${DASHBOARD_PIN}
       - CLAUDE_API_URL=${CLAUDE_API_URL:-http://claude-api:3100}
       - CLAUDE_API_SECRET=${CLAUDE_API_SECRET}

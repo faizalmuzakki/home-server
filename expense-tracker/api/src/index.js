@@ -15,6 +15,7 @@ import uploadRoutes from './routes/upload.js';
 import investmentRoutes from './routes/investments.js';
 import travelExpenseRoutes from './routes/travel-expenses.js';
 import calorieRoutes from './routes/calories.js';
+import { requireAuth } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -108,18 +109,25 @@ const authLimiter = rateLimit({
 // Apply general rate limiting
 app.use(generalLimiter);
 
-// Serve uploaded images
-app.use('/uploads', express.static(path.join(__dirname, '../data/uploads')));
-
 // Initialize database
 initDatabase();
+
+if (!process.env.API_AUTH_SECRET) {
+  console.error('❌ API_AUTH_SECRET is not set: every /api and /uploads request will get 503');
+}
+
+// Public: login. Everything mounted after requireAuth needs a token or API key.
+app.use('/api/auth', authLimiter, authRoutes);
+app.use(['/api', '/uploads'], requireAuth);
+
+// Serve uploaded images
+app.use('/uploads', express.static(path.join(__dirname, '../data/uploads')));
 
 // Routes with appropriate rate limiting
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/parse', parseLimiter, parseRoutes);
 app.use('/api/stats', statsRoutes);
-app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/upload', uploadLimiter, uploadRoutes);
 app.use('/api/investments', investmentRoutes);
 app.use('/api/travel-expenses', travelExpenseRoutes);
