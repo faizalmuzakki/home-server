@@ -57,7 +57,8 @@ export const updateTravelExpenseValidators = [
     .isInt({ min: 1 }).withMessage('Invalid travel expense ID'),
   body('amount')
     .optional({ nullable: true })
-    .isNumeric().withMessage('Amount must be a number'),
+    .isNumeric().withMessage('Amount must be a number')
+    .custom(val => parseFloat(val) > 0).withMessage('Amount must be positive'),
   body('currency')
     .optional({ nullable: true })
     .isString()
