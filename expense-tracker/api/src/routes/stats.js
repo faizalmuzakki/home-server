@@ -225,7 +225,7 @@ router.get('/monthly', (req, res) => {
     const conditions = [];
 
     if (year) {
-      conditions.push('strftime("%Y", date) = ?');
+      conditions.push("strftime('%Y', date) = ?");
       params.push(year);
     }
     if (type && (type === 'expense' || type === 'income')) {
