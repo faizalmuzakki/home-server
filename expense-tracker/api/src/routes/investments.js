@@ -1,6 +1,11 @@
 import express from 'express';
 import { db } from '../db/init.js';
 import { localDate } from '../localDate.js';
+import {
+  investmentConfigValidators,
+  investmentHoldingValidators,
+  investmentContributionValidators,
+} from '../middleware/validators.js';
 
 const router = express.Router();
 
@@ -221,7 +226,7 @@ router.get('/contribution-plan', (req, res) => {
 });
 
 // Update holding value
-router.put('/holdings/:type', (req, res) => {
+router.put('/holdings/:type', investmentHoldingValidators, (req, res) => {
   try {
     const { type } = req.params;
     const { current_value, current_grams, name, platform } = req.body;
@@ -252,7 +257,7 @@ router.put('/holdings/:type', (req, res) => {
 });
 
 // Update investment config
-router.put('/config', (req, res) => {
+router.put('/config', investmentConfigValidators, (req, res) => {
   try {
     const { monthly_budget, start_date } = req.body;
 
@@ -278,7 +283,7 @@ router.put('/config', (req, res) => {
 });
 
 // Log a contribution
-router.post('/contributions', (req, res) => {
+router.post('/contributions', investmentContributionValidators, (req, res) => {
   try {
     const { type, amount, date, notes } = req.body;
 
