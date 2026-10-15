@@ -135,6 +135,7 @@ A multi-purpose Discord bot - "apa lu mau, gua ada" (whatever you need, I got it
 | `/statschannel <subcommand>` | Configure live stats channel updates |
 | `/levelchannel <subcommand>` | Configure where level-up notices are sent |
 | `/reactionrole <subcommand>` | Configure reaction-based role assignment |
+| `/gamerole <create\|delete>` | Create a gaming role (optional reaction-menu emoji + private channel) or delete a gaming role |
 | `/github <subcommand>` | Configure GitHub webhook notifications |
 | `/github-bulk <subcommand>` | Bulk manage GitHub webhook setup |
 

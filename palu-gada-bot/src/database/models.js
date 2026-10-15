@@ -243,6 +243,17 @@ const statements = {
     getReactionRolesByGuild: db.prepare('SELECT * FROM reaction_roles WHERE guild_id = ? ORDER BY created_at DESC'),
     removeReactionRole: db.prepare('DELETE FROM reaction_roles WHERE guild_id = ? AND message_id = ? AND emoji = ?'),
     removeReactionRolesByMessage: db.prepare('DELETE FROM reaction_roles WHERE guild_id = ? AND message_id = ?'),
+    getReactionRolesByRole: db.prepare('SELECT * FROM reaction_roles WHERE guild_id = ? AND role_id = ?'),
+
+    // Gaming roles
+    addGamingRole: db.prepare('INSERT OR REPLACE INTO gaming_roles (guild_id, role_id, channel_id) VALUES (?, ?, ?)'),
+    getGamingRole: db.prepare('SELECT * FROM gaming_roles WHERE guild_id = ? AND role_id = ?'),
+    removeGamingRole: db.prepare('DELETE FROM gaming_roles WHERE guild_id = ? AND role_id = ?'),
+    getGamingRoleMenu: db.prepare(`
+        SELECT rr.channel_id, rr.message_id FROM reaction_roles rr
+        JOIN gaming_roles gr ON gr.guild_id = rr.guild_id AND gr.role_id = rr.role_id
+        WHERE rr.guild_id = ? ORDER BY rr.created_at DESC LIMIT 1
+    `),
 };
 
 /**
@@ -957,6 +968,30 @@ export function removeReactionRolesByMessage(guildId, messageId) {
     return statements.removeReactionRolesByMessage.run(guildId, messageId);
 }
 
+export function getReactionRolesByRole(guildId, roleId) {
+    return statements.getReactionRolesByRole.all(guildId, roleId);
+}
+
+/**
+ * Gaming Roles
+ */
+export function addGamingRole(guildId, roleId, channelId = null) {
+    return statements.addGamingRole.run(guildId, roleId, channelId);
+}
+
+export function getGamingRole(guildId, roleId) {
+    return statements.getGamingRole.get(guildId, roleId);
+}
+
+export function removeGamingRole(guildId, roleId) {
+    return statements.removeGamingRole.run(guildId, roleId);
+}
+
+// The bot's reaction-role message that already holds a gaming role, newest first
+export function getGamingRoleMenu(guildId) {
+    return statements.getGamingRoleMenu.get(guildId);
+}
+
 /**
  * Suggestions
  */
@@ -1185,6 +1220,11 @@ export default {
     getReactionRolesByGuild,
     removeReactionRole,
     removeReactionRolesByMessage,
+    getReactionRolesByRole,
+    addGamingRole,
+    getGamingRole,
+    removeGamingRole,
+    getGamingRoleMenu,
     createSuggestion,
     setSuggestionMessage,
     getSuggestion,

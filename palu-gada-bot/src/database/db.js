@@ -412,6 +412,17 @@ function initDatabase() {
         )
     `);
 
+    // Gaming roles created via /gamerole (only these can be deleted by it)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS gaming_roles (
+            guild_id TEXT NOT NULL,
+            role_id TEXT NOT NULL,
+            channel_id TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (guild_id, role_id)
+        )
+    `);
+
     // Scheduled messages table
     db.exec(`
         CREATE TABLE IF NOT EXISTS scheduled_messages (
