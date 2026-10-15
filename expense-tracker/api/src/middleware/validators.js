@@ -165,3 +165,21 @@ export const listCalorieValidators = [
     handleValidationErrors,
 ];
 
+
+// Investment validators. optional() only skips a missing field: null (what
+// JSON.stringify makes of NaN) and '' are rejected, not silently stored.
+const nonNegative = field => body(field).optional()
+    .isFloat({ min: 0 }).withMessage(`${field} must be a non-negative number`).toFloat();
+
+export const investmentConfigValidators = [nonNegative('monthly_budget'), handleValidationErrors];
+
+export const investmentHoldingValidators = [
+    nonNegative('current_value'),
+    nonNegative('current_grams'),
+    handleValidationErrors,
+];
+
+export const investmentContributionValidators = [
+    body('amount').isFloat().withMessage('amount must be a number').toFloat(),
+    handleValidationErrors,
+];
