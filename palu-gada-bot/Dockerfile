@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 # Install ffmpeg, docker CLI, git, and other dependencies
 RUN apt-get update && apt-get install -y \
@@ -43,7 +43,7 @@ COPY . .
 
 # Create non-root user for security
 # uid 1000 matches the host owner of the bind-mounted ./data and /host-repo;
-# node:20-slim already holds 1000 for its `node` user, so drop that one first.
+# node:22-slim already holds 1000 for its `node` user, so drop that one first.
 # Add to docker group (GID 999 typically, will be overridden by socket's group at runtime)
 RUN groupadd -g 999 docker || true && \
     userdel -r node 2>/dev/null || true && \
