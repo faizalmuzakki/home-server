@@ -1,5 +1,5 @@
 # Build stage
-FROM node:22-slim AS builder
+FROM node:24-slim AS builder
 
 # Install build dependencies for better-sqlite3
 RUN apt-get update && apt-get install -y \
@@ -25,7 +25,7 @@ RUN npm run build
 RUN npm prune --production
 
 # Runtime stage
-FROM node:22-slim AS runner
+FROM node:24-slim AS runner
 
 WORKDIR /app
 
