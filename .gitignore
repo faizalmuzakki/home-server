@@ -35,7 +35,6 @@ adguard/conf/
 crowdsec/config/
 
 # Monitoring
-homepage/config/kubernetes.yaml
 netdata/lib/
 netdata/cache/
 netdata/config/

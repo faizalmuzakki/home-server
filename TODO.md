@@ -50,7 +50,6 @@ Disk usage, memory, container status, restart-service. Socket-proxy is already i
 - **Paperless-ngx** — document scanning/search (pairs well with Syncthing)
 - **Immich** — self-hosted Google Photos (needs the `/data` drive we just set up)
 - **Gitea / Forgejo** — private git mirror
-- **Homepage** (gethomepage.dev) — modern dashboard with live widgets
 - **Scrutiny** — SMART disk health monitoring
 - **Tailscale** — complement to Cloudflare Tunnel for raw TCP/SSH access
 
