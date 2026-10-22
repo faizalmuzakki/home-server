@@ -349,7 +349,6 @@ If using a domain with Cloudflare:
 | `dockge.solork.dev` | Dockge |
 | `vault.solork.dev` | Vaultwarden |
 | `auth.solork.dev` | 2FAuth |
-| `apps.solork.dev` | Homer Dashboard |
 | `status.solork.dev` | Uptime Kuma |
 | `monitor.solork.dev` | Netdata |
 | `webhook.solork.dev` | GitHub Webhook |
