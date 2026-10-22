@@ -128,6 +128,12 @@ deploy_service() {
     if [ ! -f "$service_dir/docker-compose.yml" ]; then
         return 0
     fi
+    # Archived projects keep a fully commented-out compose file ("empty compose
+    # file"); touching their Dockerfile must not fail the whole deploy.
+    if [ -z "$(cd "$service_dir" && docker compose config --services 2>/dev/null)" ]; then
+        log "Skipping $service — compose defines no services (archived)"
+        return 0
+    fi
     log "Deploying $service..."
     # Subshell so `cd` can't leak into the next loop iteration — a bug surfaced
     # when a single commit touched two top-level dirs and the second one got
