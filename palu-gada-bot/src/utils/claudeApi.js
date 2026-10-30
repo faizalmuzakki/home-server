@@ -15,11 +15,11 @@ const CLAUDE_API_SECRET = process.env.CLAUDE_API_SECRET;
  * @param {object} [opts]
  * @param {string} [opts.systemPrompt] - System prompt
  * @param {string} [opts.model] - Model override (default: the `sonnet` alias)
- * @param {string} [opts.effort] - Effort level (default medium)
+ * @param {string} [opts.effort] - Effort level (default high)
  * @param {number} [opts.maxTurns] - Max turns (default 6)
- * @returns {Promise<{text: string, model: string, effort: string|null, usage: object|null}>}
- *   The response text, the model claude-api used, the effort it ran at, and
- *   that model's token/cost counters
+ * @returns {Promise<{text: string, model: string, effort: string|null, usage: object|null, fallback: boolean}>}
+ *   The response text, the model claude-api used, the effort it ran at,
+ *   that model's token/cost counters, and whether it ran on fallback
  */
 export async function askClaude(prompt, opts = {}) {
     // Shared with claude-api so a failure reported here can be matched to the
@@ -40,8 +40,8 @@ export async function askClaude(prompt, opts = {}) {
             // ponytail: an alias, not an id — the CLI resolves it to the newest
             // Sonnet, so a new release is picked up without a code change.
             model: opts.model ?? 'sonnet',
-            // Explicit, so the footer can say what it was.
-            effort: opts.effort ?? 'medium',
+            // Explicit, so the footer can say what it was. Default to high effort.
+            effort: opts.effort ?? 'high',
             // Claude often needs a tool call before it can answer. With a
             // 1-turn budget those runs died at the turn limit, which surfaced
             // as a random "Claude CLI failed" on roughly any question that
@@ -67,12 +67,13 @@ export async function askClaude(prompt, opts = {}) {
     const model = Object.keys(data.result?.modelUsage ?? {})[0] ?? '';
     const usage = toUsage(data.result?.modelUsage?.[model]);
     const effort = data.result?.effort ?? null;
+    const fallback = Boolean(data.result?.fallback);
 
     if (data.result?.result) {
-        return { text: data.result.result, model, effort, usage };
+        return { text: data.result.result, model, effort, usage, fallback };
     }
     if (typeof data.result === 'string') {
-        return { text: data.result, model, effort: null, usage: null };
+        return { text: data.result, model, effort: null, usage: null, fallback };
     }
     const err = new Error('Unexpected response format from Claude API');
     err.requestId = requestId;

@@ -2,11 +2,12 @@ services:
   claude-api:
     build: .
     container_name: claude-api
+    user: "1000:1000"
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     tmpfs:
-      - /tmp:noexec,nosuid,size=50m
+      - /tmp:nosuid,size=100m
     environment:
       - TZ=Asia/Jakarta
       - PORT=3100
@@ -17,22 +18,25 @@ services:
       - MAX_CONCURRENT=${MAX_CONCURRENT:-3}
       - NODE_OPTIONS=--max-old-space-size=256
       - HOME=/home/claude
-      # Fallback path when the CLI's OAuth token (Max subscription) is expired
-      # or otherwise unusable. Used automatically on CLI 401/403/404, through the
-      # Messages API rather than the CLI: src/routes/prompt.js strips this key
-      # from the CLI's environment, because the CLI prefers it over the mounted
-      # claude.ai login and would bill the API on every prompt.
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # Free Gemini fallback via host-mounted Antigravity (agy) CLI when the
+      # Claude Code CLI hits weekly or session usage limits (429) or auth fails.
+      - AGY_BIN=/host-local-bin/agy
+      - FALLBACK_MODEL=${FALLBACK_MODEL:-gemini-3.8-flash}
+      - DEFAULT_EFFORT=${DEFAULT_EFFORT:-high}
     volumes:
       - workspace:/workspace:rw
-      - /home/solork/.claude:/home/claude/.claude:ro
+      # rw (running as 1000:1000) so the CLI can write refreshed OAuth tokens
+      # back to .credentials.json instead of 401-looping once the 8h access
+      # token expires.
+      - /home/solork/.claude:/home/claude/.claude:rw
       # Claude Code CLI stores OAuth account metadata + migration state in
-      # $HOME/.claude.json (separate from .claude/.credentials.json). Without
-      # this mount the CLI boots with a stub and can't authenticate, surfacing
-      # as `Claude configuration file not found at: /home/claude/.claude.json`
-      # in the logs and 500s on every request. rw so the CLI can write its
-      # own migration flags on version bumps.
+      # $HOME/.claude.json (separate from .claude/.credentials.json).
       - /home/solork/.claude.json:/home/claude/.claude.json:rw
+      # Host ~/.local/bin mounted ro to access `agy` without single-file inode
+      # pinning issues when agy auto-updates on the host.
+      - /home/solork/.local/bin:/host-local-bin:ro
+      # Antigravity CLI state and OAuth credentials.
+      - /home/solork/.gemini/antigravity-cli:/home/claude/.gemini/antigravity-cli:rw
     ports:
       - "127.0.0.1:3100:3100"
     networks:
@@ -46,7 +50,7 @@ services:
       resources:
         limits:
           cpus: '1.0'
-          memory: 384M
+          memory: 512M
         reservations:
           cpus: '0.25'
           memory: 128M

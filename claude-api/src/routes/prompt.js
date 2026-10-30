@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
-import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
 
@@ -9,9 +8,18 @@ const router = Router();
 const activeSessions = new Map();
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT || '3', 10);
 
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
+// Cooldown timestamp after hitting a quota or weekly/session limit (429).
+// Bypasses the 6-14s Claude CLI boot penalty on bursty requests while rate-limited.
+let quotaCooldownUntil = 0;
+const QUOTA_COOLDOWN_MS = parseInt(process.env.LIMIT_COOLDOWN_MS || '300000', 10); // 5 min default
+
+export function resetQuotaCooldown() {
+  quotaCooldownUntil = 0;
+}
+
+export function getQuotaCooldownUntil() {
+  return quotaCooldownUntil;
+}
 
 /**
  * POST /api/prompt
@@ -232,7 +240,7 @@ function describeFailure({ parsed, stderr, code, maxTurns }) {
 }
 
 function buildArgs({ prompt, systemPrompt, allowedTools, model, effort, maxTurns, outputFormat = 'json' }) {
-  const args = ['-p', prompt, '--output-format', outputFormat];
+  const args = ['-p', prompt, '--output-format', outputFormat, '--dangerously-skip-permissions'];
 
   // The CLI rejects stream-json without --verbose ("When using --print,
   // --output-format=stream-json requires --verbose"), so /api/prompt/stream
@@ -250,8 +258,9 @@ function buildArgs({ prompt, systemPrompt, allowedTools, model, effort, maxTurns
     args.push('--model', resolvedModel);
   }
 
-  if (effort) {
-    args.push('--effort', effort);
+  const resolvedEffort = effort || process.env.DEFAULT_EFFORT || 'high';
+  if (resolvedEffort) {
+    args.push('--effort', resolvedEffort);
   }
 
   args.push('--max-turns', String(resolveMaxTurns(maxTurns)));
@@ -267,10 +276,21 @@ function buildArgs({ prompt, systemPrompt, allowedTools, model, effort, maxTurns
 
 function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, effort, maxTurns, sessionId, requestId }) {
   return new Promise((resolve, reject) => {
+    const resolvedEffort = effort || process.env.DEFAULT_EFFORT || 'high';
+    const startedAt = Date.now();
+
+    // If we are in an active quota cooldown (Claude recently 429'd or hit weekly limit),
+    // bypass the 6-14s CLI spawn delay and route directly to Antigravity fallback.
+    if (Date.now() < quotaCooldownUntil) {
+      log('info', { event: 'quota_cooldown_active', session_id: sessionId, request_id: requestId });
+      return runAgyFallback({ prompt, systemPrompt, effort: resolvedEffort, workdir, sessionId, requestId, reason: 'quota_cooldown' })
+        .then(resolve)
+        .catch(reject);
+    }
+
     const resolvedModel = resolveModel(model);
     const resolvedMaxTurns = resolveMaxTurns(maxTurns);
-    const args = buildArgs({ prompt, systemPrompt, allowedTools, model, effort, maxTurns });
-    const startedAt = Date.now();
+    const args = buildArgs({ prompt, systemPrompt, allowedTools, model, effort: resolvedEffort, maxTurns });
 
     log('info', { event: 'cli_start', mode: 'json', session_id: sessionId, request_id: requestId, model: resolvedModel, max_turns: resolvedMaxTurns, prompt_chars: prompt.length });
 
@@ -306,6 +326,7 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, effort,
         stop_reason: parsed?.stop_reason || null,
         terminal_reason: parsed?.terminal_reason || null,
         api_error_status: parsed?.api_error_status || null,
+        api_error: parsed?.api_error || null,
         num_turns: parsed?.num_turns ?? null,
         stdout_bytes: stdout.length,
         stdout_parsed: parsed !== null,
@@ -313,23 +334,19 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, effort,
         advisories: advisoryLines(stderr),
       };
 
-      // CLI errors the ANTHROPIC_API_KEY path may recover from: OAuth auth
-      // failures (401/403, expired Max-subscription token) and model-not-found
-      // (404, e.g. a stale CLAUDE_MODEL the subscription can't reach but the API
-      // key can). Fall back to ANTHROPIC_API_KEY so the service keeps working.
-      if (parsed && parsed.is_error && [401, 403, 404].includes(parsed.api_error_status)) {
-        if (!anthropic) {
-          log('error', { event: 'cli_failed', reason: 'auth_no_fallback', ...diagnostics });
-          return reject(new Error(`Claude CLI auth failed (${parsed.api_error_status}) and ANTHROPIC_API_KEY is not set: ${parsed.result || 'no detail'}`));
+      const fallbackReason = shouldFallbackToAgy({ parsed, stderr, code });
+      if (fallbackReason) {
+        if (isQuotaReason(fallbackReason)) {
+          quotaCooldownUntil = Date.now() + QUOTA_COOLDOWN_MS;
         }
-        log('warn', { event: 'cli_fallback', reason: `api_${parsed.api_error_status}`, ...diagnostics });
+        log('warn', { event: 'cli_fallback', reason: fallbackReason, ...diagnostics });
         try {
-          const fallback = await runAnthropicFallback({ prompt, systemPrompt, model });
-          log('info', { event: 'fallback_ok', session_id: sessionId, request_id: requestId, duration_ms: Date.now() - startedAt });
+          const fallback = await runAgyFallback({ prompt, systemPrompt, effort: resolvedEffort, workdir, sessionId, requestId, reason: fallbackReason });
+          log('info', { event: 'fallback_ok', session_id: sessionId, request_id: requestId, duration_ms: Date.now() - startedAt, via: 'agy', model: fallback.modelUsage ? Object.keys(fallback.modelUsage)[0] : 'gemini' });
           return resolve(fallback);
         } catch (fallbackErr) {
           log('error', { event: 'fallback_failed', error: fallbackErr.message, ...diagnostics });
-          return reject(new Error(`CLI auth failed (${parsed.api_error_status}) and API-key fallback failed: ${fallbackErr.message}`));
+          return reject(new Error(`Claude CLI failed (${fallbackReason}) and Antigravity fallback failed: ${fallbackErr.message}`));
         }
       }
 
@@ -341,10 +358,7 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, effort,
       }
 
       log('info', { event: 'cli_done', session_id: sessionId, request_id: requestId, duration_ms: duration, model: resolvedModel, num_turns: parsed?.num_turns ?? null, cost_usd: parsed?.total_cost_usd ?? null });
-      // The CLI's JSON never reports effort, so echo what it was run with —
-      // callers (palu-gada-bot's AI footer) show it. The API fallback leaves it
-      // unset because it doesn't apply it.
-      if (parsed && effort) parsed.effort = effort;
+      if (parsed && resolvedEffort) parsed.effort = resolvedEffort;
       resolve(parsed ?? stdout.trim());
     });
 
@@ -355,57 +369,216 @@ function runClaude({ prompt, systemPrompt, workdir, allowedTools, model, effort,
   });
 }
 
-// Minimal fallback: single-turn Messages API call using ANTHROPIC_API_KEY. Loses
-// CLI-only features (allowedTools, multi-turn), which none of the current
-// callers (parse-text, whatsapp-bot ai.js) rely on.
-async function runAnthropicFallback({ prompt, systemPrompt, model }) {
-  const resolvedModel = await resolveApiModel(model || process.env.CLAUDE_MODEL || 'claude-sonnet-5');
-  const resp = await anthropic.messages.create({
-    model: resolvedModel,
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: prompt }],
-  });
-  const text = resp.content.filter(b => b.type === 'text').map(b => b.text).join('');
-  // An empty text (e.g. stop_reason "refusal") used to resolve as success and
-  // surface in callers as "Unexpected response format"; fail with the reason.
-  // stop_details (category + explanation) is only set on refusals.
-  if (!text) {
-    const d = resp.stop_details;
-    const why = d ? `, category: ${d.category ?? 'none'}, explanation: ${d.explanation ?? 'none'}` : '';
-    throw new Error(`Messages API returned no text (stop_reason: ${resp.stop_reason}${why})`);
+/**
+ * Determines whether a failed Claude CLI call should fall back to Antigravity (Gemini).
+ * Covers:
+ *  - 429: rate limits, session limits, weekly limits
+ *  - 401/403: OAuth expired / unauthorized
+ *  - 404: model not found
+ *  - 529: Anthropic overloaded
+ *  - Text match on stderr / result: "You've hit your weekly limit", "usage limit reached", etc.
+ */
+export function shouldFallbackToAgy({ parsed, stderr, code }) {
+  const status = parsed?.api_error_status;
+  if (status === 429) return 'api_429';
+  if ([401, 403, 404, 529].includes(status)) return `api_${status}`;
+
+  if (parsed?.api_error === 'usage_limit_reached' || parsed?.subtype === 'usage_limit_reached') {
+    return 'quota_limit';
   }
+
+  if (parsed?.is_error || code !== 0) {
+    const combined = `${parsed?.result || ''}\n${parsed?.error || ''}\n${stripAdvisories(stderr)}`;
+    if (/\b(hit your (?:weekly |session )?limit|weekly limit|session limit|usage limit|rate[_ -]?limit|too many requests)\b/i.test(combined)) {
+      return 'quota_limit';
+    }
+  }
+
+  return null;
+}
+
+export function isQuotaReason(reason) {
+  return reason === 'api_429' || reason === 'quota_limit' || reason === 'quota_cooldown';
+}
+
+/**
+ * Resolves the Antigravity model and effort tier.
+ * Effort defaults to 'high' as configured.
+ */
+export function resolveFallbackModel(effort) {
+  const base = process.env.FALLBACK_MODEL || 'gemini-3.8-flash';
+  const rawEffort = String(effort || process.env.DEFAULT_EFFORT || 'high').toLowerCase();
+  const tier = ['low', 'medium', 'high'].includes(rawEffort)
+    ? rawEffort
+    : (['xhigh', 'max'].includes(rawEffort) ? 'high' : 'high');
+
+  // If base already carries a tier suffix (e.g. gpt-oss-120b-medium), preserve it
+  const match = base.match(/^(.+)-(low|medium|high)$/);
+  if (match) {
+    return {
+      agyModel: base,
+      canonicalModel: match[1],
+      effort: match[2],
+    };
+  }
+
   return {
-    type: 'result',
-    subtype: 'success',
-    is_error: false,
-    result: text,
-    via: 'anthropic-api-fallback',
-    usage: resp.usage,
-    // Same shape as the CLI's own modelUsage, so callers reading token counts
-    // (palu-gada-bot's AI footer) don't go blank whenever a call falls back.
-    // costUSD stays null: the CLI computes it, we don't keep a price table.
-    modelUsage: {
-      [resolvedModel]: {
-        inputTokens: resp.usage?.input_tokens ?? 0,
-        outputTokens: resp.usage?.output_tokens ?? 0,
-        cacheReadInputTokens: resp.usage?.cache_read_input_tokens ?? 0,
-        cacheCreationInputTokens: resp.usage?.cache_creation_input_tokens ?? 0,
-        costUSD: null,
-      },
-    },
+    agyModel: `${base}-${tier}`,
+    canonicalModel: base,
+    effort: tier,
   };
 }
 
-// CLI aliases (sonnet, opus, haiku) track the newest model, but the Messages
-// API only knows full ids. /v1/models lists newest first, so the first id of
-// that family is what the alias would have picked.
-async function resolveApiModel(model) {
-  if (model.startsWith('claude-')) return model;
-  const { data } = await anthropic.get('/v1/models', { query: { limit: 100 } });
-  const match = data.find(m => m.id.includes(`-${model}-`));
-  if (!match) throw new Error(`no Messages API model matches alias "${model}"`);
-  return match.id;
+/**
+ * Safely parses the output from `agy -p ... --output-format json`.
+ * Scans the lines in reverse to find the JSON object line even if preceding lines
+ * contain tool denial notices or other output.
+ */
+export function parseAgyJson(stdout) {
+  const trimmed = (stdout || '').trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // fall through
+  }
+
+  const lines = trimmed.split('\n').map(l => l.trim()).filter(l => l.startsWith('{') && l.endsWith('}'));
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      return JSON.parse(lines[i]);
+    } catch {
+      // keep looking
+    }
+  }
+  return null;
+}
+
+/**
+ * Invokes the Antigravity CLI as a fallback engine using Gemini.
+ * Enables browsing and web grounding via --dangerously-skip-permissions.
+ */
+export function runAgyFallback({ prompt, systemPrompt, effort, workdir, sessionId, requestId, reason }) {
+  return new Promise((resolve, reject) => {
+    const { agyModel, canonicalModel, effort: resolvedEffort } = resolveFallbackModel(effort);
+    const agyBin = process.env.AGY_BIN || 'agy';
+    const fullPrompt = systemPrompt ? `System instructions: ${systemPrompt}\n\n${prompt}` : prompt;
+
+    // --dangerously-skip-permissions allows tools like search_web, read_url_content, and curl
+    // to execute in headless mode without prompting for approvals.
+    const args = [
+      '-p', fullPrompt,
+      '--model', agyModel,
+      '--output-format', 'json',
+      '--disable-slash-commands',
+      '--dangerously-skip-permissions',
+      '--print-timeout', '120s',
+    ];
+
+    const startedAt = Date.now();
+    log('info', {
+      event: 'agy_start',
+      session_id: sessionId,
+      request_id: requestId,
+      model: agyModel,
+      effort: resolvedEffort,
+      reason,
+      prompt_chars: fullPrompt.length,
+    });
+
+    const proc = spawn(agyBin, args, {
+      env: cliEnv(),
+      cwd: workdir || '/tmp',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    proc.on('close', (code) => {
+      const duration = Date.now() - startedAt;
+      const parsed = parseAgyJson(stdout);
+
+      if (code !== 0 || !parsed || parsed.status !== 'SUCCESS') {
+        const errorDetail = parsed?.error || stripAdvisories(stderr) || (parsed ? `status ${parsed.status}` : `exited with code ${code}`);
+        log('error', {
+          event: 'agy_failed',
+          session_id: sessionId,
+          request_id: requestId,
+          exit_code: code,
+          duration_ms: duration,
+          model: agyModel,
+          detail: errorDetail,
+        });
+        return reject(new Error(`Antigravity fallback failed: ${errorDetail}`));
+      }
+
+      const text = typeof parsed.response === 'string' ? parsed.response.trim() : '';
+      if (!text) {
+        const denied = Array.isArray(parsed.denied_actions) && parsed.denied_actions.length
+          ? ` (denied actions: ${parsed.denied_actions.map(d => d.action).join(', ')})`
+          : '';
+        return reject(new Error(`Antigravity fallback produced no text${denied}`));
+      }
+
+      const usage = parsed.usage || {};
+      const inputTokens = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0;
+      const outputTokens = (typeof usage.output_tokens === 'number' ? usage.output_tokens : 0) +
+                           (typeof usage.thinking_tokens === 'number' ? usage.thinking_tokens : 0);
+      const cacheReadTokens = typeof usage.cache_read_tokens === 'number' ? usage.cache_read_tokens : 0;
+
+      log('info', {
+        event: 'agy_done',
+        session_id: sessionId,
+        request_id: requestId,
+        duration_ms: duration,
+        model: canonicalModel,
+        effort: resolvedEffort,
+        tokens_in: inputTokens,
+        tokens_out: outputTokens,
+      });
+
+      resolve({
+        type: 'result',
+        subtype: 'success',
+        is_error: false,
+        result: text,
+        fallback: true,
+        fallback_reason: reason,
+        via: 'agy-fallback',
+        effort: resolvedEffort,
+        conversation_id: parsed.conversation_id || null,
+        usage: {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          cache_read_input_tokens: cacheReadTokens,
+          cache_creation_input_tokens: 0,
+        },
+        modelUsage: {
+          [canonicalModel]: {
+            inputTokens,
+            outputTokens,
+            cacheReadInputTokens: cacheReadTokens,
+            cacheCreationInputTokens: 0,
+            costUSD: null,
+          },
+        },
+      });
+    });
+
+    proc.on('error', (err) => {
+      log('error', {
+        event: 'agy_spawn_failed',
+        session_id: sessionId,
+        request_id: requestId,
+        error: err.message,
+      });
+      reject(err);
+    });
+  });
 }
 
 export default router;

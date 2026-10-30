@@ -162,8 +162,9 @@ JSON:`;
         let model;
         let usage;
         let effort;
+        let fallback;
         try {
-            ({ text: rawResponse, model, effort, usage } = await askClaude(prompt, { systemPrompt: SYSTEM_PROMPT }));
+            ({ text: rawResponse, model, effort, usage, fallback } = await askClaude(prompt, { systemPrompt: SYSTEM_PROMPT }));
         } catch (error) {
             await logCommandError(interaction, error, 'fallacy');
             let msg = 'Failed to analyze chat history for fallacies.';
@@ -199,7 +200,7 @@ JSON:`;
                     color: 0x5865F2,
                     title: '🧐 No Logical Fallacies Detected',
                     description: `Analyzed the last ${kept.length} messages in ${channel} — nothing stood out.`,
-                    footer: getAiFooter('', model, usage, effort),
+                    footer: getAiFooter('', model, usage, effort, fallback),
                     timestamp: new Date().toISOString(),
                 }],
             });
@@ -234,7 +235,7 @@ JSON:`;
                     value: `${kept.length} messages in ${channel}`,
                     inline: true,
                 }],
-                footer: getAiFooter('', model, usage, effort),
+                footer: getAiFooter('', model, usage, effort, fallback),
                 timestamp: new Date().toISOString(),
             }],
         });
