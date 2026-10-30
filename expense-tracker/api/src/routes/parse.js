@@ -139,7 +139,7 @@ router.post('/image', sanitizeBase64Image, parseImageValidators, async (req, res
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 1000,
+      max_tokens: 2000,
       messages: [{
         role: 'user',
         content: [
@@ -156,9 +156,9 @@ router.post('/image', sanitizeBase64Image, parseImageValidators, async (req, res
             text: `First classify this image, then extract data.
 
 Set "kind" to:
-- "expense" if it is a receipt, invoice, bill, purchase, or payment/transfer proof (money spent or received)
+- "expense" if it is a receipt, invoice, bill, purchase, or payment/transfer proof (money spent or received). This includes e-commerce/delivery app screenshots (Shopee, Tokopedia, Lazada, GoFood, GrabFood, etc.) of an order list, order detail or checkout that show what was paid
 - "food" if it is a photo of food or a meal/drink to estimate nutrition for
-- "unknown" if it is neither (e.g. screenshot, person, scenery, order tracking)
+- "unknown" if it is neither (e.g. person, scenery, a screenshot with no amount paid)
 
 EXPENSE categories:
 ${expenseCategoryList}
@@ -178,6 +178,9 @@ If kind is "expense", return ONLY this JSON:
   "items": ["<item1>", "<item2>"],
   "confidence": <0-1>
 }
+
+For an app order screenshot, "amount" is the order total actually paid (e.g. "Total pesanan" / "Total N produk"), not the item's list or strikethrough price, "vendor" is the shop name, and "description" is the product.
+If the image shows SEVERAL separate orders or receipts, return ONLY {"kind": "expense", "transactions": [<one object per order, each with the expense fields above except "kind">]}.
 
 If kind is "food", estimate nutrition and return ONLY this JSON:
 {

@@ -115,27 +115,45 @@ export async function handleImageTransaction(sock, msg, jid, caption = '') {
       console.error('Failed to save image:', error);
     }
 
-    const transaction = await createExpense({
-      amount: parsed.amount,
-      description: parsed.description,
-      vendor: parsed.vendor,
-      category_id: parsed.category_id,
-      date: parsed.date,
-      type: parsed.type || 'expense',
-      source: 'whatsapp_image',
-      image_url: imageUrl,
-      raw_text: caption || null
-    }, meta);
+    // An order-list screenshot can hold several orders; each becomes its own row.
+    const entries = parsed.transactions?.length ? parsed.transactions : [parsed];
+    const recorded = [];
+    for (const entry of entries) {
+      recorded.push(await createExpense({
+        amount: entry.amount,
+        description: entry.description,
+        vendor: entry.vendor,
+        category_id: entry.category_id,
+        date: entry.date,
+        type: entry.type || 'expense',
+        source: 'whatsapp_image',
+        image_url: imageUrl,
+        raw_text: caption || null
+      }, meta));
+    }
 
-    const isIncome = parsed.type === 'income';
     const inputCost = (parsed.usage?.input_tokens || 0) * 0.000003;
     const outputCost = (parsed.usage?.output_tokens || 0) * 0.000015;
     const totalCost = (inputCost + outputCost).toFixed(6);
+    const tokens = `Tokens: ${parsed.usage?.input_tokens || 0}/${parsed.usage?.output_tokens || 0} (~$${totalCost})`;
 
+    if (recorded.length > 1) {
+      const lines = recorded.map((t, i) => `${i + 1}. ${formatCurrency(t.amount)} - ${t.vendor || '-'}: ${t.description || '-'}`);
+      const total = recorded.reduce((sum, t) => sum + Number(t.amount), 0);
+      return reply(
+        sock,
+        jid,
+        `${recorded.length} expenses recorded\n\n${lines.join('\n')}\n\nTotal: ${formatCurrency(total)}${imageUrl ? '\nImage: saved' : ''}\n\n${tokens}`,
+        msg
+      );
+    }
+
+    const [transaction] = recorded;
+    const isIncome = parsed.type === 'income';
     await reply(
       sock,
       jid,
-      `${isIncome ? 'Income proof recorded' : 'Receipt recorded'}\n\nAmount: ${formatCurrency(transaction.amount)}\n${isIncome ? 'From' : 'Vendor'}: ${transaction.vendor || '-'}\nDescription: ${transaction.description || '-'}\nDate: ${transaction.date}${parsed.items?.length ? `\nItems: ${parsed.items.slice(0, 5).join(', ')}` : ''}${imageUrl ? '\nImage: saved' : ''}\n\nConfidence: ${Math.round((parsed.confidence || 0) * 100)}% | Tokens: ${parsed.usage?.input_tokens || 0}/${parsed.usage?.output_tokens || 0} (~$${totalCost})`,
+      `${isIncome ? 'Income proof recorded' : 'Receipt recorded'}\n\nAmount: ${formatCurrency(transaction.amount)}\n${isIncome ? 'From' : 'Vendor'}: ${transaction.vendor || '-'}\nDescription: ${transaction.description || '-'}\nDate: ${transaction.date}${parsed.items?.length ? `\nItems: ${parsed.items.slice(0, 5).join(', ')}` : ''}${imageUrl ? '\nImage: saved' : ''}\n\nConfidence: ${Math.round((parsed.confidence || 0) * 100)}% | ${tokens}`,
       msg
     );
   } catch (error) {
