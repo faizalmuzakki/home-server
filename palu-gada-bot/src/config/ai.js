@@ -8,10 +8,24 @@ import { getConfig } from '../database/models.js';
 export const COST_FOOTER_KEY = 'ai_cost_footer';
 
 /**
- * Turns a model id into a display name: claude-sonnet-4-6 -> Claude Sonnet 4.6
+ * Turns a model id into a display name:
+ * claude-sonnet-4-6 -> Claude Sonnet 4.6
+ * gemini-3.8-flash -> Gemini 3.8 Flash
+ * gpt-oss-120b -> GPT-OSS 120B
+ * qwen-2.1 -> Qwen 2.1
  */
-const prettyModel = (id) =>
-    id.replace(/-(\d+)-(\d+)$/, ' $1.$2').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+export const prettyModel = (id) => {
+    if (!id) return '';
+    return id
+        .replace(/^[^/]+\//, '')
+        .replace(/:free$/i, '')
+        .replace(/-\d{8}$/, '')
+        .replace(/-(\d+)-(\d+)$/, ' $1.$2')
+        .replace(/\b(\d+)b\b/gi, (m, n) => `${n}B`)
+        .replace(/-/g, ' ')
+        .replace(/\bgpt oss\b/gi, 'GPT-OSS')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+};
 
 /**
  * 18569 -> 18.6k. Raw digits for anything under a thousand.
@@ -29,12 +43,20 @@ const formatCost = (usd) => `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`;
  * reading the opt-in.
  * @returns {{text: string}} The footer object
  */
-export const formatAiFooter = ({ extraText = '', model = '', effort = null, usage = null, showCost = false }) => {
+export const formatAiFooter = ({
+    extraText = '',
+    model = '',
+    effort = null,
+    usage = null,
+    fallback = false,
+    showCost = false,
+}) => {
     // ponytail: the model is whatever claude-api actually used — never hardcode a
     // name here, the footer lied about the model for months that way.
+    const modelLabel = model ? prettyModel(model) : (fallback ? 'AI' : 'Claude');
     const parts = [
         extraText,
-        `Powered by ${model ? prettyModel(model) : 'Claude'}`,
+        `Powered by ${modelLabel}${fallback ? ' (fallback)' : ''}`,
         effort ? `${effort} effort` : '',
     ];
 
@@ -62,14 +84,16 @@ export const formatAiFooter = ({ extraText = '', model = '', effort = null, usag
  * @param {string} [model] - Model id reported by claude-api for this call.
  * @param {object} [usage] - Token counters from askClaude, when available.
  * @param {string} [effort] - Effort level claude-api ran the call at.
+ * @param {boolean} [fallback] - Whether the call was served by a fallback model.
  * @returns {{text: string}} The footer object
  */
-export const getAiFooter = (extraText = '', model = '', usage = null, effort = null) =>
+export const getAiFooter = (extraText = '', model = '', usage = null, effort = null, fallback = false) =>
     formatAiFooter({
         extraText,
         model,
         effort,
         usage,
+        fallback,
         showCost: getConfig(COST_FOOTER_KEY, false) === true,
     });
 

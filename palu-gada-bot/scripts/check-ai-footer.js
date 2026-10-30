@@ -62,6 +62,39 @@ check(
     'Tone: friendly • Powered by Claude Sonnet 5 • high effort • 2 in / 10 out / 29.2k cached'
 );
 
+check(
+    'fallback model appends (fallback) tag',
+    formatAiFooter({
+        model: 'gemini-3.8-flash',
+        effort: 'high',
+        fallback: true,
+        usage: { inputTokens: 8003, outputTokens: 120, cachedTokens: 0, costUSD: null },
+    }).text,
+    'Powered by Gemini 3.8 Flash (fallback) • high effort • 8.0k in / 120 out'
+);
+
+check(
+    'open-weight model id renders correctly in fallback',
+    formatAiFooter({
+        model: 'gpt-oss-120b',
+        effort: 'high',
+        fallback: true,
+        usage: { inputTokens: 500, outputTokens: 50, cachedTokens: 0, costUSD: null },
+    }).text,
+    'Powered by GPT-OSS 120B (fallback) • high effort • 500 in / 50 out'
+);
+
+check(
+    'qwen model id renders correctly with extra text and fallback',
+    formatAiFooter({
+        extraText: 'Tone: casual',
+        model: 'qwen-2.1',
+        effort: 'high',
+        fallback: true,
+    }).text,
+    'Tone: casual • Powered by Qwen 2.1 (fallback) • high effort'
+);
+
 if (failures > 0) {
     console.error(`\n${failures} footer check(s) failed.`);
     process.exit(1);

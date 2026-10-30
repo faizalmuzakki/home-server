@@ -1,4 +1,3 @@
-import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
@@ -28,6 +27,7 @@ if (process.env.DEPLOY_ONLY === 'true') {
         close: () => { },
     };
 } else {
+    const Database = (await import('better-sqlite3')).default;
     db = new Database(dbPath);
 
     // Enable WAL mode for better performance

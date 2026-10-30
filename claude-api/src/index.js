@@ -39,9 +39,25 @@ function verifyClaudeAuth() {
 
 try {
   verifyClaudeAuth();
+  checkAgyFallback();
 } catch (err) {
   console.error('Claude auth check failed:', err.message);
   process.exit(1);
+}
+
+function checkAgyFallback() {
+  const home = process.env.HOME || '/home/claude';
+  const agyBin = process.env.AGY_BIN || 'agy';
+  const tokenPath = path.join(home, '.gemini', 'antigravity-cli', 'antigravity-oauth-token');
+
+  const hasBin = fs.existsSync(agyBin) || Boolean(process.env.PATH?.split(':').some(p => fs.existsSync(path.join(p, agyBin))));
+  const hasToken = fs.existsSync(tokenPath) || Boolean(process.env.GEMINI_API_KEY);
+
+  if (hasBin && hasToken) {
+    console.log(`Antigravity fallback ready (bin: ${agyBin}, model: ${process.env.FALLBACK_MODEL || 'gemini-3.8-flash'})`);
+  } else {
+    console.warn(`Antigravity fallback not fully ready (hasBin: ${hasBin}, hasToken: ${hasToken})`);
+  }
 }
 
 const app = express();
